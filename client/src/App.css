@@ -615,6 +615,31 @@ button:disabled {
   border-radius: 999px;
 }
 
+.game-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.game-result-text {
+  font-size: clamp(36px, 6vw, 84px);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 16px 28px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.game-result-text.lose {
+  color: #ffdddd;
+}
+
 @media (max-width: 1400px) {
   :root {
     --sidebar-w: 220px;

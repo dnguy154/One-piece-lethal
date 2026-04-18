@@ -746,6 +746,7 @@ function App() {
   const [actionMode, setActionMode] = useState("idle");
   const [selectedAttackerId, setSelectedAttackerId] = useState(null);
   const [message, setMessage] = useState("");
+  const [hasConceded, setHasConceded] = useState(false);
 
   useEffect(() => {
     axios
@@ -767,6 +768,7 @@ function App() {
         setSelectedDonId(null);
         setSelectedAttackerId(null);
         setActionMode("idle");
+        setHasConceded(false);
       })
       .catch((err) => console.error("Error fetching scenario:", err));
   }, [scenarioId]);
@@ -850,7 +852,17 @@ const { nextState, resultMessage } = resolveAttack(
     setSelectedDonIds([]);
     setSelectedAttackerId(null);
     setActionMode("idle");
+    setHasConceded(false);
   };
+
+  const handleConcede = () => {
+  setHasConceded(true);
+  setMessage("");
+  setSelectedDonIds([]);
+  setSelectedAttackerId(null);
+  setActionMode("idle");
+  setHoveredCard(null);
+};
 
   const handleDonClick = (donId) => {
   setHoveredCard(null);
@@ -893,96 +905,29 @@ const { nextState, resultMessage } = resolveAttack(
             <img src={hoveredCard.image} alt={hoveredCard.name} />
           </div>
         )}
+        {hasConceded && (
+  <div className="game-result-overlay">
+    <div className="game-result-text lose">You Lose</div>
+  </div>
+)}
 
-        <aside className="sidebar">
-          <section className="panel">
-            <h1>{scenario.title}</h1>
-            <p><strong>Difficulty:</strong> {scenario.difficulty}</p>
-            <p><strong>Scenario ID:</strong> {scenario.id}</p>
-          </section>
+<aside className="sidebar">
+  <section className="panel">
+    <h1>{scenario.title}</h1>
+  </section>
 
-          <section className="panel">
-            <h2>Navigation</h2>
-            <div className="button-stack">
-              <button
-                onClick={() => setScenarioId((prev) => Math.max(prev - 1, 1))}
-                disabled={scenarioId === 1}
-              >
-                Previous
-              </button>
-              <button
-                onClick={() =>
-                  setScenarioId((prev) => Math.min(prev + 1, scenarioList.length))
-                }
-                disabled={scenarioId === scenarioList.length}
-              >
-                Next
-              </button>
-            </div>
-          </section>
+  {message && (
+    <section className="panel">
+      <h2>Feedback</h2>
+      <p>{message}</p>
+    </section>
+  )}
 
-          <section className="panel">
-            <h2>Current Step</h2>
-            <p>{currentStep.prompt}</p>
-
-            {!isFinished ? (
-              <div className="action-list">
-                {currentStep.options.map((option, index) => (
-                  <button
-                    key={index}
-                    className="full-button"
-                    onClick={() => chooseOption(option)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className={`result-box ${currentStep.result === "win" ? "correct" : "wrong"}`}>
-                {currentStep.result === "win" ? "You solved it." : "Wrong line."}
-              </div>
-            )}
-          </section>
-
-          <section className="panel">
-            <h2>Chosen Actions</h2>
-            {history.length === 0 ? (
-              <p>No actions selected yet.</p>
-            ) : (
-              <ol className="sequence-list">
-                {history.map((step, index) => (
-                  <li key={index}>{step}</li>
-                ))}
-              </ol>
-            )}
-
-            <div className="action-list">
-              <button onClick={resetScenario}>Reset Scenario</button>
-            </div>
-          </section>
-
-          {message && (
-            <section className="panel">
-              <h2>Feedback</h2>
-              <p>{message}</p>
-            </section>
-          )}
-
-          <section className="panel">
-            <h2>Scenario List</h2>
-            <div className="scenario-links">
-              {scenarioList.map((item) => (
-                <button
-                  key={item.id}
-                  className={`scenario-link ${item.id === scenarioId ? "active" : ""}`}
-                  onClick={() => setScenarioId(item.id)}
-                >
-                  #{item.id} - {item.title}
-                </button>
-              ))}
-            </div>
-          </section>
-        </aside>
+  <section className="panel">
+    <button onClick={resetScenario}>Reset Scenario</button>
+    <button onClick={handleConcede}>Concede</button>
+  </section>
+</aside>
       </div>
     </div>
   );
