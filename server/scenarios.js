@@ -12,7 +12,12 @@ const scenarios = [
           { id: 2, rested: false, attachedTo: null },
           { id: 3, rested: false, attachedTo: null },
           { id: 4, rested: false, attachedTo: null },
-          { id: 5, rested: false, attachedTo: null }
+          { id: 5, rested: false, attachedTo: null },
+          { id: 6, rested: false, attachedTo: null },
+          { id: 7, rested: false, attachedTo: null },
+          { id: 8, rested: false, attachedTo: null },
+          { id: 9, rested: false, attachedTo: null },
+          { id: 10, rested: false, attachedTo: null }
         ],
         leader: {
           cardId: "OP15-002",
@@ -38,7 +43,8 @@ const scenarios = [
         life: 1,
         don: [
           { id: 1, rested: false, attachedTo: null },
-          { id: 2, rested: false, attachedTo: null }
+          { id: 2, rested: false, attachedTo: null },
+          { id: 3, rested: false, attachedTo: null }
         ],
         leader: { cardId: "OP15-039", instanceId: "opponent-leader", attachedDon: [], rested: false },
         hand: [{ cardId: "OP15-040" }],

@@ -12,7 +12,8 @@ function CardTile({
   setHoveredCard,
   onClick,
   powerValue,
-  attachedDonCount = 0
+  attachedDonCount = 0,
+  disableHoverPreview = false
 }) {
   const className = `card-tile ${variant}`;
 
@@ -20,18 +21,26 @@ function CardTile({
   if (!card) return <div className={`${className} card-empty`} />;
 
   return (
-<div
-  className={className}
-  onMouseEnter={() => setHoveredCard?.(card)}
-  onMouseLeave={() => setHoveredCard?.(null)}
-  onClick={() => onClick?.(card)}
->
-  <img src={card.image} alt={card.name} className="card-image" />
-  {powerValue ? <div className="power-badge">{powerValue}</div> : null}
-  {attachedDonCount > 0 ? (
-    <div className="attached-don-badge">+{attachedDonCount} DON</div>
-  ) : null}
-</div>
+    <div
+      className={className}
+      onMouseEnter={() => {
+        if (!disableHoverPreview) {
+          setHoveredCard?.(card);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!disableHoverPreview) {
+          setHoveredCard?.(null);
+        }
+      }}
+      onClick={() => onClick?.(card)}
+    >
+      <img src={card.image} alt={card.name} className="card-image" />
+      {powerValue ? <div className="power-badge">{powerValue}</div> : null}
+      {attachedDonCount > 0 ? (
+        <div className="attached-don-badge">+{attachedDonCount} DON</div>
+      ) : null}
+    </div>
   );
 }
 
@@ -44,23 +53,25 @@ function DonCard({ rested = false, small = true }) {
 }
 
 function DonArea({ don, selectedDonId, onDonClick }) {
+
   const donCards = Array.isArray(don)
     ? don.filter((donCard) => donCard.attachedTo === null)
     : Array.from({ length: Number(don) || 0 }, (_, index) => ({
-        id: index + 1,
-        rested: false,
-        attachedTo: null
-      }));
-
+      id: index + 1,
+      rested: false,
+      attachedTo: null
+    }));
   return (
     <div className="don-area">
       {donCards.map((donCard, index) => (
         <div
           key={donCard.id ?? index}
-          className={`don-stack-item ${
-            selectedDonId === donCard.id ? "selected-don" : ""
-          }`}
-          style={{ left: `${index * 14}px`, zIndex: index + 1 }}
+          className={`don-stack-item ${selectedDonId === donCard.id ? "selected-don" : ""
+            }`}
+          style={{
+            left: `calc(${index} * min(25px, (100% - var(--don-card-w)) / 9))`,
+            zIndex: index + 1
+          }}
           onClick={() => {
             if (donCard.attachedTo === null) {
               onDonClick?.(donCard.id);
@@ -73,6 +84,7 @@ function DonArea({ don, selectedDonId, onDonClick }) {
     </div>
   );
 }
+
 function LifeStack({ count }) {
   const cards = Array.from({ length: count || 0 });
 
@@ -83,7 +95,7 @@ function LifeStack({ count }) {
           key={index}
           className="life-card"
           style={{
-            top: `${index * 10}px`,
+            top: `${index * 20}px`,
             zIndex: index + 1
           }}
         >
@@ -103,29 +115,36 @@ function Zone({ title, children, className = "" }) {
   );
 }
 
-function CharacterCards({ cards, setHoveredCard, onCardClick }) {
+function CharacterCards({ cards = [], setHoveredCard, onCardClick, disableHoverPreview = false  }) {
+  const slots = Array.from({ length: 5 }, (_, index) => cards[index] || null);
+
   return (
     <div className="character-cards">
-      {cards?.map((card, index) => (
-        <CardTile
-          key={`${card.id || card.name}-${index}`}
-          card={card}
-          variant="board"
-          setHoveredCard={setHoveredCard}
-          onClick={onCardClick}
-          powerValue={getDisplayedPower(card)}
-          attachedDonCount={card.attachedDon?.length || 0}
-        />
+      {slots.map((card, index) => (
+        <div
+          key={card?.instanceId || `slot-${index}`}
+          className="character-slot"
+        >
+          <CardTile
+            card={card}
+            variant="board"
+            setHoveredCard={setHoveredCard}
+            onClick={card ? onCardClick : undefined}
+            powerValue={card ? getDisplayedPower(card) : undefined}
+            attachedDonCount={card?.attachedDon?.length || 0}
+            disableHoverPreview={disableHoverPreview}
+          />
+        </div>
       ))}
     </div>
   );
 }
 
-function OpponentBoard({ data, setHoveredCard }) {
+function HandColumn({ cards, setHoveredCard }) {
   return (
-    <div className="board-area opponent-board">
-      <div className="hand-strip top-hand">
-        {data.hand?.map((card, index) => (
+    <div className="hand-column">
+      <div className="hand-strip side-hand-horizontal">
+        {cards?.map((card, index) => (
           <CardTile
             key={`${card.id || card.name}-${index}`}
             card={card}
@@ -134,42 +153,54 @@ function OpponentBoard({ data, setHoveredCard }) {
           />
         ))}
       </div>
+    </div>
+  );
+}
+function OpponentBoard({ data, setHoveredCard }) {
+  return (
+    <div className="board-area opponent-board">
+      <div className="board-body side-hand-layout">
+        <HandColumn cards={data.hand} setHoveredCard={setHoveredCard} />
 
-      <div className="board-body">
         <div className="life-column">
           <LifeStack count={data.life ?? 0} />
         </div>
 
-        <div className="playmat">
-          <div className="resource-split-row">
-            <Zone title="DON!! Area" className="don-zone">
-              <DonArea don={data.don} selectedDonId={null} onDonClick={() => {}} />
+        <div className="playmat compact-playmat opponent-flipped">
+          <div className="resource-split-row compact-resource-row">
+            <Zone title="DON!! Area" className="don-zone compact-zone">
+              <DonArea don={data.don} selectedDonId={null} onDonClick={() => { }} />
             </Zone>
 
-            <Zone title="Trash" className="trash-zone">
+            <Zone title="Trash" className="trash-zone compact-zone">
               <div className="stack-card trash-box">{data.trashCount ?? 0}</div>
             </Zone>
           </div>
 
-          <div className="mid-row opponent-mid-row">
-            <Zone title="Deck" className="deck-zone">
+          <div className="mid-row opponent-mid-row compact-mid-row">
+            <Zone title="Leader" className="leader-zone compact-zone">
+              <CardTile
+                card={data.leader || null}
+                variant="leader"
+                setHoveredCard={setHoveredCard}
+                powerValue={getDisplayedPower(data.leader)}
+                attachedDonCount={data.leader?.attachedDon?.length || 0}
+              />
+            </Zone>
+
+            <Zone title="Stage" className="stage-zone compact-zone">
+              <CardTile
+                card={data.stage || null}
+                variant="stage"
+                setHoveredCard={setHoveredCard}
+              />
+            </Zone>
+
+            <Zone title="Deck" className="deck-zone compact-zone">
               <div className="deck-stack">
                 <img src="/images/card_back.png" className="deck-card" alt="Deck" />
                 <div className="deck-count">{data.deckCount ?? 40}</div>
               </div>
-            </Zone>
-
-<Zone title="Stage" className="stage-zone">
-  <CardTile
-    card={data.stage || null}
-    variant="stage"
-    setHoveredCard={setHoveredCard}
-  />
-</Zone>
-
-            <Zone title="Leader" className="leader-zone">
-              <CardTile card={data.leader || null} variant="leader" setHoveredCard={setHoveredCard} powerValue={getDisplayedPower(data.leader)}/>
-
             </Zone>
           </div>
 
@@ -179,47 +210,52 @@ function OpponentBoard({ data, setHoveredCard }) {
         </div>
       </div>
     </div>
+
   );
 }
 
-function PlayerBoard({ data, setHoveredCard, selectedDonId, onDonClick, onAttachTargetClick }) {
+function PlayerBoard({ data, setHoveredCard, selectedDonId, onDonClick, onAttachTargetClick, disableHoverPreview = false }) {
   return (
     <div className="board-area player-board">
-      <div className="board-body">
+      <div className="board-body side-hand-layout">
+        <HandColumn cards={data.hand} setHoveredCard={setHoveredCard} />
+
         <div className="life-column">
           <LifeStack count={data.life ?? 0} />
         </div>
 
-        <div className="playmat">
+        <div className="playmat compact-playmat">
           <Zone title="Character Area" className="character-zone">
             <CharacterCards
               cards={data.board}
               setHoveredCard={setHoveredCard}
               onCardClick={onAttachTargetClick}
+              disableHoverPreview={!!selectedDonId}
             />
           </Zone>
 
-          <div className="mid-row player-mid-row">
-<Zone title="Leader" className="leader-zone">
-  <CardTile
-    card={data.leader || null}
-    variant="leader"
-    setHoveredCard={setHoveredCard}
-    onClick={onAttachTargetClick}
-    powerValue={getDisplayedPower(data.leader)}
-    attachedDonCount={data.leader?.attachedDon?.length || 0}
-  />
-</Zone>
+          <div className="mid-row player-mid-row compact-mid-row">
+            <Zone title="Leader" className="leader-zone compact-zone">
+              <CardTile
+                card={data.leader || null}
+                variant="leader"
+                setHoveredCard={setHoveredCard}
+                onClick={onAttachTargetClick}
+                powerValue={getDisplayedPower(data.leader)}
+                attachedDonCount={data.leader?.attachedDon?.length || 0}
+                disableHoverPreview={!!selectedDonId}
+              />
+            </Zone>
 
-<Zone title="Stage" className="stage-zone">
-  <CardTile
-    card={data.stage || null}
-    variant="stage"
-    setHoveredCard={setHoveredCard}
-  />
-</Zone>
+            <Zone title="Stage" className="stage-zone compact-zone">
+              <CardTile
+                card={data.stage || null}
+                variant="stage"
+                setHoveredCard={setHoveredCard}
+              />
+            </Zone>
 
-            <Zone title="Deck" className="deck-zone">
+            <Zone title="Deck" className="deck-zone compact-zone">
               <div className="deck-stack">
                 <img src="/images/card_back.png" className="deck-card" alt="Deck" />
                 <div className="deck-count">{data.deckCount ?? 40}</div>
@@ -227,31 +263,20 @@ function PlayerBoard({ data, setHoveredCard, selectedDonId, onDonClick, onAttach
             </Zone>
           </div>
 
-          <div className="resource-split-row">
-            <Zone title="DON!! Area" className="don-zone">
+          <div className="resource-split-row compact-resource-row">
+            <Zone title="DON!! Area" className="don-zone compact-zone">
               <DonArea
-  don={data.don}
-  selectedDonId={selectedDonId}
-  onDonClick={onDonClick}
-/>
+                don={data.don}
+                selectedDonId={selectedDonId}
+                onDonClick={onDonClick}
+              />
             </Zone>
 
-            <Zone title="Trash" className="trash-zone">
+            <Zone title="Trash" className="trash-zone compact-zone">
               <div className="stack-card trash-box">{data.trashCount ?? 0}</div>
             </Zone>
           </div>
         </div>
-      </div>
-
-      <div className="hand-strip bottom-hand">
-        {data.hand?.map((card, index) => (
-          <CardTile
-            key={`${card.id || card.name}-${index}`}
-            card={card}
-            variant="hand"
-            setHoveredCard={setHoveredCard}
-          />
-        ))}
       </div>
     </div>
   );
@@ -328,8 +353,6 @@ function applyEffect(state, effect) {
   }
 }
 
-
-
 function applyEffects(state, effects = []) {
   const nextState = deepClone(state);
   effects.forEach((effect) => applyEffect(nextState, effect));
@@ -392,6 +415,7 @@ function App() {
         setCurrentStepId(loadedScenario.steps[0]?.id ?? null);
         setHistory([]);
         setMessage("");
+        setSelectedDonId(null);
       })
       .catch((err) => console.error("Error fetching scenario:", err));
   }, [scenarioId]);
@@ -417,6 +441,7 @@ function App() {
     setCurrentStepId(scenario.steps[0]?.id ?? null);
     setHistory([]);
     setMessage("");
+    setSelectedDonId(null);
   };
 
   const handleDonClick = (donId) => {
@@ -442,12 +467,12 @@ function App() {
         <main className="board-wrapper">
           <OpponentBoard data={playState.opponent} setHoveredCard={setHoveredCard} />
           <PlayerBoard
-  data={playState.you}
-  setHoveredCard={setHoveredCard}
-  selectedDonId={selectedDonId}
-  onDonClick={handleDonClick}
-  onAttachTargetClick={handleAttachTargetClick}
-/>
+            data={playState.you}
+            setHoveredCard={setHoveredCard}
+            selectedDonId={selectedDonId}
+            onDonClick={handleDonClick}
+            onAttachTargetClick={handleAttachTargetClick}
+          />
         </main>
 
         {hoveredCard && (
