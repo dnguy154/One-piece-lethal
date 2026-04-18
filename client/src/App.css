@@ -23,9 +23,9 @@
   --mid-row-h: calc(var(--mid-card-h) + 18px);
   --resource-row-h: calc(var(--don-card-h) + 18px);
 --character-area-width: calc(
-  (var(--board-card-w) * 5)
-  + (clamp(6px, 0.8vw, 12px) * 4)
-  + 18px
+  (var(--board-card-w) * 5) +
+  (clamp(15px, 2vw, 30px) * 4) +
+  44px
 );
 }
 
@@ -250,7 +250,7 @@ button:disabled {
     clamp(
       0px,
       calc((100vw - var(--sidebar-w) - var(--side-hand-w) - var(--character-area-width)) / 2 - 10px),
-      420px
+      350px
     )
   );
   z-index: 2;
@@ -313,12 +313,12 @@ button:disabled {
 .character-cards {
   display: grid;
   grid-template-columns: repeat(5, var(--board-card-w));
-  gap: clamp(6px, 0.8vw, 12px);
+  gap: clamp(15px, 2.0vw, 30px);
   align-items: end;
   justify-content: center;
   width: fit-content;
   height: auto;
-  padding: 0;
+  padding: 12px;
   margin: 0 auto;
 }
 
@@ -430,6 +430,12 @@ button:disabled {
   height: var(--mid-card-h);
 }
 
+.card-tile.board.rested,
+.card-tile.leader.rested {
+  transform: rotate(90deg);
+  transform-origin: center;
+}
+
 .card-image {
   width: 100%;
   height: 100%;
@@ -520,9 +526,17 @@ button:disabled {
 
 .card-tile:hover,
 .don-card:hover {
-  transform: scale(1.08);
   z-index: 20;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.card-tile:not(.rested):hover {
+  transform: scale(1.08);
+}
+
+.card-tile.board.rested:hover,
+.card-tile.leader.rested:hover {
+  transform: rotate(90deg) scale(1.04);
 }
 
 .center-preview {
