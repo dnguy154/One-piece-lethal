@@ -31,7 +31,7 @@ opponentAI: {
           attachedDon: [],
           rested: false
         },
-        hand: [{ cardId: "OP05-015" }, { cardId: "OP15-006" }],
+        hand: [{ cardId: "OP05-015" }, { cardId: "OP15-006" }, { cardId: "OP05-015" }, { cardId: "OP05-015" }],
         board: [{
           cardId: "OP10-045",
           instanceId: "you-board-1",

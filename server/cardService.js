@@ -53,12 +53,13 @@ async function hydrateCardRef(cardRef) {
 
   const cardData = await fetchCard(cardRef.cardId);
 
-  return {
-    ...cardData,
-    ...cardRef,
-    attachedDon: cardRef.attachedDon || [],
-    rested: cardRef.rested || false
-  };
+return {
+  ...cardData,
+  ...cardRef,
+  attachedDon: cardRef.attachedDon || [],
+  rested: cardRef.rested || false,
+  summoningSick: cardRef.summoningSick || false
+};
 }
 
 async function hydrateCardArray(cardRefs = []) {

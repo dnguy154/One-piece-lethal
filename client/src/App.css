@@ -22,11 +22,7 @@
   --char-row-h: calc(var(--board-card-h) + 18px);
   --mid-row-h: calc(var(--mid-card-h) + 18px);
   --resource-row-h: calc(var(--don-card-h) + 18px);
---character-area-width: calc(
-  (var(--board-card-w) * 5) +
-  (clamp(15px, 2vw, 30px) * 4) +
-  44px
-);
+  --character-area-width: calc((var(--board-card-w) * 5) + (clamp(15px, 2vw, 30px) * 4) + 44px);
 }
 
 * {
@@ -173,7 +169,7 @@ button:disabled {
 }
 
 .board-area {
-  overflow: hidden;
+  overflow: visible;
   border-radius: 12px;
   padding: 4px;
   display: block;
@@ -189,7 +185,7 @@ button:disabled {
 }
 
 .board-body {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .side-hand-layout {
@@ -221,10 +217,13 @@ button:disabled {
 
 .hand-column {
   display: flex;
-  align-items: stretch;
-  justify-content: center;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
   min-width: 0;
   width: var(--side-hand-w);
+  overflow: visible;
+  z-index: 5;
 }
 
 .side-hand-horizontal {
@@ -233,12 +232,13 @@ button:disabled {
   align-items: center;
   justify-content: flex-start;
   gap: 4px;
-  width: var(--side-hand-w);
-  min-width: var(--side-hand-w);
+  width: max-content;
+  min-width: 0;
   height: 100%;
   padding: 2px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 5;
 }
 
 .life-column {
@@ -246,13 +246,9 @@ button:disabled {
   align-items: center;
   justify-content: flex-end;
   position: relative;
-  transform: translateX(
-    clamp(
-      0px,
-      calc((100vw - var(--sidebar-w) - var(--side-hand-w) - var(--character-area-width)) / 2 - 10px),
-      350px
-    )
-  );
+  transform: translateX(clamp(0px,
+        calc((100vw - var(--sidebar-w) - var(--side-hand-w) - var(--character-area-width)) / 2 - 10px),
+        350px));
   z-index: 2;
 }
 
@@ -364,6 +360,7 @@ button:disabled {
   margin: 0 auto;
   gap: var(--zone-gap);
 }
+
 .compact-resource-row {
   grid-template-columns: minmax(0, 1fr) 90px;
   justify-content: stretch;
@@ -372,6 +369,7 @@ button:disabled {
   margin: 0 auto;
   gap: var(--zone-gap);
 }
+
 .compact-mid-row .zone,
 .compact-resource-row .zone {
   display: flex;
@@ -475,6 +473,11 @@ button:disabled {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+}
+
+.disabled-don {
+  pointer-events: none;
+  opacity: 0.7;
 }
 
 .don-stack-item {
@@ -640,6 +643,15 @@ button:disabled {
   color: #ffdddd;
 }
 
+.selected-hand-card .card-tile {
+  outline: 3px solid #7dd3fc;
+  outline-offset: 2px;
+}
+
+.character-slot.empty-slot {
+  cursor: pointer;
+}
+
 @media (max-width: 1400px) {
   :root {
     --sidebar-w: 220px;
@@ -666,18 +678,16 @@ button:disabled {
   .layout {
     grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
   }
+
   .life-column {
-  transform: translateX(
-    clamp(
-      0px,
-      calc((100vw - var(--sidebar-w) - var(--side-hand-w) - var(--character-area-width)) / 2 - 20px),
-      260px
-    )
-  );
-}
+    transform: translateX(clamp(0px,
+          calc((100vw - var(--sidebar-w) - var(--side-hand-w) - var(--character-area-width)) / 2 - 20px),
+          260px));
+  }
 }
 
 @media (max-width: 1200px) {
+
   html,
   body,
   #root {
