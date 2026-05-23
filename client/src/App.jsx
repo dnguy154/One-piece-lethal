@@ -23,6 +23,7 @@ function CardTile({
   setHoveredCard,
   onClick,
   onMobilePreview,
+  onMobilePreviewClose,
   powerValue,
   attachedDonCount = 0,
   disableHoverPreview = false
@@ -40,37 +41,46 @@ function CardTile({
     }
   };
 
-const showDesktopPreview = () => {
-  if (!card || hidden || disableHoverPreview) return;
+  const showDesktopPreview = () => {
+    if (!card || hidden || disableHoverPreview) return;
 
-  const recentlyTouched = Date.now() - lastTouchTimeRef.current < 800;
-  if (recentlyTouched) return;
+    const recentlyTouched = Date.now() - lastTouchTimeRef.current < 1000;
+    if (recentlyTouched) return;
 
-  if (shouldUseHoverPreview()) {
-    setHoveredCard?.(card);
-  }
-};
+    if (shouldUseHoverPreview()) {
+      setHoveredCard?.(card);
+    }
+  };
+
   const hideDesktopPreview = () => {
     setHoveredCard?.(null);
   };
 
   const startLongPress = () => {
-  if (!card || hidden) return;
+    if (!card || hidden) return;
 
-  lastTouchTimeRef.current = Date.now();
-
-  clearLongPressTimer();
-  setHoveredCard?.(null);
-  longPressTriggeredRef.current = false;
-
-  longPressTimerRef.current = window.setTimeout(() => {
-    longPressTriggeredRef.current = true;
-    setHoveredCard?.(null);
-    onMobilePreview?.(card);
-  }, 450);
-};
-  const cancelLongPress = () => {
+    lastTouchTimeRef.current = Date.now();
     clearLongPressTimer();
+    setHoveredCard?.(null);
+    longPressTriggeredRef.current = false;
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setHoveredCard?.(null);
+      onMobilePreview?.(card);
+    }, 350);
+  };
+
+  const endLongPress = () => {
+    clearLongPressTimer();
+
+    if (longPressTriggeredRef.current) {
+      onMobilePreviewClose?.();
+
+      window.setTimeout(() => {
+        longPressTriggeredRef.current = false;
+      }, 150);
+    }
   };
 
   const handleClick = (event) => {
@@ -79,11 +89,6 @@ const showDesktopPreview = () => {
     if (longPressTriggeredRef.current) {
       event.preventDefault();
       event.stopPropagation();
-
-      window.setTimeout(() => {
-        longPressTriggeredRef.current = false;
-      }, 250);
-
       return;
     }
 
@@ -112,8 +117,8 @@ const showDesktopPreview = () => {
       onMouseEnter={showDesktopPreview}
       onMouseLeave={hideDesktopPreview}
       onTouchStart={startLongPress}
-      onTouchEnd={cancelLongPress}
-      onTouchCancel={cancelLongPress}
+      onTouchEnd={endLongPress}
+      onTouchCancel={endLongPress}
       onContextMenu={(event) => event.preventDefault()}
       onClick={handleClick}
     >
@@ -224,7 +229,8 @@ function CharacterCards({
   onCardClick,
   onEmptySlotClick,
   disableHoverPreview = false,
-  onMobilePreview
+  onMobilePreview,
+  onMobilePreviewClose
 }) {
   const slots = Array.from({ length: 5 }, (_, index) => cards[index] || null);
 
@@ -246,6 +252,7 @@ function CharacterCards({
             setHoveredCard={setHoveredCard}
             onClick={card ? onCardClick : undefined}
             onMobilePreview={onMobilePreview}
+            onMobilePreviewClose={onMobilePreviewClose}
             powerValue={card ? getDisplayedPower(card) : undefined}
             attachedDonCount={card?.attachedDon?.length || 0}
             disableHoverPreview={disableHoverPreview}
@@ -426,7 +433,8 @@ function OpponentBoard({
   visibility,
   onTrashClick,
   onOpenHand,
-  onMobilePreview
+  onMobilePreview,
+  onMobilePreviewClose
 }) {
   return (
     <div className="board-area opponent-board">
@@ -471,6 +479,7 @@ function OpponentBoard({
                 setHoveredCard={setHoveredCard}
                 onClick={onTargetClick}
                 onMobilePreview={onMobilePreview}
+                onMobilePreviewClose={onMobilePreviewClose}
                 powerValue={getDisplayedPower(data.leader)}
                 attachedDonCount={data.leader?.attachedDon?.length || 0}
               />
@@ -498,6 +507,7 @@ function OpponentBoard({
               setHoveredCard={setHoveredCard}
               onCardClick={onTargetClick}
               onMobilePreview={onMobilePreview}
+              onMobilePreviewClose={onMobilePreviewClose}
             />
           </Zone>
         </div>
@@ -517,6 +527,7 @@ function PlayerBoard({
   selectedHandCardIndex,
   onTrashClick,
   onMobilePreview,
+  onMobilePreviewClose,
   onOpenHand
 }) {
   return (
@@ -544,6 +555,7 @@ function PlayerBoard({
               onCardClick={onAttachTargetClick}
               onEmptySlotClick={onEmptyCharacterSlotClick}
               onMobilePreview={onMobilePreview}
+              onMobilePreviewClose={onMobilePreviewClose}
               disableHoverPreview={selectedDonIds.length > 0}
             />
           </Zone>
@@ -556,6 +568,7 @@ function PlayerBoard({
                 setHoveredCard={setHoveredCard}
                 onClick={onAttachTargetClick}
                 onMobilePreview={onMobilePreview}
+                onMobilePreviewClose={onMobilePreviewClose}
                 powerValue={getDisplayedPower(data.leader)}
                 attachedDonCount={data.leader?.attachedDon?.length || 0}
                 disableHoverPreview={selectedDonIds.length > 0}
@@ -1645,7 +1658,6 @@ function App() {
   const [trashViewer, setTrashViewer] = useState(null);
   const [handViewer, setHandViewer] = useState(null);
   const [mobilePreviewCard, setMobilePreviewCard] = useState(null);
-  const [mobilePreviewKey, setMobilePreviewKey] = useState(0);
 
   useEffect(() => {
     const clearPreviewWhenNotOverCard = (event) => {
@@ -1708,15 +1720,10 @@ function App() {
       });
   }, []);
 
-const openMobilePreview = (card) => {
-  setHoveredCard(null);
-  setMobilePreviewCard(null);
-
-  window.setTimeout(() => {
-    setMobilePreviewKey((prev) => prev + 1);
+  const openMobilePreview = (card) => {
+    setHoveredCard(null);
     setMobilePreviewCard({ ...card });
-  }, 50);
-};
+  };
 
   const closeMobilePreview = () => {
     setMobilePreviewCard(null);
@@ -2065,6 +2072,7 @@ const openMobilePreview = (card) => {
             onTrashClick={() => openTrashViewer("opponent")}
             onOpenHand={() => openHandViewer("opponent")}
             onMobilePreview={openMobilePreview}
+            onMobilePreviewClose={closeMobilePreview}
           />
           <PlayerBoard
             data={playState.you}
@@ -2078,40 +2086,17 @@ const openMobilePreview = (card) => {
             onTrashClick={() => openTrashViewer("you")}
             onOpenHand={() => openHandViewer("you")}
             onMobilePreview={openMobilePreview}
+            onMobilePreviewClose={closeMobilePreview}
           />
         </main>
 
-       {mobilePreviewCard && (
-  <div
-    key={mobilePreviewKey}
-    className="mobile-card-preview-overlay"
-    onTouchStart={closeMobilePreview}
-    onClick={closeMobilePreview}
-  >
-    <div
-      className="mobile-card-preview"
-      onTouchStart={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="mobile-card-preview-close"
-        onTouchStart={(event) => {
-          event.stopPropagation();
-          closeMobilePreview();
-        }}
-        onClick={(event) => {
-          event.stopPropagation();
-          closeMobilePreview();
-        }}
-      >
-        X
-      </button>
-
-      <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
-    </div>
-  </div>
-)}
+        {mobilePreviewCard && (
+          <div className="mobile-card-preview-overlay">
+            <div className="mobile-card-preview">
+              <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
+            </div>
+          </div>
+        )}
 
         {trashViewer && (
           <TrashViewerModal
