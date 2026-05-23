@@ -994,6 +994,10 @@ button:disabled {
   border-radius: 6px;
 }
 
+.center-preview {
+  pointer-events: none;
+}
+
 select,
 input,
 textarea {
@@ -1016,12 +1020,18 @@ textarea {
   font: inherit;
 }
 
+@media (hover: none), (pointer: coarse) {
+  .center-preview {
+    display: none !important;
+  }
+}
+
 @media (max-width: 800px) {
 
     :root {
-    --side-hand-w: 42px;
-    --life-col-w: 42px;
-    --zone-gap: 3px;
+    --side-hand-w: 38px;
+    --life-col-w: 38px;
+    --zone-gap: 1px;
   }
 
   .side-hand-layout {
