@@ -1466,7 +1466,7 @@ function App() {
 const [hasWon, setHasWon] = useState(false);
 const [hasConceded, setHasConceded] = useState(false);
 const [hasLost, setHasLost] = useState(false);
-  const [difficultyMode, setDifficultyMode] = useState("medium");
+  const [difficultyMode, setDifficultyMode] = useState("hard");
   const [trashViewer, setTrashViewer] = useState(null);
 
   useEffect(() => {
@@ -1490,10 +1490,21 @@ axios.get(`${API_BASE_URL}/scenario/1`)
         setHasWon(false);
         setHasConceded(false);
       })
-      .catch((err) => {
-        console.error("Error fetching scenario:", err);
-        setLoadError(err.response?.data?.error || err.message || "Failed to load scenario.");
-      });
+.catch((err) => {
+  console.error("Error fetching scenario:", err);
+
+  const errorData = err.response?.data;
+
+  const errorMessage =
+    typeof errorData === "string"
+      ? errorData
+      : errorData?.message ||
+        errorData?.error ||
+        err.message ||
+        "Failed to load scenario.";
+
+  setLoadError(errorMessage);
+});
   }, []);
 
   const openTrashViewer = (side) => {
@@ -1780,7 +1791,7 @@ setMessage(resultMessage);
   if (loadError) {
     return (
       <div className="app-shell" style={{ color: "white", fontSize: "24px", padding: "30px" }}>
-        Failed to load: {loadError}
+        Failed to load: {String(loadError)}
       </div>
     );
   }
