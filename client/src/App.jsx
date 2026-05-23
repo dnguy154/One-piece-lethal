@@ -181,16 +181,94 @@ function CharacterCards({
   );
 }
 
+function HandPileButton({ cards = [], hiddenCards = false, label, onClick }) {
+  const count = cards?.length || 0;
+  const topCard = cards?.[count - 1];
+
+  return (
+    <button
+      type="button"
+      className="hand-pile-button"
+      onClick={onClick}
+      disabled={count === 0}
+    >
+      {hiddenCards ? (
+        <img src="/images/card_back.png" alt="Hidden hand" className="hand-pile-image" />
+      ) : topCard?.image ? (
+        <img src={topCard.image} alt={topCard.name} className="hand-pile-image" />
+      ) : null}
+
+      <div className="hand-count-badge">{count}</div>
+      <div className="hand-pile-label">{label}</div>
+    </button>
+  );
+}
+
+function HandViewerModal({
+  title,
+  cards = [],
+  hiddenCards = false,
+  onClose,
+  setHoveredCard,
+  onCardClick,
+  selectedHandCardIndex
+}) {
+  return (
+    <div className="hand-modal-overlay" onClick={onClose}>
+      <div className="hand-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="hand-modal-header">
+          <h2>{title}</h2>
+          <button type="button" onClick={onClose}>
+            X
+          </button>
+        </div>
+
+        {cards.length === 0 ? (
+          <p>No cards in hand.</p>
+        ) : (
+          <div className="hand-modal-grid">
+            {cards.map((card, index) => (
+              <div
+                key={`${card.id || card.name}-${index}`}
+                className={selectedHandCardIndex === index ? "selected-hand-card" : ""}
+              >
+                <CardTile
+                  card={card}
+                  hidden={hiddenCards}
+                  variant="hand"
+                  setHoveredCard={hiddenCards ? undefined : setHoveredCard}
+                  onClick={hiddenCards ? undefined : () => onCardClick?.(card, index)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function HandColumn({
   cards,
   setHoveredCard,
   onCardClick,
   selectedHandCardIndex,
-  hiddenCards = false
+  hiddenCards = false,
+  label = "Hand",
+  onOpenHand
 }) {
   return (
     <div className="hand-column">
-      <div className="hand-strip side-hand-horizontal">
+      <div className="hand-mobile-collapsed">
+        <HandPileButton
+          cards={cards}
+          hiddenCards={hiddenCards}
+          label={label}
+          onClick={onOpenHand}
+        />
+      </div>
+
+      <div className="hand-strip side-hand-horizontal hand-desktop-expanded">
         {cards?.map((card, index) => (
           <div
             key={`${card.id || card.name}-${index}`}
@@ -264,14 +342,23 @@ function TrashViewerModal({ title, cards = [], onClose, setHoveredCard }) {
   );
 }
 
-function OpponentBoard({ data, setHoveredCard, onTargetClick, visibility, onTrashClick }) {
+function OpponentBoard({
+  data,
+  setHoveredCard,
+  onTargetClick,
+  visibility,
+  onTrashClick,
+  onOpenHand
+}) {
   return (
     <div className="board-area opponent-board">
       <div className="board-body side-hand-layout">
-        <HandColumn
+<HandColumn
   cards={data.hand}
   setHoveredCard={setHoveredCard}
   hiddenCards={!visibility.showOpponentHand}
+  label="Opponent Hand"
+  onOpenHand={onOpenHand}
 />
 
         <div className="life-column">
@@ -347,17 +434,20 @@ function PlayerBoard({
   onHandCardClick,
   onEmptyCharacterSlotClick,
   selectedHandCardIndex,
-  onTrashClick
+  onTrashClick,
+  onOpenHand
 }) {
   return (
     <div className="board-area player-board">
       <div className="board-body side-hand-layout">
-        <HandColumn
-          cards={data.hand}
-          setHoveredCard={setHoveredCard}
-          onCardClick={onHandCardClick}
-          selectedHandCardIndex={selectedHandCardIndex}
-        />
+<HandColumn
+  cards={data.hand}
+  setHoveredCard={setHoveredCard}
+  onCardClick={onHandCardClick}
+  selectedHandCardIndex={selectedHandCardIndex}
+  label="Your Hand"
+  onOpenHand={onOpenHand}
+/>
 
         <div className="life-column">
           <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
@@ -1468,6 +1558,7 @@ const [hasConceded, setHasConceded] = useState(false);
 const [hasLost, setHasLost] = useState(false);
   const [difficultyMode, setDifficultyMode] = useState("hard");
   const [trashViewer, setTrashViewer] = useState(null);
+  const [handViewer, setHandViewer] = useState(null);
 
   useEffect(() => {
     if (SHOW_BUILDER) return;
@@ -1507,6 +1598,17 @@ axios.get(`${API_BASE_URL}/scenario/1`)
 });
   }, []);
 
+  const openHandViewer = (side) => {
+  setHandViewer({
+    side,
+    title: side === "you" ? "Your Hand" : "Opponent Hand"
+  });
+};
+
+const closeHandViewer = () => {
+  setHandViewer(null);
+};
+
   const openTrashViewer = (side) => {
   setTrashViewer({
     side,
@@ -1523,6 +1625,7 @@ const closeTrashViewer = () => {
     setSelectedHandCardIndex(null);
     setSelectedAttackerId(null);
     setActionMode("idle");
+    setHandViewer(null);
     setHoveredCard(null);
   };
 
@@ -1830,6 +1933,7 @@ const visibility = visibilityByDifficulty[difficultyMode];
   onTargetClick={handleAttackTargetClick}
   visibility={visibility}
   onTrashClick={() => openTrashViewer("opponent")}
+  onOpenHand={() => openHandViewer("opponent")}
 />
 <PlayerBoard
   data={playState.you}
@@ -1841,6 +1945,7 @@ const visibility = visibilityByDifficulty[difficultyMode];
   onEmptyCharacterSlotClick={handleEmptyCharacterSlotClick}
   selectedHandCardIndex={selectedHandCardIndex}
   onTrashClick={() => openTrashViewer("you")}
+  onOpenHand={() => openHandViewer("you")}
 />
         </main>
 
@@ -1850,6 +1955,24 @@ const visibility = visibilityByDifficulty[difficultyMode];
     cards={playState?.[trashViewer.side]?.trash || []}
     onClose={closeTrashViewer}
     setHoveredCard={setHoveredCard}
+  />
+
+  
+)}
+
+{handViewer && (
+  <HandViewerModal
+    title={handViewer.title}
+    cards={playState?.[handViewer.side]?.hand || []}
+    hiddenCards={
+      handViewer.side === "opponent" && !visibility.showOpponentHand
+    }
+    onClose={closeHandViewer}
+    setHoveredCard={setHoveredCard}
+    onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
+    selectedHandCardIndex={
+      handViewer.side === "you" ? selectedHandCardIndex : null
+    }
   />
 )}
 
