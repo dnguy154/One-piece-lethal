@@ -1031,9 +1031,43 @@ button:disabled {
 
 .card-tile {
   touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.mobile-card-preview-overlay {
+  touch-action: manipulation;
 }
 
 
+
+.desktop-card-preview {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card-tile:not(.no-hover-preview):hover .desktop-card-preview {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    pointer-events: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .desktop-card-preview img {
+    height: 70vh;
+    width: auto;
+    object-fit: contain;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .desktop-card-preview {
+    display: none !important;
+  }
+}
 
 @media (hover: hover) and (pointer: fine) {
   .mobile-card-preview-overlay {

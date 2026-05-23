@@ -28,7 +28,7 @@ function CardTile({
   disableHoverPreview = false
 }) {
   const longPressTimerRef = useRef(null);
-  const longPressTriggeredRef = useRef(false);
+  const skipNextClickRef = useRef(false);
 
   const className = `card-tile ${variant} ${card?.rested ? "rested" : ""}`;
 
@@ -40,43 +40,46 @@ function CardTile({
   };
 
   const showDesktopPreview = () => {
-    if (!card || hidden) return;
-    if (disableHoverPreview) return;
+    if (!card || hidden || disableHoverPreview) return;
 
     if (shouldUseHoverPreview()) {
       setHoveredCard?.(card);
     }
   };
 
-const hideDesktopPreview = () => {
-  setHoveredCard?.(null);
-};
+  const hideDesktopPreview = () => {
+    setHoveredCard?.(null);
+  };
 
-  const startLongPress = () => {
+  const startMobileLongPress = (event) => {
     if (!card || hidden) return;
 
-    setHoveredCard?.(null);
+    // Only mobile/tablet touch/pen should use long press.
+    if (event.pointerType === "mouse") return;
+
     clearLongPressTimer();
-    longPressTriggeredRef.current = false;
+    setHoveredCard?.(null);
+    skipNextClickRef.current = false;
 
     longPressTimerRef.current = window.setTimeout(() => {
-      longPressTriggeredRef.current = true;
+      skipNextClickRef.current = true;
       setHoveredCard?.(null);
       onMobilePreview?.(card);
     }, 450);
   };
 
-  const cancelLongPress = () => {
+  const stopMobileLongPress = () => {
     clearLongPressTimer();
   };
 
   const handleClick = (event) => {
     setHoveredCard?.(null);
 
-    if (longPressTriggeredRef.current) {
+    // Prevent the fake click after long press.
+    if (skipNextClickRef.current) {
       event.preventDefault();
       event.stopPropagation();
-      longPressTriggeredRef.current = false;
+      skipNextClickRef.current = false;
       return;
     }
 
@@ -103,18 +106,13 @@ const hideDesktopPreview = () => {
     <div
       className={className}
       onMouseEnter={showDesktopPreview}
-      onMouseLeave={() => {
-        clearLongPressTimer();
-        setHoveredCard?.(null);
-      }}
-      onPointerCancel={() => {
-        clearLongPressTimer();
-        setHoveredCard?.(null);
-      }}
-      onTouchStart={startLongPress}
-      onTouchEnd={cancelLongPress}
-      onTouchMove={cancelLongPress}
-      onTouchCancel={cancelLongPress}
+      onMouseLeave={hideDesktopPreview}
+      onPointerDown={startMobileLongPress}
+      onPointerUp={stopMobileLongPress}
+      onPointerMove={stopMobileLongPress}
+      onPointerCancel={stopMobileLongPress}
+      onPointerLeave={stopMobileLongPress}
+      onContextMenu={(event) => event.preventDefault()}
       onClick={handleClick}
     >
       {card.image ? (
@@ -331,7 +329,8 @@ function HandColumn({
   selectedHandCardIndex,
   hiddenCards = false,
   label = "Hand",
-  onOpenHand
+  onOpenHand,
+  onMobilePreview
 }) {
   return (
     <div className="hand-column">
@@ -350,13 +349,14 @@ function HandColumn({
             key={`${card.id || card.name}-${index}`}
             className={selectedHandCardIndex === index ? "selected-hand-card" : ""}
           >
-            <CardTile
-              card={card}
-              hidden={hiddenCards}
-              variant="hand"
-              setHoveredCard={hiddenCards ? undefined : setHoveredCard}
-              onClick={hiddenCards ? undefined : () => onCardClick?.(card, index)}
-            />
+<CardTile
+  card={card}
+  hidden={hiddenCards}
+  variant="hand"
+  setHoveredCard={hiddenCards ? undefined : setHoveredCard}
+  onClick={hiddenCards ? undefined : () => onCardClick?.(card, index)}
+  onMobilePreview={hiddenCards ? undefined : onMobilePreview}
+/>
           </div>
         ))}
       </div>
@@ -430,13 +430,14 @@ function OpponentBoard({
   return (
     <div className="board-area opponent-board">
       <div className="board-body side-hand-layout">
-        <HandColumn
-          cards={data.hand}
-          setHoveredCard={setHoveredCard}
-          hiddenCards={!visibility.showOpponentHand}
-          label="Opponent Hand"
-          onOpenHand={onOpenHand}
-        />
+<HandColumn
+  cards={data.hand}
+  setHoveredCard={setHoveredCard}
+  hiddenCards={!visibility.showOpponentHand}
+  label="Opponent Hand"
+  onOpenHand={onOpenHand}
+  onMobilePreview={onMobilePreview}
+/>
 
         <div className="life-column">
           <LifeStack
@@ -520,15 +521,15 @@ function PlayerBoard({
   return (
     <div className="board-area player-board">
       <div className="board-body side-hand-layout">
-        <HandColumn
-          cards={data.hand}
-          setHoveredCard={setHoveredCard}
-          onCardClick={onHandCardClick}
-          selectedHandCardIndex={selectedHandCardIndex}
-          onMobilePreview={onMobilePreview}
-          label="Your Hand"
-          onOpenHand={onOpenHand}
-        />
+<HandColumn
+  cards={data.hand}
+  setHoveredCard={setHoveredCard}
+  onCardClick={onHandCardClick}
+  selectedHandCardIndex={selectedHandCardIndex}
+  label="Your Hand"
+  onOpenHand={onOpenHand}
+  onMobilePreview={onMobilePreview}
+/>
 
         <div className="life-column">
           <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
@@ -1705,9 +1706,14 @@ function App() {
       });
   }, []);
 
-  const openMobilePreview = (card) => {
+const openMobilePreview = (card) => {
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+
+  requestAnimationFrame(() => {
     setMobilePreviewCard(card);
-  };
+  });
+};
 
   const closeMobilePreview = () => {
     setMobilePreviewCard(null);
