@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import "./App.css";
 import ScenarioBuilder from "./ScenarioBuilder";
@@ -27,7 +27,48 @@ function CardTile({
   attachedDonCount = 0,
   disableHoverPreview = false
 }) {
+  const longPressTimerRef = useRef(null);
+  const longPressTriggeredRef = useRef(false);
+
   const className = `card-tile ${variant} ${card?.rested ? "rested" : ""}`;
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const startLongPress = () => {
+    if (!card || hidden) return;
+
+    // Important: clear normal hover preview on phone.
+    setHoveredCard?.(null);
+    clearLongPressTimer();
+    longPressTriggeredRef.current = false;
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setHoveredCard?.(null);
+      onMobilePreview?.(card);
+    }, 450);
+  };
+
+  const cancelLongPress = () => {
+    clearLongPressTimer();
+  };
+
+  const handleClick = (event) => {
+    // If this tap was used for long-press preview, do not also trigger card action.
+    if (longPressTriggeredRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
+    onClick?.(card);
+  };
 
   if (hidden) {
     return (
@@ -36,24 +77,8 @@ function CardTile({
       </div>
     );
   }
+
   if (!card) return <div className={`${className} card-empty`} />;
-
-  let longPressTimer = null;
-
-  const startLongPress = () => {
-    if (!card || hidden) return;
-
-    longPressTimer = window.setTimeout(() => {
-      onMobilePreview?.(card);
-    }, 450);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimer) {
-      window.clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  };
 
   return (
     <div
@@ -72,7 +97,7 @@ function CardTile({
       onTouchEnd={cancelLongPress}
       onTouchMove={cancelLongPress}
       onTouchCancel={cancelLongPress}
-      onClick={() => onClick?.(card)}
+      onClick={handleClick}
     >
       {card.image ? (
         <img src={card.image} alt={card.name} className="card-image" />
@@ -81,7 +106,9 @@ function CardTile({
           {card.name || card.cardId || "Missing Card"}
         </div>
       )}
+
       {powerValue ? <div className="power-badge">{powerValue}</div> : null}
+
       {attachedDonCount > 0 ? (
         <div className="attached-don-badge">+{attachedDonCount} DON</div>
       ) : null}
@@ -468,7 +495,7 @@ function PlayerBoard({
   onEmptyCharacterSlotClick,
   selectedHandCardIndex,
   onTrashClick,
-  onMobilePreview = { onMobilePreview },
+  onMobilePreview,
   onOpenHand
 }) {
   return (
@@ -507,6 +534,7 @@ function PlayerBoard({
                 variant="leader"
                 setHoveredCard={setHoveredCard}
                 onClick={onAttachTargetClick}
+                onMobilePreview={onMobilePreview}
                 powerValue={getDisplayedPower(data.leader)}
                 attachedDonCount={data.leader?.attachedDon?.length || 0}
                 disableHoverPreview={selectedDonIds.length > 0}
@@ -1639,9 +1667,10 @@ function App() {
     setMobilePreviewCard(card);
   };
 
-  const closeMobilePreview = () => {
-    setMobilePreviewCard(null);
-  };
+const closeMobilePreview = () => {
+  setMobilePreviewCard(null);
+  setHoveredCard(null);
+};
 
   const openHandViewer = (side) => {
     setHandViewer({
@@ -2001,13 +2030,24 @@ function App() {
           />
         </main>
 
-        {mobilePreviewCard && (
-          <div className="mobile-card-preview-overlay" onClick={closeMobilePreview}>
-            <div className="mobile-card-preview">
-              <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
-            </div>
-          </div>
-        )}
+{mobilePreviewCard && (
+  <div className="mobile-card-preview-overlay" onClick={closeMobilePreview}>
+    <div
+      className="mobile-card-preview"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="mobile-card-preview-close"
+        onClick={closeMobilePreview}
+      >
+        X
+      </button>
+
+      <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
+    </div>
+  </div>
+)}
 
         {trashViewer && (
           <TrashViewerModal

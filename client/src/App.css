@@ -1009,7 +1009,14 @@ button:disabled {
 }
 
 .mobile-card-preview {
-  width: min(78vw, 360px);
+  position: relative;
+}
+
+.mobile-card-preview-close {
+  position: absolute;
+  top: -34px;
+  right: 0;
+  z-index: 1;
 }
 
 .mobile-card-preview img {
@@ -1017,6 +1024,8 @@ button:disabled {
   height: auto;
   display: block;
 }
+
+
 
 @media (hover: hover) and (pointer: fine) {
   .mobile-card-preview-overlay {
