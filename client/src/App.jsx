@@ -1720,15 +1720,34 @@ function App() {
       });
   }, []);
 
-  const openMobilePreview = (card) => {
-    setHoveredCard(null);
+const openMobilePreview = (card) => {
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+
+  requestAnimationFrame(() => {
     setMobilePreviewCard({ ...card });
-  };
+  });
+};
 
   const closeMobilePreview = () => {
     setMobilePreviewCard(null);
     setHoveredCard(null);
   };
+
+  useEffect(() => {
+  const closeOnTouchRelease = () => {
+    setMobilePreviewCard(null);
+    setHoveredCard(null);
+  };
+
+  window.addEventListener("touchend", closeOnTouchRelease);
+  window.addEventListener("touchcancel", closeOnTouchRelease);
+
+  return () => {
+    window.removeEventListener("touchend", closeOnTouchRelease);
+    window.removeEventListener("touchcancel", closeOnTouchRelease);
+  };
+}, []);
   const openHandViewer = (side) => {
     setHandViewer({
       side,
