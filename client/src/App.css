@@ -1006,7 +1006,7 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  touch-action: none;
+  touch-action: manipulation;
 }
 
 .mobile-card-preview {

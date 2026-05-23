@@ -60,16 +60,22 @@ function CardTile({
     clearLongPressTimer();
     setHoveredCard?.(null);
     skipNextClickRef.current = false;
-
     longPressTimerRef.current = window.setTimeout(() => {
       skipNextClickRef.current = true;
       setHoveredCard?.(null);
-      onMobilePreview?.(card);
+      onMobilePreview?.({
+        ...card,
+        previewKey: `${card.instanceId || card.id || card.name}-${Date.now()}`
+      });
     }, 450);
   };
 
   const stopMobileLongPress = () => {
     clearLongPressTimer();
+
+    window.setTimeout(() => {
+      skipNextClickRef.current = false;
+    }, 50);
   };
 
   const handleClick = (event) => {
@@ -348,14 +354,14 @@ function HandColumn({
             key={`${card.id || card.name}-${index}`}
             className={selectedHandCardIndex === index ? "selected-hand-card" : ""}
           >
-<CardTile
-  card={card}
-  hidden={hiddenCards}
-  variant="hand"
-  setHoveredCard={hiddenCards ? undefined : setHoveredCard}
-  onClick={hiddenCards ? undefined : () => onCardClick?.(card, index)}
-  onMobilePreview={hiddenCards ? undefined : onMobilePreview}
-/>
+            <CardTile
+              card={card}
+              hidden={hiddenCards}
+              variant="hand"
+              setHoveredCard={hiddenCards ? undefined : setHoveredCard}
+              onClick={hiddenCards ? undefined : () => onCardClick?.(card, index)}
+              onMobilePreview={hiddenCards ? undefined : onMobilePreview}
+            />
           </div>
         ))}
       </div>
@@ -429,14 +435,14 @@ function OpponentBoard({
   return (
     <div className="board-area opponent-board">
       <div className="board-body side-hand-layout">
-<HandColumn
-  cards={data.hand}
-  setHoveredCard={setHoveredCard}
-  hiddenCards={!visibility.showOpponentHand}
-  label="Opponent Hand"
-  onOpenHand={onOpenHand}
-  onMobilePreview={onMobilePreview}
-/>
+        <HandColumn
+          cards={data.hand}
+          setHoveredCard={setHoveredCard}
+          hiddenCards={!visibility.showOpponentHand}
+          label="Opponent Hand"
+          onOpenHand={onOpenHand}
+          onMobilePreview={onMobilePreview}
+        />
 
         <div className="life-column">
           <LifeStack
@@ -520,15 +526,15 @@ function PlayerBoard({
   return (
     <div className="board-area player-board">
       <div className="board-body side-hand-layout">
-<HandColumn
-  cards={data.hand}
-  setHoveredCard={setHoveredCard}
-  onCardClick={onHandCardClick}
-  selectedHandCardIndex={selectedHandCardIndex}
-  label="Your Hand"
-  onOpenHand={onOpenHand}
-  onMobilePreview={onMobilePreview}
-/>
+        <HandColumn
+          cards={data.hand}
+          setHoveredCard={setHoveredCard}
+          onCardClick={onHandCardClick}
+          selectedHandCardIndex={selectedHandCardIndex}
+          label="Your Hand"
+          onOpenHand={onOpenHand}
+          onMobilePreview={onMobilePreview}
+        />
 
         <div className="life-column">
           <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
@@ -1643,6 +1649,7 @@ function App() {
   const [trashViewer, setTrashViewer] = useState(null);
   const [handViewer, setHandViewer] = useState(null);
   const [mobilePreviewCard, setMobilePreviewCard] = useState(null);
+  const [mobilePreviewKey, setMobilePreviewKey] = useState(0);
 
   useEffect(() => {
     const clearPreviewWhenNotOverCard = (event) => {
@@ -1705,20 +1712,20 @@ function App() {
       });
   }, []);
 
-const openMobilePreview = (card) => {
-  setHoveredCard(null);
-  setMobilePreviewCard(null);
+  const openMobilePreview = (card) => {
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
 
-  requestAnimationFrame(() => {
-    setMobilePreviewCard(card);
-  });
-};
+    window.setTimeout(() => {
+      setMobilePreviewKey((prev) => prev + 1);
+      setMobilePreviewCard(card);
+    }, 0);
+  };
 
   const closeMobilePreview = () => {
     setMobilePreviewCard(null);
     setHoveredCard(null);
   };
-
   const openHandViewer = (side) => {
     setHandViewer({
       side,
@@ -2079,15 +2086,22 @@ const openMobilePreview = (card) => {
         </main>
 
         {mobilePreviewCard && (
-          <div className="mobile-card-preview-overlay" onClick={closeMobilePreview}>
+          <div
+            key={mobilePreviewKey}
+            className="mobile-card-preview-overlay"
+            onPointerDown={closeMobilePreview}
+          >
             <div
               className="mobile-card-preview"
-              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
             >
               <button
                 type="button"
                 className="mobile-card-preview-close"
-                onClick={closeMobilePreview}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  closeMobilePreview();
+                }}
               >
                 X
               </button>
