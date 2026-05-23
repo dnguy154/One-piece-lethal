@@ -39,10 +39,24 @@ function CardTile({
     }
   };
 
+  const showDesktopPreview = () => {
+    if (!card || hidden) return;
+    if (disableHoverPreview) return;
+
+    if (shouldUseHoverPreview()) {
+      setHoveredCard?.(card);
+    }
+  };
+
+  const hideDesktopPreview = () => {
+    if (shouldUseHoverPreview()) {
+      setHoveredCard?.(null);
+    }
+  };
+
   const startLongPress = () => {
     if (!card || hidden) return;
 
-    // Important: clear normal hover preview on phone.
     setHoveredCard?.(null);
     clearLongPressTimer();
     longPressTriggeredRef.current = false;
@@ -59,7 +73,8 @@ function CardTile({
   };
 
   const handleClick = (event) => {
-    // If this tap was used for long-press preview, do not also trigger card action.
+    setHoveredCard?.(null);
+
     if (longPressTriggeredRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -69,6 +84,12 @@ function CardTile({
 
     onClick?.(card);
   };
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, []);
 
   if (hidden) {
     return (
@@ -83,15 +104,19 @@ function CardTile({
   return (
     <div
       className={className}
-      onMouseEnter={() => {
-        if (!disableHoverPreview && shouldUseHoverPreview()) {
-          setHoveredCard?.(card);
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") {
+          showDesktopPreview();
         }
       }}
-      onMouseLeave={() => {
-        if (!disableHoverPreview && shouldUseHoverPreview()) {
-          setHoveredCard?.(null);
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") {
+          hideDesktopPreview();
         }
+      }}
+      onPointerCancel={() => {
+        clearLongPressTimer();
+        setHoveredCard?.(null);
       }}
       onTouchStart={startLongPress}
       onTouchEnd={cancelLongPress}
@@ -477,6 +502,7 @@ function OpponentBoard({
               cards={data.board}
               setHoveredCard={setHoveredCard}
               onCardClick={onTargetClick}
+              onMobilePreview={onMobilePreview}
             />
           </Zone>
         </div>
@@ -1667,10 +1693,10 @@ function App() {
     setMobilePreviewCard(card);
   };
 
-const closeMobilePreview = () => {
-  setMobilePreviewCard(null);
-  setHoveredCard(null);
-};
+  const closeMobilePreview = () => {
+    setMobilePreviewCard(null);
+    setHoveredCard(null);
+  };
 
   const openHandViewer = (side) => {
     setHandViewer({
@@ -1694,14 +1720,15 @@ const closeMobilePreview = () => {
     setTrashViewer(null);
   };
 
-  const clearSelections = () => {
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setHandViewer(null);
-    setHoveredCard(null);
-  };
+const clearSelections = () => {
+  setSelectedDonIds([]);
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setActionMode("idle");
+  setHandViewer(null);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+};
 
   const checkForNoLethal = (nextState) => {
     if (!nextState) return false;
@@ -2030,24 +2057,24 @@ const closeMobilePreview = () => {
           />
         </main>
 
-{mobilePreviewCard && (
-  <div className="mobile-card-preview-overlay" onClick={closeMobilePreview}>
-    <div
-      className="mobile-card-preview"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="mobile-card-preview-close"
-        onClick={closeMobilePreview}
-      >
-        X
-      </button>
+        {mobilePreviewCard && (
+          <div className="mobile-card-preview-overlay" onClick={closeMobilePreview}>
+            <div
+              className="mobile-card-preview"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="mobile-card-preview-close"
+                onClick={closeMobilePreview}
+              >
+                X
+              </button>
 
-      <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
-    </div>
-  </div>
-)}
+              <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
+            </div>
+          </div>
+        )}
 
         {trashViewer && (
           <TrashViewerModal
@@ -2091,18 +2118,6 @@ const closeMobilePreview = () => {
         {hasLost && (
           <div className="game-result-overlay">
             <div className="game-result-text lose">You Lose</div>
-          </div>
-        )}
-
-        {hasConceded && (
-          <div className="game-result-overlay">
-            <div className="game-result-text lose">You Lose</div>
-          </div>
-        )}
-
-        {hasWon && (
-          <div className="game-result-overlay">
-            <div className="game-result-text win">You Win</div>
           </div>
         )}
 

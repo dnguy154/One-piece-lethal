@@ -1025,6 +1025,14 @@ button:disabled {
   display: block;
 }
 
+.center-preview {
+  pointer-events: none;
+}
+
+.card-tile {
+  touch-action: manipulation;
+}
+
 
 
 @media (hover: hover) and (pointer: fine) {
