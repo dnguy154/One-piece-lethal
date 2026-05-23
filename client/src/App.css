@@ -1006,39 +1006,29 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: none;
 }
 
 .mobile-card-preview {
   position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
 }
 
 .mobile-card-preview-close {
   position: absolute;
-  top: -34px;
+  top: -38px;
   right: 0;
-  z-index: 1;
+  z-index: 2;
 }
 
 .mobile-card-preview img {
-  width: 100%;
+  width: min(85vw, 360px);
+  max-height: 85vh;
   height: auto;
+  object-fit: contain;
   display: block;
 }
-
-.center-preview {
-  pointer-events: none;
-}
-
-.card-tile {
-  touch-action: manipulation;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.mobile-card-preview-overlay {
-  touch-action: manipulation;
-}
-
 
 
 .desktop-card-preview {
@@ -1069,11 +1059,6 @@ button:disabled {
   }
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .mobile-card-preview-overlay {
-    display: none;
-  }
-}
 
 select,
 input,

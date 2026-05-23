@@ -109,7 +109,6 @@ function CardTile({
       onMouseLeave={hideDesktopPreview}
       onPointerDown={startMobileLongPress}
       onPointerUp={stopMobileLongPress}
-      onPointerMove={stopMobileLongPress}
       onPointerCancel={stopMobileLongPress}
       onPointerLeave={stopMobileLongPress}
       onContextMenu={(event) => event.preventDefault()}
