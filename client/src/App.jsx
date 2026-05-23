@@ -28,7 +28,8 @@ function CardTile({
   disableHoverPreview = false
 }) {
   const longPressTimerRef = useRef(null);
-  const skipNextClickRef = useRef(false);
+  const longPressTriggeredRef = useRef(false);
+  const lastTouchTimeRef = useRef(0);
 
   const className = `card-tile ${variant} ${card?.rested ? "rested" : ""}`;
 
@@ -39,53 +40,50 @@ function CardTile({
     }
   };
 
-  const showDesktopPreview = () => {
-    if (!card || hidden || disableHoverPreview) return;
+const showDesktopPreview = () => {
+  if (!card || hidden || disableHoverPreview) return;
 
-    if (shouldUseHoverPreview()) {
-      setHoveredCard?.(card);
-    }
-  };
+  const recentlyTouched = Date.now() - lastTouchTimeRef.current < 800;
+  if (recentlyTouched) return;
 
+  if (shouldUseHoverPreview()) {
+    setHoveredCard?.(card);
+  }
+};
   const hideDesktopPreview = () => {
     setHoveredCard?.(null);
   };
 
-  const startMobileLongPress = (event) => {
-    if (!card || hidden) return;
+  const startLongPress = () => {
+  if (!card || hidden) return;
 
-    // Only mobile/tablet touch/pen should use long press.
-    if (event.pointerType === "mouse") return;
+  lastTouchTimeRef.current = Date.now();
 
-    clearLongPressTimer();
+  clearLongPressTimer();
+  setHoveredCard?.(null);
+  longPressTriggeredRef.current = false;
+
+  longPressTimerRef.current = window.setTimeout(() => {
+    longPressTriggeredRef.current = true;
     setHoveredCard?.(null);
-    skipNextClickRef.current = false;
-    longPressTimerRef.current = window.setTimeout(() => {
-      skipNextClickRef.current = true;
-      setHoveredCard?.(null);
-      onMobilePreview?.({
-        ...card,
-        previewKey: `${card.instanceId || card.id || card.name}-${Date.now()}`
-      });
-    }, 450);
-  };
-
-  const stopMobileLongPress = () => {
+    onMobilePreview?.(card);
+  }, 450);
+};
+  const cancelLongPress = () => {
     clearLongPressTimer();
-
-    window.setTimeout(() => {
-      skipNextClickRef.current = false;
-    }, 50);
   };
 
   const handleClick = (event) => {
     setHoveredCard?.(null);
 
-    // Prevent the fake click after long press.
-    if (skipNextClickRef.current) {
+    if (longPressTriggeredRef.current) {
       event.preventDefault();
       event.stopPropagation();
-      skipNextClickRef.current = false;
+
+      window.setTimeout(() => {
+        longPressTriggeredRef.current = false;
+      }, 250);
+
       return;
     }
 
@@ -113,10 +111,9 @@ function CardTile({
       className={className}
       onMouseEnter={showDesktopPreview}
       onMouseLeave={hideDesktopPreview}
-      onPointerDown={startMobileLongPress}
-      onPointerUp={stopMobileLongPress}
-      onPointerCancel={stopMobileLongPress}
-      onPointerLeave={stopMobileLongPress}
+      onTouchStart={startLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchCancel={cancelLongPress}
       onContextMenu={(event) => event.preventDefault()}
       onClick={handleClick}
     >
@@ -136,7 +133,6 @@ function CardTile({
     </div>
   );
 }
-
 function DonCard({ rested = false, small = true }) {
   return (
     <div className={`don-card ${small ? "small" : ""} ${rested ? "rested" : ""}`}>
@@ -1712,15 +1708,15 @@ function App() {
       });
   }, []);
 
-  const openMobilePreview = (card) => {
-    setHoveredCard(null);
-    setMobilePreviewCard(null);
+const openMobilePreview = (card) => {
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
 
-    window.setTimeout(() => {
-      setMobilePreviewKey((prev) => prev + 1);
-      setMobilePreviewCard(card);
-    }, 0);
-  };
+  window.setTimeout(() => {
+    setMobilePreviewKey((prev) => prev + 1);
+    setMobilePreviewCard({ ...card });
+  }, 50);
+};
 
   const closeMobilePreview = () => {
     setMobilePreviewCard(null);
@@ -2085,31 +2081,37 @@ function App() {
           />
         </main>
 
-        {mobilePreviewCard && (
-          <div
-            key={mobilePreviewKey}
-            className="mobile-card-preview-overlay"
-            onPointerDown={closeMobilePreview}
-          >
-            <div
-              className="mobile-card-preview"
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="mobile-card-preview-close"
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  closeMobilePreview();
-                }}
-              >
-                X
-              </button>
+       {mobilePreviewCard && (
+  <div
+    key={mobilePreviewKey}
+    className="mobile-card-preview-overlay"
+    onTouchStart={closeMobilePreview}
+    onClick={closeMobilePreview}
+  >
+    <div
+      className="mobile-card-preview"
+      onTouchStart={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="mobile-card-preview-close"
+        onTouchStart={(event) => {
+          event.stopPropagation();
+          closeMobilePreview();
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+          closeMobilePreview();
+        }}
+      >
+        X
+      </button>
 
-              <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
-            </div>
-          </div>
-        )}
+      <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
+    </div>
+  </div>
+)}
 
         {trashViewer && (
           <TrashViewerModal
