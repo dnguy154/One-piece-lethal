@@ -22,6 +22,7 @@ function CardTile({
   variant = "board",
   setHoveredCard,
   onClick,
+  onMobilePreview,
   powerValue,
   attachedDonCount = 0,
   disableHoverPreview = false
@@ -37,6 +38,23 @@ function CardTile({
   }
   if (!card) return <div className={`${className} card-empty`} />;
 
+  let longPressTimer = null;
+
+  const startLongPress = () => {
+    if (!card || hidden) return;
+
+    longPressTimer = window.setTimeout(() => {
+      onMobilePreview?.(card);
+    }, 450);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer) {
+      window.clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  };
+
   return (
     <div
       className={className}
@@ -50,9 +68,10 @@ function CardTile({
           setHoveredCard?.(null);
         }
       }}
-      onTouchStart={() => {
-        setHoveredCard?.(null);
-      }}
+      onTouchStart={startLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchMove={cancelLongPress}
+      onTouchCancel={cancelLongPress}
       onClick={() => onClick?.(card)}
     >
       {card.image ? (
@@ -160,7 +179,8 @@ function CharacterCards({
   setHoveredCard,
   onCardClick,
   onEmptySlotClick,
-  disableHoverPreview = false
+  disableHoverPreview = false,
+  onMobilePreview
 }) {
   const slots = Array.from({ length: 5 }, (_, index) => cards[index] || null);
 
@@ -181,6 +201,7 @@ function CharacterCards({
             variant="board"
             setHoveredCard={setHoveredCard}
             onClick={card ? onCardClick : undefined}
+            onMobilePreview={onMobilePreview}
             powerValue={card ? getDisplayedPower(card) : undefined}
             attachedDonCount={card?.attachedDon?.length || 0}
             disableHoverPreview={disableHoverPreview}
@@ -358,7 +379,8 @@ function OpponentBoard({
   onTargetClick,
   visibility,
   onTrashClick,
-  onOpenHand
+  onOpenHand,
+  onMobilePreview
 }) {
   return (
     <div className="board-area opponent-board">
@@ -401,6 +423,7 @@ function OpponentBoard({
                 variant="leader"
                 setHoveredCard={setHoveredCard}
                 onClick={onTargetClick}
+                onMobilePreview={onMobilePreview}
                 powerValue={getDisplayedPower(data.leader)}
                 attachedDonCount={data.leader?.attachedDon?.length || 0}
               />
@@ -445,6 +468,7 @@ function PlayerBoard({
   onEmptyCharacterSlotClick,
   selectedHandCardIndex,
   onTrashClick,
+  onMobilePreview = { onMobilePreview },
   onOpenHand
 }) {
   return (
@@ -455,6 +479,7 @@ function PlayerBoard({
           setHoveredCard={setHoveredCard}
           onCardClick={onHandCardClick}
           selectedHandCardIndex={selectedHandCardIndex}
+          onMobilePreview={onMobilePreview}
           label="Your Hand"
           onOpenHand={onOpenHand}
         />
@@ -470,6 +495,7 @@ function PlayerBoard({
               setHoveredCard={setHoveredCard}
               onCardClick={onAttachTargetClick}
               onEmptySlotClick={onEmptyCharacterSlotClick}
+              onMobilePreview={onMobilePreview}
               disableHoverPreview={selectedDonIds.length > 0}
             />
           </Zone>
@@ -1569,6 +1595,7 @@ function App() {
   const [difficultyMode, setDifficultyMode] = useState("hard");
   const [trashViewer, setTrashViewer] = useState(null);
   const [handViewer, setHandViewer] = useState(null);
+  const [mobilePreviewCard, setMobilePreviewCard] = useState(null);
 
   useEffect(() => {
     if (SHOW_BUILDER) return;
@@ -1607,6 +1634,14 @@ function App() {
         setLoadError(errorMessage);
       });
   }, []);
+
+  const openMobilePreview = (card) => {
+    setMobilePreviewCard(card);
+  };
+
+  const closeMobilePreview = () => {
+    setMobilePreviewCard(null);
+  };
 
   const openHandViewer = (side) => {
     setHandViewer({
@@ -1949,6 +1984,7 @@ function App() {
             visibility={visibility}
             onTrashClick={() => openTrashViewer("opponent")}
             onOpenHand={() => openHandViewer("opponent")}
+            onMobilePreview={openMobilePreview}
           />
           <PlayerBoard
             data={playState.you}
@@ -1961,8 +1997,17 @@ function App() {
             selectedHandCardIndex={selectedHandCardIndex}
             onTrashClick={() => openTrashViewer("you")}
             onOpenHand={() => openHandViewer("you")}
+            onMobilePreview={openMobilePreview}
           />
         </main>
+
+        {mobilePreviewCard && (
+          <div className="mobile-card-preview-overlay" onClick={closeMobilePreview}>
+            <div className="mobile-card-preview">
+              <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
+            </div>
+          </div>
+        )}
 
         {trashViewer && (
           <TrashViewerModal
