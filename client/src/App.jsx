@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import "./App.css";
+import ScenarioBuilder from "./ScenarioBuilder";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+const SHOW_BUILDER = false;
 
 const DON_IMAGE =
   "https://www.optcgapi.com/media/static/Card_Images/DON_Card__Green_Compass_-_Starter_Deck_1_Straw_Hat_Crew_ST-01_img.jpg";
@@ -17,7 +21,13 @@ function CardTile({
 }) {
   const className = `card-tile ${variant} ${card?.rested ? "rested" : ""}`;
 
-  if (hidden) return <div className={`${className} card-back`} />;
+if (hidden) {
+  return (
+    <div className={`${className} real-card-back`}>
+      <img src="/images/card_back.png" alt="Hidden card" className="card-image" />
+    </div>
+  );
+}
   if (!card) return <div className={`${className} card-empty`} />;
 
   return (
@@ -35,7 +45,13 @@ function CardTile({
       }}
       onClick={() => onClick?.(card)}
     >
-      <img src={card.image} alt={card.name} className="card-image" />
+      {card.image ? (
+  <img src={card.image} alt={card.name} className="card-image" />
+) : (
+  <div className="card-missing-image">
+    {card.name || card.cardId || "Missing Card"}
+  </div>
+)}
       {powerValue ? <div className="power-badge">{powerValue}</div> : null}
       {attachedDonCount > 0 ? (
         <div className="attached-don-badge">+{attachedDonCount} DON</div>
@@ -85,24 +101,38 @@ function DonArea({ don, selectedDonIds, onDonClick }) {
 }
 
 
-function LifeStack({ lifeCards }) {
+function LifeStack({ lifeCards, revealCards = false, setHoveredCard }) {
   const count = Array.isArray(lifeCards) ? lifeCards.length : Number(lifeCards) || 0;
-  const cards = Array.from({ length: count });
+  const cards = Array.isArray(lifeCards) ? lifeCards : Array.from({ length: count });
 
   return (
     <div className="life-stack">
-      {cards.map((_, index) => (
-        <div
-          key={index}
-          className="life-card"
-          style={{
-            top: `${index * 20}px`,
-            zIndex: index + 1
-          }}
-        >
-          <img src="/images/card_back.png" className="life-card-inner" alt="Life card" />
-        </div>
-      ))}
+      {cards.map((card, index) => {
+        const canReveal = revealCards && card?.image;
+
+        return (
+          <div
+            key={card?.instanceId || index}
+            className="life-card"
+            style={{
+              top: `${index * 20}px`,
+              zIndex: index + 1
+            }}
+            onMouseEnter={() => {
+              if (canReveal) setHoveredCard?.(card);
+            }}
+            onMouseLeave={() => {
+              if (canReveal) setHoveredCard?.(null);
+            }}
+          >
+            {canReveal ? (
+              <img src={card.image} className="life-card-inner" alt={card.name} />
+            ) : (
+              <img src="/images/card_back.png" className="life-card-inner" alt="Life card" />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -155,7 +185,8 @@ function HandColumn({
   cards,
   setHoveredCard,
   onCardClick,
-  selectedHandCardIndex
+  selectedHandCardIndex,
+  hiddenCards = false
 }) {
   return (
     <div className="hand-column">
@@ -167,9 +198,10 @@ function HandColumn({
           >
             <CardTile
               card={card}
+              hidden={hiddenCards}
               variant="hand"
-              setHoveredCard={setHoveredCard}
-              onClick={() => onCardClick?.(card, index)}
+              setHoveredCard={hiddenCards ? undefined : setHoveredCard}
+              onClick={hiddenCards ? undefined : () => onCardClick?.(card, index)}
             />
           </div>
         ))}
@@ -177,14 +209,77 @@ function HandColumn({
     </div>
   );
 }
-function OpponentBoard({ data, setHoveredCard, onTargetClick }) {
+
+function TrashPile({ cards = [], trashCount = 0, onClick }) {
+  const actualCards = Array.isArray(cards) ? cards : [];
+  const lastCard = actualCards[actualCards.length - 1];
+
+  return (
+    <button
+      type="button"
+      className="trash-pile-button"
+      onClick={onClick}
+      disabled={actualCards.length === 0 && Number(trashCount || 0) === 0}
+    >
+{lastCard?.image ? (
+  <img src={lastCard.image} alt={lastCard.name} className="trash-card-image" />
+) : null}
+
+{(actualCards.length || trashCount || 0) > 0 && (
+  <div className="trash-count-badge">
+    {actualCards.length || trashCount || 0}
+  </div>
+)}
+    </button>
+  );
+}
+
+function TrashViewerModal({ title, cards = [], onClose, setHoveredCard }) {
+  return (
+    <div className="trash-modal-overlay" onClick={onClose}>
+      <div className="trash-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="trash-modal-header">
+          <h2>{title}</h2>
+          <button type="button" onClick={onClose}>
+            X
+          </button>
+        </div>
+
+        {cards.length === 0 ? (
+          <p>No cards in trash.</p>
+        ) : (
+          <div className="trash-modal-grid">
+            {cards.map((card, index) => (
+              <CardTile
+                key={`${card.instanceId || card.id || card.name}-${index}`}
+                card={card}
+                variant="hand"
+                setHoveredCard={setHoveredCard}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OpponentBoard({ data, setHoveredCard, onTargetClick, visibility, onTrashClick }) {
   return (
     <div className="board-area opponent-board">
       <div className="board-body side-hand-layout">
-        <HandColumn cards={data.hand} setHoveredCard={setHoveredCard} />
+        <HandColumn
+  cards={data.hand}
+  setHoveredCard={setHoveredCard}
+  hiddenCards={!visibility.showOpponentHand}
+/>
 
         <div className="life-column">
-          <LifeStack lifeCards={data.life} />
+          <LifeStack
+  lifeCards={data.life}
+  revealCards={visibility.showOpponentLife}
+  setHoveredCard={setHoveredCard}
+/>
         </div>
 
         <div className="playmat compact-playmat opponent-flipped">
@@ -193,9 +288,13 @@ function OpponentBoard({ data, setHoveredCard, onTargetClick }) {
               <DonArea don={data.don} selectedDonIds={[]} onDonClick={() => { }} />
             </Zone>
 
-            <Zone title="Trash" className="trash-zone compact-zone">
-              <div className="stack-card trash-box">{data.trashCount ?? 0}</div>
-            </Zone>
+<Zone title="Trash" className="trash-zone compact-zone">
+  <TrashPile
+    cards={data.trash}
+    trashCount={data.trashCount}
+    onClick={onTrashClick}
+  />
+</Zone>
           </div>
 
           <div className="mid-row opponent-mid-row compact-mid-row">
@@ -247,7 +346,8 @@ function PlayerBoard({
   onAttachTargetClick,
   onHandCardClick,
   onEmptyCharacterSlotClick,
-  selectedHandCardIndex
+  selectedHandCardIndex,
+  onTrashClick
 }) {
   return (
     <div className="board-area player-board">
@@ -260,7 +360,7 @@ function PlayerBoard({
         />
 
         <div className="life-column">
-          <LifeStack lifeCards={data.life} />
+          <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
         </div>
 
         <div className="playmat compact-playmat">
@@ -312,9 +412,13 @@ function PlayerBoard({
               />
             </Zone>
 
-            <Zone title="Trash" className="trash-zone compact-zone">
-              <div className="stack-card trash-box">{data.trashCount ?? 0}</div>
-            </Zone>
+<Zone title="Trash" className="trash-zone compact-zone">
+  <TrashPile
+    cards={data.trash}
+    trashCount={data.trashCount}
+    onClick={onTrashClick}
+  />
+</Zone>
           </div>
         </div>
       </div>
@@ -326,78 +430,6 @@ function deepClone(value) {
   return structuredClone(value);
 }
 
-function getPathParts(path) {
-  return path.split(".");
-}
-
-function setByPath(obj, path, value) {
-  const keys = getPathParts(path);
-  let current = obj;
-
-  for (let i = 0; i < keys.length - 1; i += 1) {
-    current = current[keys[i]];
-  }
-
-  current[keys[keys.length - 1]] = value;
-}
-
-function getByPath(obj, path) {
-  const keys = getPathParts(path);
-  let current = obj;
-
-  for (const key of keys) {
-    if (current == null) return undefined;
-    current = current[key];
-  }
-
-  return current;
-}
-
-function applyEffect(state, effect) {
-  if (!effect?.type) return;
-
-  switch (effect.type) {
-    case "remove_card": {
-      const zone = getByPath(state, effect.target);
-      if (Array.isArray(zone) && effect.index >= 0 && effect.index < zone.length) {
-        zone.splice(effect.index, 1);
-      }
-      break;
-    }
-
-    case "move_card_hand_to_board": {
-      const player = state[effect.player];
-      if (!player) break;
-
-      const [card] = player.hand.splice(effect.handIndex, 1);
-      if (card) {
-        player.board.push(card);
-      }
-      break;
-    }
-
-    case "create_token_on_board": {
-      if (state[effect.player]?.board) {
-        state[effect.player].board.push(effect.card);
-      }
-      break;
-    }
-
-    case "change_value": {
-      setByPath(state, effect.path, effect.value);
-      break;
-    }
-
-    default:
-      break;
-  }
-}
-
-function applyEffects(state, effects = []) {
-  const nextState = deepClone(state);
-  effects.forEach((effect) => applyEffect(nextState, effect));
-  return nextState;
-}
 
 function getDisplayedPower(card) {
   const basePower = Number(card?.power || 0);
@@ -463,29 +495,21 @@ function restDonForCost(playerState, cost) {
 
   return true;
 }
+function addCardToTrash(playerState, card) {
+  if (!playerState || !card) return;
 
-function createPlayedCardInstance(card, playerBoardLength) {
-  return {
+  playerState.trash = playerState.trash || [];
+
+  playerState.trash.push({
     ...card,
-    instanceId:
-      card.instanceId ||
-      `you-board-${Date.now()}-${playerBoardLength + 1}-${Math.random().toString(36).slice(2, 7)}`,
-    attachedDon: [],
-    rested: false
-  };
+    attachedDon: []
+  });
+
+  playerState.trashCount = playerState.trash.length;
 }
 
-function returnAttachedDonToAreaRested(player, card) {
-  const attachedDonIds = Array.isArray(card?.attachedDon) ? card.attachedDon : [];
-
-  attachedDonIds.forEach((donId) => {
-    const donCard = player.don.find((don) => don.id === donId);
-
-    if (donCard) {
-      donCard.attachedTo = null;
-      donCard.rested = true;
-    }
-  });
+function addCardsToTrash(playerState, cards = []) {
+  cards.forEach((card) => addCardToTrash(playerState, card));
 }
 
 function playHandCardToState(state, handIndex, replaceTargetInstanceId = null) {
@@ -569,13 +593,7 @@ function playHandCardToState(state, handIndex, replaceTargetInstanceId = null) {
           donCard.rested = true;
         }
       });
-
-      player.trash = player.trash || [];
-      player.trash.push({
-        ...replacedCard,
-        attachedDon: []
-      });
-      player.trashCount = (player.trashCount || 0) + 1;
+addCardToTrash(player, replacedCard);
 
       player.board[replaceIndex] = newCharacter;
 
@@ -605,9 +623,8 @@ function playHandCardToState(state, handIndex, replaceTargetInstanceId = null) {
         message: `Not enough active DON to play ${card.name}.`
       };
     }
-
-    player.hand.splice(handIndex, 1);
-    player.trashCount = (player.trashCount || 0) + 1;
+const [playedEvent] = player.hand.splice(handIndex, 1);
+addCardToTrash(player, playedEvent);
 
     return {
       nextState,
@@ -678,10 +695,20 @@ function canAttackCharacterTarget(attacker, target) {
   return !!attacker?.canAttackActiveCharacters;
 }
 
+// ==============================
+// COMBAT + FULL MINIMAX DEFENSE AI
+// ==============================
+
+// Limit search depth so the AI cannot accidentally recurse forever.
+// 8 is enough for most lethal puzzles because there are usually 3-6 attacks max.
+const MAX_MINIMAX_DEPTH = 10;
+
 function getCounterValue(card) {
   return Number(card?.counter || 0);
 }
 
+// Finds the smallest total counter package that reaches the needed amount.
+// Example: if opponent needs 3000 counter, this tries to avoid wasting a 4000+ amount if smaller works.
 function chooseMinimumCounterCards(hand, neededPower) {
   const counterCards = hand
     .map((card, index) => ({
@@ -722,70 +749,6 @@ function chooseMinimumCounterCards(hand, neededPower) {
   return best;
 }
 
-function autoCounterFromHand(nextState, targetRef, attackerPower, scenario) {
-  const aiConfig = scenario?.opponentAI?.counterFromHand;
-
-  if (!aiConfig?.enabled) {
-    return {
-      defendedPower: getDisplayedPower(targetRef.card),
-      usedCards: []
-    };
-  }
-
-  if (targetRef.side !== "opponent") {
-    return {
-      defendedPower: getDisplayedPower(targetRef.card),
-      usedCards: []
-    };
-  }
-
-  if (
-    Array.isArray(aiConfig.allowedZones) &&
-    !aiConfig.allowedZones.includes(targetRef.zone)
-  ) {
-    return {
-      defendedPower: getDisplayedPower(targetRef.card),
-      usedCards: []
-    };
-  }
-
-  const basePower = getDisplayedPower(targetRef.card);
-  const neededPower = attackerPower - basePower + 1000;
-
-  if (neededPower <= 0) {
-    return {
-      defendedPower: basePower,
-      usedCards: []
-    };
-  }
-
-  const selection = chooseMinimumCounterCards(nextState.opponent.hand, neededPower);
-
-  if (!selection) {
-    return {
-      defendedPower: basePower,
-      usedCards: []
-    };
-  }
-
-  const usedCards = selection.chosen.map((entry) => entry.card);
-
-  const indexesToRemove = selection.chosen
-    .map((entry) => entry.index)
-    .sort((a, b) => b - a);
-
-  for (const index of indexesToRemove) {
-    nextState.opponent.hand.splice(index, 1);
-  }
-
-  nextState.opponent.trashCount = (nextState.opponent.trashCount || 0) + usedCards.length;
-
-  return {
-    defendedPower: basePower + selection.total,
-    usedCards
-  };
-}
-
 function removeCardFromBoard(board, instanceId) {
   return board.filter((card) => card.instanceId !== instanceId);
 }
@@ -800,9 +763,11 @@ function takeTopLifeToHand(playerState) {
     if (playerState.life.length === 0) return null;
 
     const takenLife = playerState.life.shift();
+
     if (takenLife) {
       playerState.hand.push(takenLife);
     }
+
     return takenLife;
   }
 
@@ -817,22 +782,632 @@ function canUseBlocker(card) {
   return !!card?.isBlocker && !card?.rested;
 }
 
-function findAvailableBlocker(board = []) {
-  return board.find((card) => canUseBlocker(card)) || null;
+function getAvailableBlockers(board = []) {
+  return board.filter((card) => canUseBlocker(card));
 }
 
+function getAvailableAttachableDonIds(state) {
+  return (state.you.don || [])
+    .filter((donCard) => !donCard.rested && donCard.attachedTo === null)
+    .map((donCard) => donCard.id);
+}
+
+function attachDonForSimulation(state, targetInstanceId, amount) {
+  const nextState = structuredClone(state);
+  const targetRef = findCardByInstanceId(nextState, targetInstanceId);
+
+  if (!targetRef || targetRef.side !== "you") {
+    return nextState;
+  }
+
+  const availableDonIds = getAvailableAttachableDonIds(nextState).slice(0, amount);
+
+  targetRef.card.attachedDon = targetRef.card.attachedDon || [];
+
+  for (const donId of availableDonIds) {
+    const donCard = nextState.you.don.find((don) => don.id === donId);
+
+    if (!donCard || donCard.attachedTo !== null || donCard.rested) continue;
+
+    targetRef.card.attachedDon.push(donId);
+    donCard.attachedTo = targetInstanceId;
+  }
+
+  return nextState;
+}
+
+function getDefenseTypePriority(type, context = {}) {
+  const {
+    attackerPower = 0,
+    targetPower = 0,
+    counterUsed = 0,
+    lifeBefore = 0,
+    lifeAfter = 0
+  } = context;
+
+  const neededCounter = Math.max(0, attackerPower - targetPower + 1000);
+
+  switch (type) {
+    case "take_life": {
+      let score = 0;
+
+      // Small swings can be countered cheaply if hand exists.
+      if (neededCounter <= 2000) {
+        score -= 50000;
+      } else if (neededCounter <= 3000) {
+        score += 50000;
+      } else if (neededCounter <= 4000) {
+        score += 200000;
+      } else {
+        score += 500000;
+      }
+
+      // Taking life while life exists is usually correct.
+      if (lifeBefore > 0) {
+        score += 600000;
+      }
+
+      // Going to 0 is dangerous, but not worse than wasting blocker too early.
+      if (lifeAfter === 0) {
+        score -= 75000;
+      }
+
+      return score;
+    }
+
+    case "counter": {
+      // Cheap counter is okay, expensive counter is bad.
+      return 220000 - counterUsed * 80;
+    }
+
+    case "block_survive":
+      // Blocking while still having life should be discouraged.
+      if (lifeBefore > 0) return -300000;
+      return 180000;
+
+    case "block_ko":
+      // Losing blocker while still having life is very bad.
+      if (lifeBefore > 0) return -450000;
+      return 100000;
+
+    case "block_counter_save":
+      if (lifeBefore > 0) return -500000 - counterUsed * 80;
+      return 50000 - counterUsed * 80;
+
+    case "no_defense_needed":
+      return 900000;
+
+    case "character_survived":
+      return 850000;
+
+    case "character_ko":
+      return 600000;
+
+    case "lose":
+      return -9999999;
+
+    default:
+      return 0;
+  }
+}
+
+function scoreDefenseChoice(nextState, defenseOption, context = {}) {
+  const lifeBefore = context.lifeBefore ?? 0;
+  const lifeAfter = getLifeCount(nextState.opponent.life);
+
+  return (
+    scoreOpponentState(nextState) +
+    getDefenseTypePriority(defenseOption.type, {
+      ...context,
+      counterUsed: defenseOption.counterUsed || 0,
+      lifeBefore,
+      lifeAfter
+    })
+  );
+}
+
+// This gives the AI a fallback score when both lines survive or both lines lose.
+// Higher score = better for opponent.
+function scoreOpponentState(state) {
+  if (state.opponent?.defeated) {
+    return -999999999;
+  }
+
+  const life = getLifeCount(state.opponent.life);
+
+  const totalCounter = (state.opponent.hand || []).reduce(
+    (total, card) => total + getCounterValue(card),
+    0
+  );
+
+  const activeBlockers = (state.opponent.board || []).filter(canUseBlocker).length;
+
+  const remainingAttackers = generatePossibleAttacks(state).length;
+
+  let score = 0;
+
+  // Life is the most valuable resource.
+  score += life * 100000;
+
+  // Blockers are very valuable because they can stop lethal.
+  score += activeBlockers * 25000;
+
+  // Counter is useful, but less important than life/blockers.
+  score += totalCounter * 3;
+
+  // If opponent has 0 life and player still has attacks, this is dangerous.
+  if (life === 0 && remainingAttackers > 0) {
+    score -= 75000;
+  }
+
+  return score;
+}
+
+// All possible player attacks from the current board.
+// The player is assumed to choose the best attack order to force lethal.
+function generatePossibleAttacks(state) {
+  const attacks = [];
+  const availableDonCount = getAvailableAttachableDonIds(state).length;
+
+  const addAttacksForCard = (attacker) => {
+    if (!canAttack(attacker)) return;
+
+    // Simulate attacking with 0 DON attached, 1 DON attached, 2 DON attached, etc.
+    // This lets minimax understand future lethal lines that require DON attachments.
+    for (let donToAttach = 0; donToAttach <= availableDonCount; donToAttach += 1) {
+      const attackState = attachDonForSimulation(
+        state,
+        attacker.instanceId,
+        donToAttach
+      );
+
+      const simulatedAttackerRef = findCardByInstanceId(
+        attackState,
+        attacker.instanceId
+      );
+
+      if (!simulatedAttackerRef || !canAttack(simulatedAttackerRef.card)) {
+        continue;
+      }
+
+      if (attackState.opponent.leader?.instanceId) {
+        attacks.push({
+          stateBeforeAttack: attackState,
+          attackerId: simulatedAttackerRef.card.instanceId,
+          targetId: attackState.opponent.leader.instanceId,
+          attachedDonCount: donToAttach
+        });
+      }
+
+      for (const target of attackState.opponent.board || []) {
+        if (target.rested || simulatedAttackerRef.card.canAttackActiveCharacters) {
+          attacks.push({
+            stateBeforeAttack: attackState,
+            attackerId: simulatedAttackerRef.card.instanceId,
+            targetId: target.instanceId,
+            attachedDonCount: donToAttach
+          });
+        }
+      }
+    }
+  };
+
+  if (state.you.leader) {
+    addAttacksForCard(state.you.leader);
+  }
+
+  for (const card of state.you.board || []) {
+    addAttacksForCard(card);
+  }
+
+  return attacks;
+}
+
+// Applies counter cards to a specific target.
+// This returns null if counter is impossible or unnecessary.
+function createCounterDefenseOption(state, attackerPower, targetRef) {
+  const nextState = structuredClone(state);
+  const newTargetRef = findCardByInstanceId(nextState, targetRef.card.instanceId);
+
+  if (!newTargetRef) return null;
+
+  const targetPower = getDisplayedPower(newTargetRef.card);
+
+  // To survive battle in OPTCG, defender must become strictly higher than attacker.
+  const neededCounter = attackerPower - targetPower + 1000;
+
+  if (neededCounter <= 0) {
+    return null;
+  }
+
+  const selection = chooseMinimumCounterCards(nextState.opponent.hand, neededCounter);
+
+  if (!selection) {
+    return null;
+  }
+
+  const usedCards = selection.chosen.map((entry) => entry.card);
+  const indexesToRemove = selection.chosen
+    .map((entry) => entry.index)
+    .sort((a, b) => b - a);
+
+  for (const index of indexesToRemove) {
+    nextState.opponent.hand.splice(index, 1);
+  }
+
+  addCardsToTrash(nextState.opponent, usedCards);
+
+return {
+  nextState,
+  message: `Opponent countered with ${usedCards.map((card) => card.name).join(", ")}.`,
+  type: "counter",
+  counterUsed: selection.total,
+  cardsUsed: usedCards.length
+};
+}
+
+// Player attacks leader and opponent takes life.
+// If opponent has no life, this means opponent loses.
+function createTakeLifeDefenseOption(state) {
+  const nextState = structuredClone(state);
+
+  if (getLifeCount(nextState.opponent.life) > 0) {
+    takeTopLifeToHand(nextState.opponent);
+
+    return {
+      nextState,
+      message: "Opponent took 1 life into hand.",
+      type: "take_life"
+    };
+  }
+
+  nextState.opponent.defeated = true;
+
+  return {
+    nextState,
+    message: "Opponent could not defend lethal.",
+    type: "lose"
+  };
+}
+
+// Blocker defense.
+// This includes two versions:
+// 1. Block without countering the blocker.
+// 2. Block and counter to save the blocker, if possible.
+function createBlockDefenseOptions(state, attackerPower) {
+  const options = [];
+  const blockers = getAvailableBlockers(state.opponent.board);
+
+  for (const blocker of blockers) {
+    const blockedState = structuredClone(state);
+    const blockedRef = findCardByInstanceId(blockedState, blocker.instanceId);
+
+    if (!blockedRef) continue;
+
+    const blockedCard = blockedRef.card;
+    blockedCard.rested = true;
+
+    const blockerPower = getDisplayedPower(blockedCard);
+
+    // Option A: block without counter.
+if (attackerPower >= blockerPower) {
+  addCardToTrash(blockedState.opponent, blockedCard);
+
+  blockedState.opponent.board = removeCardFromBoard(
+    blockedState.opponent.board,
+    blockedCard.instanceId
+  );
+
+  options.push({
+    nextState: blockedState,
+    message: `${blockedCard.name} blocked and was KO'd.`,
+    type: "block_ko"
+  });
+    } else {
+      options.push({
+        nextState: blockedState,
+        message: `${blockedCard.name} blocked and survived.`,
+        type: "block_survive"
+      });
+    }
+
+    // Option B: block and use counter to save blocker.
+    // Only useful if attacker would otherwise KO the blocker.
+    if (attackerPower >= blockerPower) {
+      const counterSaveState = structuredClone(state);
+      const counterBlockerRef = findCardByInstanceId(counterSaveState, blocker.instanceId);
+
+      if (!counterBlockerRef) continue;
+
+      counterBlockerRef.card.rested = true;
+
+      const targetPower = getDisplayedPower(counterBlockerRef.card);
+      const neededCounter = attackerPower - targetPower + 1000;
+      const selection = chooseMinimumCounterCards(counterSaveState.opponent.hand, neededCounter);
+
+      if (selection) {
+        const usedCards = selection.chosen.map((entry) => entry.card);
+        const indexesToRemove = selection.chosen
+          .map((entry) => entry.index)
+          .sort((a, b) => b - a);
+
+        for (const index of indexesToRemove) {
+          counterSaveState.opponent.hand.splice(index, 1);
+        }
+
+addCardsToTrash(counterSaveState.opponent, usedCards);
+
+options.push({
+  nextState: counterSaveState,
+  message: `${blocker.name} blocked. Opponent countered with ${usedCards
+    .map((card) => card.name)
+    .join(", ")} to save it.`,
+  type: "block_counter_save",
+  counterUsed: selection.total,
+  cardsUsed: usedCards.length
+});
+      }
+    }
+  }
+
+  return options;
+}
+
+// If player attacks an opponent character and opponent does not counter.
+function createBoardBattleNoCounterOption(state, attackerPower, targetRef) {
+  const nextState = structuredClone(state);
+  const newTargetRef = findCardByInstanceId(nextState, targetRef.card.instanceId);
+
+  if (!newTargetRef) return null;
+
+  const targetPower = getDisplayedPower(newTargetRef.card);
+
+  if (attackerPower >= targetPower) {
+addCardToTrash(nextState.opponent, newTargetRef.card);
+
+nextState.opponent.board = removeCardFromBoard(
+  nextState.opponent.board,
+  newTargetRef.card.instanceId
+);
+    return {
+      nextState,
+      message: `${newTargetRef.card.name} was KO'd.`,
+      type: "character_ko"
+    };
+  }
+
+  return {
+    nextState,
+    message: `${newTargetRef.card.name} survived the attack.`,
+    type: "character_survived"
+  };
+}
+
+// Generate every legal opponent defense against the current attack.
+// Minimax will choose the defense that gives opponent the best survival chance.
+function generateDefenseOptions(state, attackerId, targetId) {
+  const attackerRef = findCardByInstanceId(state, attackerId);
+  const targetRef = findCardByInstanceId(state, targetId);
+
+  if (!attackerRef || !targetRef) return [];
+
+  const attacker = attackerRef.card;
+  const target = targetRef.card;
+  const attackerPower = getDisplayedPower(attacker);
+  const targetPower = getDisplayedPower(target);
+
+  const options = [];
+
+  // If attacker does not have enough power, opponent needs no defense.
+  if (attackerPower < targetPower) {
+    const nextState = structuredClone(state);
+
+    options.push({
+      nextState,
+      message: `${target.name} survived because the attacker did not have enough power.`,
+      type: "no_defense_needed"
+    });
+
+    return options;
+  }
+
+  // Counter is legal against both leader and character attacks.
+  const counterOption = createCounterDefenseOption(state, attackerPower, targetRef);
+  if (counterOption) {
+    options.push(counterOption);
+  }
+
+  // Leader attacks can be taken as life, blocked, or lost if no life remains.
+  if (targetRef.zone === "leader") {
+    options.push(createTakeLifeDefenseOption(state));
+
+    const blockOptions = createBlockDefenseOptions(state, attackerPower);
+    options.push(...blockOptions);
+  }
+
+  // Character attacks can be accepted, meaning the character may be KO'd.
+  if (targetRef.zone === "board") {
+    const boardBattleOption = createBoardBattleNoCounterOption(state, attackerPower, targetRef);
+
+    if (boardBattleOption) {
+      options.push(boardBattleOption);
+    }
+  }
+
+  return options;
+}
+
+// Applies an attack + a chosen defense option.
+// The attacker becomes rested after the attack.
+function applyAttackWithDefense(state, attackerId, defenseOption) {
+  const nextState = structuredClone(defenseOption.nextState);
+  const attackerRef = findCardByInstanceId(nextState, attackerId);
+
+  if (attackerRef) {
+    attackerRef.card.rested = true;
+  }
+
+  return nextState;
+}
+
+// Minimax: player tries to force win.
+// Returns true if the player can force lethal from this state.
+function playerCanForceWin(state, depth = 0) {
+  if (state.opponent?.defeated) {
+    return true;
+  }
+
+  if (depth >= MAX_MINIMAX_DEPTH) {
+    return false;
+  }
+
+  const attacks = generatePossibleAttacks(state);
+
+  if (attacks.length === 0) {
+    return false;
+  }
+
+  // Player only needs one attack line that wins despite optimal opponent defense.
+  for (const attack of attacks) {
+    const defenseResult = chooseBestOpponentDefense(
+      attack.stateBeforeAttack,
+      attack.attackerId,
+      attack.targetId,
+      depth
+    );
+
+    if (defenseResult.playerStillForcesWin) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Minimax: opponent tries to survive.
+// Opponent picks a defense where player cannot force win if one exists.
+function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
+  const defenseOptions = generateDefenseOptions(state, attackerId, targetId);
+
+  const attackerRef = findCardByInstanceId(state, attackerId);
+  const targetRef = findCardByInstanceId(state, targetId);
+
+  const attackerPower = getDisplayedPower(attackerRef?.card);
+  const targetPower = getDisplayedPower(targetRef?.card);
+
+const scoreContext = {
+  attackerPower,
+  targetPower,
+  lifeBefore: getLifeCount(state.opponent.life)
+};
+
+  if (defenseOptions.length === 0) {
+    return {
+      nextState: state,
+      message: "No legal defense found.",
+      playerStillForcesWin: false
+    };
+  }
+
+  const isLeaderAttack = targetRef?.zone === "leader";
+  const opponentLife = getLifeCount(state.opponent.life);
+
+  /*
+    Important defensive rule:
+
+    If this is a leader attack and opponent still has life,
+    check "take life" before blocker/counter.
+
+    Reason:
+    - Blocking while life remains gives the player free information.
+    - Taking life may add counter to hand.
+    - Blockers should usually be saved for when life is 0.
+  */
+  if (isLeaderAttack && opponentLife > 0) {
+    const takeLifeOption = defenseOptions.find(
+      (option) => option.type === "take_life"
+    );
+
+    if (takeLifeOption) {
+      const takeLifeState = applyAttackWithDefense(
+        state,
+        attackerId,
+        takeLifeOption
+      );
+
+      const playerStillForcesWinAfterTaking = playerCanForceWin(
+        takeLifeState,
+        depth + 1
+      );
+
+      // If taking life survives, always take life.
+      if (!playerStillForcesWinAfterTaking) {
+        return {
+          nextState: takeLifeState,
+          message: takeLifeOption.message,
+          playerStillForcesWin: false
+        };
+      }
+    }
+  }
+
+  let bestLosingOption = null;
+  let bestLosingScore = -Infinity;
+
+  let bestSurvivingOption = null;
+  let bestSurvivingScore = -Infinity;
+
+  for (const defenseOption of defenseOptions) {
+    const nextState = applyAttackWithDefense(state, attackerId, defenseOption);
+    const playerStillForcesWin = playerCanForceWin(nextState, depth + 1);
+
+    if (!playerStillForcesWin) {
+      const score = scoreDefenseChoice(nextState, defenseOption, scoreContext);
+
+      if (score > bestSurvivingScore) {
+        bestSurvivingScore = score;
+        bestSurvivingOption = {
+          nextState,
+          message: defenseOption.message,
+          playerStillForcesWin: false
+        };
+      }
+
+      continue;
+    }
+
+    /*
+      If all options still lose, prefer the line that gives away the least information.
+      Taking life is still better than wasting/revealing blocker if life exists.
+    */
+    const losingScore = scoreDefenseChoice(nextState, defenseOption, scoreContext);
+
+    if (losingScore > bestLosingScore) {
+      bestLosingScore = losingScore;
+      bestLosingOption = {
+        nextState,
+        message: defenseOption.message,
+        playerStillForcesWin: true
+      };
+    }
+  }
+
+  return bestSurvivingOption || bestLosingOption;
+}
+
+// This is the function your UI calls when the player clicks attacker then target.
 function resolveAttack(state, attackerId, targetId, scenario) {
   const nextState = structuredClone(state);
 
   const attackerRef = findCardByInstanceId(nextState, attackerId);
-  let targetRef = findCardByInstanceId(nextState, targetId);
+  const targetRef = findCardByInstanceId(nextState, targetId);
 
   if (!attackerRef || !targetRef) {
     return { nextState, resultMessage: "Invalid attack target." };
   }
 
   const attacker = attackerRef.card;
-  let target = targetRef.card;
+  const target = targetRef.card;
 
   if (attackerRef.side !== "you") {
     return { nextState, resultMessage: "You can only attack with your own cards." };
@@ -853,118 +1428,16 @@ function resolveAttack(state, attackerId, targetId, scenario) {
     };
   }
 
-  const attackerPower = getDisplayedPower(attacker);
-
-  // Counter first
-  const counterResult = autoCounterFromHand(
+  const defenseResult = chooseBestOpponentDefense(
     nextState,
-    targetRef,
-    attackerPower,
-    scenario
+    attackerId,
+    targetId,
+    0
   );
 
-  if (attackerPower < counterResult.defendedPower) {
-    attacker.rested = true;
-
-    if (counterResult.usedCards.length > 0) {
-      const usedNames = counterResult.usedCards.map((card) => card.name).join(", ");
-      return {
-        nextState,
-        resultMessage: `Opponent countered with ${usedNames} and stopped the attack.`
-      };
-    }
-
-    return {
-      nextState,
-      resultMessage: `${attacker.name} does not have enough power to win this battle.`
-    };
-  }
-
-  // If leader attack is still lethal after countering, try blocker second
-  if (targetRef.zone === "leader") {
-    const blockerConfig = scenario?.opponentAI?.blocker;
-    const isLethalSwing = getLifeCount(nextState.opponent.life) === 0;
-
-    if (blockerConfig?.enabled && blockerConfig?.onlyWhenLethal && isLethalSwing) {
-      const blocker = findAvailableBlocker(nextState.opponent.board);
-
-      if (blocker) {
-        blocker.rested = true;
-        targetRef = { side: "opponent", zone: "board", card: blocker };
-        target = blocker;
-
-        if (!canAttackCharacterTarget(attacker, target)) {
-          return {
-            nextState,
-            resultMessage: `${blocker.name} blocked the attack, but ${attacker.name} cannot attack an active character.`
-          };
-        }
-
-        const blockerCounterResult = autoCounterFromHand(
-          nextState,
-          targetRef,
-          attackerPower,
-          scenario
-        );
-
-        attacker.rested = true;
-
-        if (attackerPower < blockerCounterResult.defendedPower) {
-          if (blockerCounterResult.usedCards.length > 0) {
-            const usedNames = blockerCounterResult.usedCards.map((card) => card.name).join(", ");
-            return {
-              nextState,
-              resultMessage: `${blocker.name} blocked the attack. Opponent countered with ${usedNames} and stopped it.`
-            };
-          }
-
-          return {
-            nextState,
-            resultMessage: `${blocker.name} blocked the attack and survived.`
-          };
-        }
-
-        nextState.opponent.board = removeCardFromBoard(nextState.opponent.board, target.instanceId);
-        nextState.opponent.trashCount = (nextState.opponent.trashCount || 0) + 1;
-
-        return {
-          nextState,
-          resultMessage: `${blocker.name} blocked the attack, but ${attacker.name} KO'd it.`
-        };
-      }
-    }
-  }
-
-  attacker.rested = true;
-
-  if (targetRef.zone === "leader") {
-    const currentLife = getLifeCount(nextState.opponent.life);
-
-    if (currentLife > 0) {
-      const takenLife = takeTopLifeToHand(nextState.opponent);
-
-      return {
-        nextState,
-        resultMessage: takenLife
-          ? `${attacker.name} attacked leader. Opponent took 1 life into hand.`
-          : `${attacker.name} attacked leader for 1 life.`
-      };
-    }
-
-    nextState.opponent.defeated = true;
-
-    return {
-      nextState,
-      resultMessage: `${attacker.name} attacked through for game.`
-    };
-  }
-
-  nextState.opponent.board = removeCardFromBoard(nextState.opponent.board, target.instanceId);
-  nextState.opponent.trashCount = (nextState.opponent.trashCount || 0) + 1;
-
   return {
-    nextState,
-    resultMessage: `${attacker.name} KO'd ${target.name}.`
+    nextState: defenseResult.nextState,
+    resultMessage: defenseResult.message
   };
 }
 
@@ -976,200 +1449,162 @@ function evaluateScenarioResult(state) {
   return { finished: false, result: null, message: "" };
 }
 
+
+
 function App() {
   const [hoveredCard, setHoveredCard] = useState(null);
-  const [scenarioList, setScenarioList] = useState([]);
-  const [scenarioId, setScenarioId] = useState(1);
   const [scenario, setScenario] = useState(null);
-  const [selectedDonIds, setSelectedDonIds] = useState([]);
   const [playState, setPlayState] = useState(null);
-  const [currentStepId, setCurrentStepId] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [actionMode, setActionMode] = useState("idle");
+
+  const [selectedDonIds, setSelectedDonIds] = useState([]);
+  const [selectedHandCardIndex, setSelectedHandCardIndex] = useState(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState(null);
+  const [actionMode, setActionMode] = useState("idle");
+
   const [message, setMessage] = useState("");
-  const [hasConceded, setHasConceded] = useState(false);
- const [selectedHandCardIndex, setSelectedHandCardIndex] = useState(null);
+  const [loadError, setLoadError] = useState("");
+const [hasWon, setHasWon] = useState(false);
+const [hasConceded, setHasConceded] = useState(false);
+const [hasLost, setHasLost] = useState(false);
+  const [difficultyMode, setDifficultyMode] = useState("medium");
+  const [trashViewer, setTrashViewer] = useState(null);
 
   useEffect(() => {
-    axios
-      .get("http://localhost:3000/scenarios")
-      .then((res) => setScenarioList(res.data))
-      .catch((err) => console.error("Error fetching scenarios:", err));
-  }, []);
+    if (SHOW_BUILDER) return;
 
-  useEffect(() => {
-    axios
-      .get(`http://localhost:3000/scenario/${scenarioId}`)
+axios.get(`${API_BASE_URL}/scenario/1`)
       .then((res) => {
         const loadedScenario = res.data;
+
         setScenario(loadedScenario);
         setPlayState(deepClone(loadedScenario.initialState));
-        setCurrentStepId(loadedScenario.steps[0]?.id ?? null);
-        setHistory([]);
-        setMessage("");
+
         setSelectedDonIds([]);
         setSelectedHandCardIndex(null);
         setSelectedAttackerId(null);
         setActionMode("idle");
+
+        setMessage("");
+        setLoadError("");
+        setHoveredCard(null);
+        setHasWon(false);
         setHasConceded(false);
       })
-      .catch((err) => console.error("Error fetching scenario:", err));
-  }, [scenarioId]);
+      .catch((err) => {
+        console.error("Error fetching scenario:", err);
+        setLoadError(err.response?.data?.error || err.message || "Failed to load scenario.");
+      });
+  }, []);
 
-  const currentStep = useMemo(() => {
-    if (!scenario || !currentStepId) return null;
-    return scenario.steps.find((step) => step.id === currentStepId) || null;
-  }, [scenario, currentStepId]);
+  const openTrashViewer = (side) => {
+  setTrashViewer({
+    side,
+    title: side === "you" ? "Your Trash" : "Opponent Trash"
+  });
+};
 
-  const chooseOption = (option) => {
-    if (!playState) return;
+const closeTrashViewer = () => {
+  setTrashViewer(null);
+};
 
-    const nextState = applyEffects(playState, option.effects || []);
-    setPlayState(nextState);
-    setHistory((prev) => [...prev, option.label]);
-    setCurrentStepId(option.nextStepId || null);
-    setMessage(option.feedback || "");
-  };
-
- const handleHandCardClick = (card, handIndex) => {
-  if (handIndex == null || !playState) return;
-
-  if (selectedDonIds.length > 0) {
-    setMessage("Finish attaching DON first.");
-    return;
-  }
-
-  if (selectedAttackerId) {
-    setSelectedAttackerId(null);
-  }
-
-  if (isEventCard(card)) {
-    const { nextState, success, message: resultMessage } = playHandCardToState(
-      playState,
-      handIndex
-    );
-
-    if (!success) {
-      setMessage(resultMessage);
-      setSelectedHandCardIndex(null);
-      setActionMode("idle");
-      return;
-    }
-
-    setPlayState(nextState);
+  const clearSelections = () => {
+    setSelectedDonIds([]);
     setSelectedHandCardIndex(null);
+    setSelectedAttackerId(null);
     setActionMode("idle");
     setHoveredCard(null);
-    setMessage(resultMessage);
-    return;
+  };
+
+  const checkForNoLethal = (nextState) => {
+  if (!nextState) return false;
+
+  if (nextState.opponent?.defeated) {
+    return false;
   }
 
-  if (isCharacterCard(card)) {
-    if (!canAffordCard(playState.you, card)) {
-      setMessage(`Not enough active DON to play ${card.name}.`);
+  const canStillWin = playerCanForceWin(nextState, 0);
+
+  if (!canStillWin) {
+    setHasLost(true);
+    setHasWon(false);
+    setHasConceded(false);
+    setMessage("No lethal remains. You lose.");
+    return true;
+  }
+
+  return false;
+};
+
+  const handleHandCardClick = (card, handIndex) => {
+    if (hasWon || hasLost || hasConceded) return;
+    if (handIndex == null || !playState) return;
+
+    if (selectedDonIds.length > 0) {
+      setMessage("Finish attaching DON first.");
       return;
     }
 
-    const nextSelectedIndex = selectedHandCardIndex === handIndex ? null : handIndex;
+    if (selectedAttackerId) {
+      setSelectedAttackerId(null);
+    }
 
-    setSelectedHandCardIndex(nextSelectedIndex);
-    setSelectedAttackerId(null);
-    setActionMode(nextSelectedIndex === null ? "idle" : "play_hand_character");
-    setMessage(
-      nextSelectedIndex === null
-        ? ""
-        : `Selected ${card.name}. Click an empty character slot to play it.`
-    );
-    return;
-  }
+    if (isEventCard(card)) {
+      const { nextState, success, message: resultMessage } = playHandCardToState(
+        playState,
+        handIndex
+      );
 
-  setMessage(`${card.name} cannot be played with the current rules yet.`);
-};
-const handleEmptyCharacterSlotClick = () => {
-  if (selectedHandCardIndex == null || actionMode !== "play_hand_character" || !playState) {
-    return;
-  }
+      if (!success) {
+        setMessage(resultMessage);
+        setSelectedHandCardIndex(null);
+        setActionMode("idle");
+        return;
+      }
 
-  const { nextState, success, message: resultMessage } = playHandCardToState(
-    playState,
-    selectedHandCardIndex
-  );
+setPlayState(nextState);
+setSelectedHandCardIndex(null);
+setActionMode("idle");
+setHoveredCard(null);
 
-  if (!success) {
-    setMessage(resultMessage);
-    return;
-  }
-
-  setPlayState(nextState);
-  setSelectedHandCardIndex(null);
-  setSelectedAttackerId(null);
-  setActionMode("idle");
-  setHoveredCard(null);
-  setMessage(resultMessage);
-};
-
- const handleAttackerClick = (card) => {
-  if (!card?.instanceId || selectedDonIds.length > 0) return;
-
-  // Clear any stale hand-play selection before trying to attack
-  if (selectedHandCardIndex != null) {
-    setSelectedHandCardIndex(null);
-  }
-
-  const ref = findCardByInstanceId(playState, card.instanceId);
-  if (!ref || ref.side !== "you") return;
-
-if (!canAttack(ref.card)) {
-  if (ref.card?.summoningSick && !hasRush(ref.card)) {
-    setMessage(`${ref.card.name} cannot attack the turn it is played unless it has Rush.`);
-    return;
-  }
-
-  setMessage("That card cannot attack.");
+if (checkForNoLethal(nextState)) {
   return;
 }
 
-  setSelectedAttackerId(card.instanceId);
-  setActionMode("select_attack_target");
-  setHoveredCard(null);
-  setMessage(`Selected attacker: ${card.name}. Choose a target.`);
-};
+setMessage(resultMessage);
+return;
+    }
 
-const handleAttachTargetClick = (card) => {
-  if (!card?.instanceId) return;
+    if (isCharacterCard(card)) {
+      if (!canAffordCard(playState.you, card)) {
+        setMessage(`Not enough active DON to play ${card.name}.`);
+        return;
+      }
 
-  if (selectedDonIds.length > 0) {
-    setPlayState((prev) =>
-      attachMultipleDonToTarget(prev, selectedDonIds, card.instanceId)
-    );
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setMessage("DON attached.");
-    return;
-  }
+      const nextSelectedIndex = selectedHandCardIndex === handIndex ? null : handIndex;
 
-  if (selectedHandCardIndex != null) {
-    const isYourBoardCharacter = playState.you.board.some(
-      (boardCard) => boardCard.instanceId === card.instanceId
-    );
-
-    if (!isYourBoardCharacter) {
-      setMessage("You can only replace one of your own characters.");
+      setSelectedHandCardIndex(nextSelectedIndex);
+      setSelectedAttackerId(null);
+      setActionMode(nextSelectedIndex === null ? "idle" : "play_hand_character");
+      setMessage(
+        nextSelectedIndex === null
+          ? ""
+          : `Selected ${card.name}. Click an empty character slot to play it.`
+      );
       return;
     }
 
-    if ((playState.you.board?.length || 0) < 5) {
-      setMessage("You can only replace a character when your board has 5 characters.");
+    setMessage(`${card.name} cannot be played with the current rules yet.`);
+  };
+
+  const handleEmptyCharacterSlotClick = () => {
+    if (hasWon || hasLost || hasConceded) return;
+    if (selectedHandCardIndex == null || actionMode !== "play_hand_character" || !playState) {
       return;
     }
 
     const { nextState, success, message: resultMessage } = playHandCardToState(
       playState,
-      selectedHandCardIndex,
-      card.instanceId
+      selectedHandCardIndex
     );
 
     if (!success) {
@@ -1177,67 +1612,136 @@ const handleAttachTargetClick = (card) => {
       return;
     }
 
-    setPlayState(nextState);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setHoveredCard(null);
-    setMessage(resultMessage);
-    return;
-  }
-
-  handleAttackerClick(card);
-};
-
-  const handleAttackTargetClick = (card) => {
-  if (actionMode !== "select_attack_target" || !selectedAttackerId || !card?.instanceId) {
-    return;
-  }
-
-  const { nextState, resultMessage } = resolveAttack(
-    playState,
-    selectedAttackerId,
-    card.instanceId,
-    scenario
-  );
-
-  const scenarioResult = evaluateScenarioResult(nextState);
-
-  setPlayState(nextState);
-  setSelectedAttackerId(null);
-  setSelectedHandCardIndex(null);
-  setActionMode("idle");
-  setMessage(scenarioResult.finished ? scenarioResult.message : resultMessage);
-
-  if (scenarioResult.finished) {
-    setCurrentStepId("win");
-  }
-};
-
-  const resetScenario = () => {
-    if (!scenario) return;
-    setPlayState(deepClone(scenario.initialState));
-    setCurrentStepId(scenario.steps[0]?.id ?? null);
-    setHistory([]);
-    setMessage("");
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setHasConceded(false);
+setPlayState(nextState);
+setSelectedHandCardIndex(null);
+setSelectedAttackerId(null);
+setActionMode("idle");
+setHoveredCard(null);
+setMessage(resultMessage);
   };
 
-  const handleConcede = () => {
-    setHasConceded(true);
-    setMessage("");
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
+  const handleAttackerClick = (card) => {
+    if (hasWon || hasLost || hasConceded) return;
+    if (!card?.instanceId || selectedDonIds.length > 0 || !playState) return;
+
+    if (selectedHandCardIndex != null) {
+      setSelectedHandCardIndex(null);
+    }
+
+    const ref = findCardByInstanceId(playState, card.instanceId);
+    if (!ref || ref.side !== "you") return;
+
+    if (!canAttack(ref.card)) {
+      if (ref.card?.summoningSick && !hasRush(ref.card)) {
+        setMessage(`${ref.card.name} cannot attack the turn it is played unless it has Rush.`);
+        return;
+      }
+
+      setMessage("That card cannot attack.");
+      return;
+    }
+
+    setSelectedAttackerId(card.instanceId);
+    setActionMode("select_attack_target");
     setHoveredCard(null);
+    setMessage(`Selected attacker: ${card.name}. Choose a target.`);
+  };
+
+  const handleAttachTargetClick = (card) => {
+    if (hasWon || hasLost || hasConceded) return;
+    if (!card?.instanceId || !playState) return;
+
+if (selectedDonIds.length > 0) {
+  const nextState = attachMultipleDonToTarget(
+    playState,
+    selectedDonIds,
+    card.instanceId
+  );
+
+  setPlayState(nextState);
+  setSelectedDonIds([]);
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setActionMode("idle");
+  setMessage("DON attached.");
+  return;
+
+    }
+
+    if (selectedHandCardIndex != null) {
+      const isYourBoardCharacter = playState.you.board.some(
+        (boardCard) => boardCard.instanceId === card.instanceId
+      );
+
+      if (!isYourBoardCharacter) {
+        setMessage("You can only replace one of your own characters.");
+        return;
+      }
+
+      if ((playState.you.board?.length || 0) < 5) {
+        setMessage("You can only replace a character when your board has 5 characters.");
+        return;
+      }
+
+      const { nextState, success, message: resultMessage } = playHandCardToState(
+        playState,
+        selectedHandCardIndex,
+        card.instanceId
+      );
+
+      if (!success) {
+        setMessage(resultMessage);
+        return;
+      }
+
+      setPlayState(nextState);
+      setSelectedHandCardIndex(null);
+      setSelectedAttackerId(null);
+      setActionMode("idle");
+      setHoveredCard(null);
+      setMessage(resultMessage);
+      return;
+    }
+
+    handleAttackerClick(card);
+  };
+
+  const handleAttackTargetClick = (card) => {
+    if (hasWon || hasLost|| hasConceded) return;
+    if (actionMode !== "select_attack_target" || !selectedAttackerId || !card?.instanceId) {
+      return;
+    }
+
+    const { nextState, resultMessage } = resolveAttack(
+      playState,
+      selectedAttackerId,
+      card.instanceId,
+      scenario
+    );
+
+    const scenarioResult = evaluateScenarioResult(nextState);
+
+setPlayState(nextState);
+clearSelections();
+
+if (scenarioResult.finished) {
+  setHasWon(true);
+  setHasLost(false);
+  setHasConceded(false);
+  setMessage(scenarioResult.message);
+  return;
+}
+
+if (checkForNoLethal(nextState)) {
+  return;
+}
+
+setMessage(resultMessage);
   };
 
   const handleDonClick = (donId) => {
+    if (hasWon || hasLost || hasConceded) return;
+
     setHoveredCard(null);
     setSelectedAttackerId(null);
     setSelectedHandCardIndex(null);
@@ -1250,38 +1754,124 @@ const handleAttachTargetClick = (card) => {
     );
   };
 
-  if (!scenario || !playState || !currentStep) {
-    return <div className="app-shell">Loading...</div>;
+  const resetScenario = () => {
+    if (!scenario) return;
+
+    setPlayState(deepClone(scenario.initialState));
+    clearSelections();
+    setMessage("");
+    setHasWon(false);
+    setHasConceded(false);
+    setHasLost(false);
+  };
+
+  const handleConcede = () => {
+    clearSelections();
+    setMessage("");
+    setHasWon(false);
+    setHasConceded(true);
+    setHasWon(false);
+  };
+
+  if (SHOW_BUILDER) {
+    return <ScenarioBuilder />;
   }
 
-  const isFinished = currentStep.result === "win" || currentStep.result === "fail";
+  if (loadError) {
+    return (
+      <div className="app-shell" style={{ color: "white", fontSize: "24px", padding: "30px" }}>
+        Failed to load: {loadError}
+      </div>
+    );
+  }
+
+  if (!scenario || !playState) {
+    return (
+      <div className="app-shell" style={{ color: "white", fontSize: "24px", padding: "30px" }}>
+        Loading...
+      </div>
+    );
+  }
+  const visibilityByDifficulty = {
+  easy: {
+    showOpponentHand: true,
+    showOpponentLife: true
+  },
+  medium: {
+    showOpponentHand: true,
+    showOpponentLife: false
+  },
+  hard: {
+    showOpponentHand: false,
+    showOpponentLife: false
+  }
+};
+
+const visibility = visibilityByDifficulty[difficultyMode];
 
   return (
     <div className="app-shell">
       <div className="layout">
         <main className="board-wrapper">
-          <OpponentBoard
-            data={playState.opponent}
-            setHoveredCard={setHoveredCard}
-            onTargetClick={handleAttackTargetClick}
-          />
-          <PlayerBoard
-            data={playState.you}
-            setHoveredCard={setHoveredCard}
-            selectedDonIds={selectedDonIds}
-            onDonClick={handleDonClick}
-            onAttachTargetClick={handleAttachTargetClick}
-            onHandCardClick={handleHandCardClick}
-            onEmptyCharacterSlotClick={handleEmptyCharacterSlotClick}
-            selectedHandCardIndex={selectedHandCardIndex}
-          />
+<OpponentBoard
+  data={playState.opponent}
+  setHoveredCard={setHoveredCard}
+  onTargetClick={handleAttackTargetClick}
+  visibility={visibility}
+  onTrashClick={() => openTrashViewer("opponent")}
+/>
+<PlayerBoard
+  data={playState.you}
+  setHoveredCard={setHoveredCard}
+  selectedDonIds={selectedDonIds}
+  onDonClick={handleDonClick}
+  onAttachTargetClick={handleAttachTargetClick}
+  onHandCardClick={handleHandCardClick}
+  onEmptyCharacterSlotClick={handleEmptyCharacterSlotClick}
+  selectedHandCardIndex={selectedHandCardIndex}
+  onTrashClick={() => openTrashViewer("you")}
+/>
         </main>
+
+        {trashViewer && (
+  <TrashViewerModal
+    title={trashViewer.title}
+    cards={playState?.[trashViewer.side]?.trash || []}
+    onClose={closeTrashViewer}
+    setHoveredCard={setHoveredCard}
+  />
+)}
 
         {hoveredCard && (
           <div className="center-preview">
             <img src={hoveredCard.image} alt={hoveredCard.name} />
           </div>
         )}
+
+        {hasWon && (
+  <div className="game-result-overlay">
+    <div className="game-result-text win">You Win</div>
+  </div>
+)}
+
+{hasLost && (
+  <div className="game-result-overlay">
+    <div className="game-result-text lose">You Lose</div>
+  </div>
+)}
+
+{hasConceded && (
+  <div className="game-result-overlay">
+    <div className="game-result-text lose">You Lose</div>
+  </div>
+)}
+
+        {hasWon && (
+          <div className="game-result-overlay">
+            <div className="game-result-text win">You Win</div>
+          </div>
+        )}
+
         {hasConceded && (
           <div className="game-result-overlay">
             <div className="game-result-text lose">You Lose</div>
@@ -1292,6 +1882,41 @@ const handleAttachTargetClick = (card) => {
           <section className="panel">
             <h1>{scenario.title}</h1>
           </section>
+          <section className="panel">
+  <h2>Difficulty</h2>
+
+  <div className="difficulty-buttons">
+    <button
+      type="button"
+      className={difficultyMode === "easy" ? "active-difficulty" : ""}
+      onClick={() => setDifficultyMode("easy")}
+    >
+      Easy
+    </button>
+
+    <button
+      type="button"
+      className={difficultyMode === "medium" ? "active-difficulty" : ""}
+      onClick={() => setDifficultyMode("medium")}
+    >
+      Medium
+    </button>
+
+    <button
+      type="button"
+      className={difficultyMode === "hard" ? "active-difficulty" : ""}
+      onClick={() => setDifficultyMode("hard")}
+    >
+      Hard
+    </button>
+  </div>
+
+  <p>
+    {difficultyMode === "easy" && "Opponent hand and life are visible."}
+    {difficultyMode === "medium" && "Opponent hand is visible. Life is hidden."}
+    {difficultyMode === "hard" && "Opponent hand and life are hidden."}
+  </p>
+</section>
 
           {message && (
             <section className="panel">
@@ -1301,8 +1926,13 @@ const handleAttachTargetClick = (card) => {
           )}
 
           <section className="panel">
-            <button onClick={resetScenario}>Reset Scenario</button>
-            <button onClick={handleConcede}>Concede</button>
+            <button type="button" onClick={resetScenario}>
+              Reset Scenario
+            </button>
+
+            <button type="button" onClick={handleConcede}>
+              Concede
+            </button>
           </section>
         </aside>
       </div>
