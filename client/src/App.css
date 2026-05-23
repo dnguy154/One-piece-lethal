@@ -988,6 +988,12 @@ button:disabled {
   gap: 8px;
 }
 
+.selected-hand-card {
+  outline: 3px solid #ffe066;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 select,
 input,
 textarea {

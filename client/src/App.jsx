@@ -21,13 +21,13 @@ function CardTile({
 }) {
   const className = `card-tile ${variant} ${card?.rested ? "rested" : ""}`;
 
-if (hidden) {
-  return (
-    <div className={`${className} real-card-back`}>
-      <img src="/images/card_back.png" alt="Hidden card" className="card-image" />
-    </div>
-  );
-}
+  if (hidden) {
+    return (
+      <div className={`${className} real-card-back`}>
+        <img src="/images/card_back.png" alt="Hidden card" className="card-image" />
+      </div>
+    );
+  }
   if (!card) return <div className={`${className} card-empty`} />;
 
   return (
@@ -46,12 +46,12 @@ if (hidden) {
       onClick={() => onClick?.(card)}
     >
       {card.image ? (
-  <img src={card.image} alt={card.name} className="card-image" />
-) : (
-  <div className="card-missing-image">
-    {card.name || card.cardId || "Missing Card"}
-  </div>
-)}
+        <img src={card.image} alt={card.name} className="card-image" />
+      ) : (
+        <div className="card-missing-image">
+          {card.name || card.cardId || "Missing Card"}
+        </div>
+      )}
       {powerValue ? <div className="power-badge">{powerValue}</div> : null}
       {attachedDonCount > 0 ? (
         <div className="attached-don-badge">+{attachedDonCount} DON</div>
@@ -72,10 +72,10 @@ function DonArea({ don, selectedDonIds, onDonClick }) {
   const donCards = Array.isArray(don)
     ? don.filter((donCard) => donCard.attachedTo === null)
     : Array.from({ length: Number(don) || 0 }, (_, index) => ({
-        id: index + 1,
-        rested: false,
-        attachedTo: null
-      }));
+      id: index + 1,
+      rested: false,
+      attachedTo: null
+    }));
 
   return (
     <div className="don-area">
@@ -299,15 +299,15 @@ function TrashPile({ cards = [], trashCount = 0, onClick }) {
       onClick={onClick}
       disabled={actualCards.length === 0 && Number(trashCount || 0) === 0}
     >
-{lastCard?.image ? (
-  <img src={lastCard.image} alt={lastCard.name} className="trash-card-image" />
-) : null}
+      {lastCard?.image ? (
+        <img src={lastCard.image} alt={lastCard.name} className="trash-card-image" />
+      ) : null}
 
-{(actualCards.length || trashCount || 0) > 0 && (
-  <div className="trash-count-badge">
-    {actualCards.length || trashCount || 0}
-  </div>
-)}
+      {(actualCards.length || trashCount || 0) > 0 && (
+        <div className="trash-count-badge">
+          {actualCards.length || trashCount || 0}
+        </div>
+      )}
     </button>
   );
 }
@@ -353,20 +353,20 @@ function OpponentBoard({
   return (
     <div className="board-area opponent-board">
       <div className="board-body side-hand-layout">
-<HandColumn
-  cards={data.hand}
-  setHoveredCard={setHoveredCard}
-  hiddenCards={!visibility.showOpponentHand}
-  label="Opponent Hand"
-  onOpenHand={onOpenHand}
-/>
+        <HandColumn
+          cards={data.hand}
+          setHoveredCard={setHoveredCard}
+          hiddenCards={!visibility.showOpponentHand}
+          label="Opponent Hand"
+          onOpenHand={onOpenHand}
+        />
 
         <div className="life-column">
           <LifeStack
-  lifeCards={data.life}
-  revealCards={visibility.showOpponentLife}
-  setHoveredCard={setHoveredCard}
-/>
+            lifeCards={data.life}
+            revealCards={visibility.showOpponentLife}
+            setHoveredCard={setHoveredCard}
+          />
         </div>
 
         <div className="playmat compact-playmat opponent-flipped">
@@ -375,13 +375,13 @@ function OpponentBoard({
               <DonArea don={data.don} selectedDonIds={[]} onDonClick={() => { }} />
             </Zone>
 
-<Zone title="Trash" className="trash-zone compact-zone">
-  <TrashPile
-    cards={data.trash}
-    trashCount={data.trashCount}
-    onClick={onTrashClick}
-  />
-</Zone>
+            <Zone title="Trash" className="trash-zone compact-zone">
+              <TrashPile
+                cards={data.trash}
+                trashCount={data.trashCount}
+                onClick={onTrashClick}
+              />
+            </Zone>
           </div>
 
           <div className="mid-row opponent-mid-row compact-mid-row">
@@ -440,14 +440,14 @@ function PlayerBoard({
   return (
     <div className="board-area player-board">
       <div className="board-body side-hand-layout">
-<HandColumn
-  cards={data.hand}
-  setHoveredCard={setHoveredCard}
-  onCardClick={onHandCardClick}
-  selectedHandCardIndex={selectedHandCardIndex}
-  label="Your Hand"
-  onOpenHand={onOpenHand}
-/>
+        <HandColumn
+          cards={data.hand}
+          setHoveredCard={setHoveredCard}
+          onCardClick={onHandCardClick}
+          selectedHandCardIndex={selectedHandCardIndex}
+          label="Your Hand"
+          onOpenHand={onOpenHand}
+        />
 
         <div className="life-column">
           <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
@@ -502,13 +502,13 @@ function PlayerBoard({
               />
             </Zone>
 
-<Zone title="Trash" className="trash-zone compact-zone">
-  <TrashPile
-    cards={data.trash}
-    trashCount={data.trashCount}
-    onClick={onTrashClick}
-  />
-</Zone>
+            <Zone title="Trash" className="trash-zone compact-zone">
+              <TrashPile
+                cards={data.trash}
+                trashCount={data.trashCount}
+                onClick={onTrashClick}
+              />
+            </Zone>
           </div>
         </div>
       </div>
@@ -683,7 +683,7 @@ function playHandCardToState(state, handIndex, replaceTargetInstanceId = null) {
           donCard.rested = true;
         }
       });
-addCardToTrash(player, replacedCard);
+      addCardToTrash(player, replacedCard);
 
       player.board[replaceIndex] = newCharacter;
 
@@ -713,8 +713,8 @@ addCardToTrash(player, replacedCard);
         message: `Not enough active DON to play ${card.name}.`
       };
     }
-const [playedEvent] = player.hand.splice(handIndex, 1);
-addCardToTrash(player, playedEvent);
+    const [playedEvent] = player.hand.splice(handIndex, 1);
+    addCardToTrash(player, playedEvent);
 
     return {
       nextState,
@@ -1127,13 +1127,13 @@ function createCounterDefenseOption(state, attackerPower, targetRef) {
 
   addCardsToTrash(nextState.opponent, usedCards);
 
-return {
-  nextState,
-  message: `Opponent countered with ${usedCards.map((card) => card.name).join(", ")}.`,
-  type: "counter",
-  counterUsed: selection.total,
-  cardsUsed: usedCards.length
-};
+  return {
+    nextState,
+    message: `Opponent countered with ${usedCards.map((card) => card.name).join(", ")}.`,
+    type: "counter",
+    counterUsed: selection.total,
+    cardsUsed: usedCards.length
+  };
 }
 
 // Player attacks leader and opponent takes life.
@@ -1180,19 +1180,19 @@ function createBlockDefenseOptions(state, attackerPower) {
     const blockerPower = getDisplayedPower(blockedCard);
 
     // Option A: block without counter.
-if (attackerPower >= blockerPower) {
-  addCardToTrash(blockedState.opponent, blockedCard);
+    if (attackerPower >= blockerPower) {
+      addCardToTrash(blockedState.opponent, blockedCard);
 
-  blockedState.opponent.board = removeCardFromBoard(
-    blockedState.opponent.board,
-    blockedCard.instanceId
-  );
+      blockedState.opponent.board = removeCardFromBoard(
+        blockedState.opponent.board,
+        blockedCard.instanceId
+      );
 
-  options.push({
-    nextState: blockedState,
-    message: `${blockedCard.name} blocked and was KO'd.`,
-    type: "block_ko"
-  });
+      options.push({
+        nextState: blockedState,
+        message: `${blockedCard.name} blocked and was KO'd.`,
+        type: "block_ko"
+      });
     } else {
       options.push({
         nextState: blockedState,
@@ -1225,17 +1225,17 @@ if (attackerPower >= blockerPower) {
           counterSaveState.opponent.hand.splice(index, 1);
         }
 
-addCardsToTrash(counterSaveState.opponent, usedCards);
+        addCardsToTrash(counterSaveState.opponent, usedCards);
 
-options.push({
-  nextState: counterSaveState,
-  message: `${blocker.name} blocked. Opponent countered with ${usedCards
-    .map((card) => card.name)
-    .join(", ")} to save it.`,
-  type: "block_counter_save",
-  counterUsed: selection.total,
-  cardsUsed: usedCards.length
-});
+        options.push({
+          nextState: counterSaveState,
+          message: `${blocker.name} blocked. Opponent countered with ${usedCards
+            .map((card) => card.name)
+            .join(", ")} to save it.`,
+          type: "block_counter_save",
+          counterUsed: selection.total,
+          cardsUsed: usedCards.length
+        });
       }
     }
   }
@@ -1253,12 +1253,12 @@ function createBoardBattleNoCounterOption(state, attackerPower, targetRef) {
   const targetPower = getDisplayedPower(newTargetRef.card);
 
   if (attackerPower >= targetPower) {
-addCardToTrash(nextState.opponent, newTargetRef.card);
+    addCardToTrash(nextState.opponent, newTargetRef.card);
 
-nextState.opponent.board = removeCardFromBoard(
-  nextState.opponent.board,
-  newTargetRef.card.instanceId
-);
+    nextState.opponent.board = removeCardFromBoard(
+      nextState.opponent.board,
+      newTargetRef.card.instanceId
+    );
     return {
       nextState,
       message: `${newTargetRef.card.name} was KO'd.`,
@@ -1385,11 +1385,11 @@ function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
   const attackerPower = getDisplayedPower(attackerRef?.card);
   const targetPower = getDisplayedPower(targetRef?.card);
 
-const scoreContext = {
-  attackerPower,
-  targetPower,
-  lifeBefore: getLifeCount(state.opponent.life)
-};
+  const scoreContext = {
+    attackerPower,
+    targetPower,
+    lifeBefore: getLifeCount(state.opponent.life)
+  };
 
   if (defenseOptions.length === 0) {
     return {
@@ -1553,9 +1553,9 @@ function App() {
 
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
-const [hasWon, setHasWon] = useState(false);
-const [hasConceded, setHasConceded] = useState(false);
-const [hasLost, setHasLost] = useState(false);
+  const [hasWon, setHasWon] = useState(false);
+  const [hasConceded, setHasConceded] = useState(false);
+  const [hasLost, setHasLost] = useState(false);
   const [difficultyMode, setDifficultyMode] = useState("hard");
   const [trashViewer, setTrashViewer] = useState(null);
   const [handViewer, setHandViewer] = useState(null);
@@ -1563,7 +1563,7 @@ const [hasLost, setHasLost] = useState(false);
   useEffect(() => {
     if (SHOW_BUILDER) return;
 
-axios.get(`${API_BASE_URL}/scenario/1`)
+    axios.get(`${API_BASE_URL}/scenario/1`)
       .then((res) => {
         const loadedScenario = res.data;
 
@@ -1581,44 +1581,44 @@ axios.get(`${API_BASE_URL}/scenario/1`)
         setHasWon(false);
         setHasConceded(false);
       })
-.catch((err) => {
-  console.error("Error fetching scenario:", err);
+      .catch((err) => {
+        console.error("Error fetching scenario:", err);
 
-  const errorData = err.response?.data;
+        const errorData = err.response?.data;
 
-  const errorMessage =
-    typeof errorData === "string"
-      ? errorData
-      : errorData?.message ||
-        errorData?.error ||
-        err.message ||
-        "Failed to load scenario.";
+        const errorMessage =
+          typeof errorData === "string"
+            ? errorData
+            : errorData?.message ||
+            errorData?.error ||
+            err.message ||
+            "Failed to load scenario.";
 
-  setLoadError(errorMessage);
-});
+        setLoadError(errorMessage);
+      });
   }, []);
 
   const openHandViewer = (side) => {
-  setHandViewer({
-    side,
-    title: side === "you" ? "Your Hand" : "Opponent Hand"
-  });
-};
+    setHandViewer({
+      side,
+      title: side === "you" ? "Your Hand" : "Opponent Hand"
+    });
+  };
 
-const closeHandViewer = () => {
-  setHandViewer(null);
-};
+  const closeHandViewer = () => {
+    setHandViewer(null);
+  };
 
   const openTrashViewer = (side) => {
-  setTrashViewer({
-    side,
-    title: side === "you" ? "Your Trash" : "Opponent Trash"
-  });
-};
+    setTrashViewer({
+      side,
+      title: side === "you" ? "Your Trash" : "Opponent Trash"
+    });
+  };
 
-const closeTrashViewer = () => {
-  setTrashViewer(null);
-};
+  const closeTrashViewer = () => {
+    setTrashViewer(null);
+  };
 
   const clearSelections = () => {
     setSelectedDonIds([]);
@@ -1630,24 +1630,24 @@ const closeTrashViewer = () => {
   };
 
   const checkForNoLethal = (nextState) => {
-  if (!nextState) return false;
+    if (!nextState) return false;
 
-  if (nextState.opponent?.defeated) {
+    if (nextState.opponent?.defeated) {
+      return false;
+    }
+
+    const canStillWin = playerCanForceWin(nextState, 0);
+
+    if (!canStillWin) {
+      setHasLost(true);
+      setHasWon(false);
+      setHasConceded(false);
+      setMessage("No lethal remains. You lose.");
+      return true;
+    }
+
     return false;
-  }
-
-  const canStillWin = playerCanForceWin(nextState, 0);
-
-  if (!canStillWin) {
-    setHasLost(true);
-    setHasWon(false);
-    setHasConceded(false);
-    setMessage("No lethal remains. You lose.");
-    return true;
-  }
-
-  return false;
-};
+  };
 
   const handleHandCardClick = (card, handIndex) => {
     if (hasWon || hasLost || hasConceded) return;
@@ -1675,17 +1675,17 @@ const closeTrashViewer = () => {
         return;
       }
 
-setPlayState(nextState);
-setSelectedHandCardIndex(null);
-setActionMode("idle");
-setHoveredCard(null);
+      setPlayState(nextState);
+      setSelectedHandCardIndex(null);
+      setActionMode("idle");
+      setHoveredCard(null);
 
-if (checkForNoLethal(nextState)) {
-  return;
-}
+      if (checkForNoLethal(nextState)) {
+        return;
+      }
 
-setMessage(resultMessage);
-return;
+      setMessage(resultMessage);
+      return;
     }
 
     if (isCharacterCard(card)) {
@@ -1699,6 +1699,11 @@ return;
       setSelectedHandCardIndex(nextSelectedIndex);
       setSelectedAttackerId(null);
       setActionMode(nextSelectedIndex === null ? "idle" : "play_hand_character");
+
+      // Close mobile hand modal after selecting a card,
+      // so the user can click an empty board slot to summon.
+      setHandViewer(null);
+
       setMessage(
         nextSelectedIndex === null
           ? ""
@@ -1726,12 +1731,12 @@ return;
       return;
     }
 
-setPlayState(nextState);
-setSelectedHandCardIndex(null);
-setSelectedAttackerId(null);
-setActionMode("idle");
-setHoveredCard(null);
-setMessage(resultMessage);
+    setPlayState(nextState);
+    setSelectedHandCardIndex(null);
+    setSelectedAttackerId(null);
+    setActionMode("idle");
+    setHoveredCard(null);
+    setMessage(resultMessage);
   };
 
   const handleAttackerClick = (card) => {
@@ -1765,20 +1770,20 @@ setMessage(resultMessage);
     if (hasWon || hasLost || hasConceded) return;
     if (!card?.instanceId || !playState) return;
 
-if (selectedDonIds.length > 0) {
-  const nextState = attachMultipleDonToTarget(
-    playState,
-    selectedDonIds,
-    card.instanceId
-  );
+    if (selectedDonIds.length > 0) {
+      const nextState = attachMultipleDonToTarget(
+        playState,
+        selectedDonIds,
+        card.instanceId
+      );
 
-  setPlayState(nextState);
-  setSelectedDonIds([]);
-  setSelectedHandCardIndex(null);
-  setSelectedAttackerId(null);
-  setActionMode("idle");
-  setMessage("DON attached.");
-  return;
+      setPlayState(nextState);
+      setSelectedDonIds([]);
+      setSelectedHandCardIndex(null);
+      setSelectedAttackerId(null);
+      setActionMode("idle");
+      setMessage("DON attached.");
+      return;
 
     }
 
@@ -1821,7 +1826,7 @@ if (selectedDonIds.length > 0) {
   };
 
   const handleAttackTargetClick = (card) => {
-    if (hasWon || hasLost|| hasConceded) return;
+    if (hasWon || hasLost || hasConceded) return;
     if (actionMode !== "select_attack_target" || !selectedAttackerId || !card?.instanceId) {
       return;
     }
@@ -1835,22 +1840,22 @@ if (selectedDonIds.length > 0) {
 
     const scenarioResult = evaluateScenarioResult(nextState);
 
-setPlayState(nextState);
-clearSelections();
+    setPlayState(nextState);
+    clearSelections();
 
-if (scenarioResult.finished) {
-  setHasWon(true);
-  setHasLost(false);
-  setHasConceded(false);
-  setMessage(scenarioResult.message);
-  return;
-}
+    if (scenarioResult.finished) {
+      setHasWon(true);
+      setHasLost(false);
+      setHasConceded(false);
+      setMessage(scenarioResult.message);
+      return;
+    }
 
-if (checkForNoLethal(nextState)) {
-  return;
-}
+    if (checkForNoLethal(nextState)) {
+      return;
+    }
 
-setMessage(resultMessage);
+    setMessage(resultMessage);
   };
 
   const handleDonClick = (donId) => {
@@ -1907,74 +1912,74 @@ setMessage(resultMessage);
     );
   }
   const visibilityByDifficulty = {
-  easy: {
-    showOpponentHand: true,
-    showOpponentLife: true
-  },
-  medium: {
-    showOpponentHand: true,
-    showOpponentLife: false
-  },
-  hard: {
-    showOpponentHand: false,
-    showOpponentLife: false
-  }
-};
+    easy: {
+      showOpponentHand: true,
+      showOpponentLife: true
+    },
+    medium: {
+      showOpponentHand: true,
+      showOpponentLife: false
+    },
+    hard: {
+      showOpponentHand: false,
+      showOpponentLife: false
+    }
+  };
 
-const visibility = visibilityByDifficulty[difficultyMode];
+  const visibility = visibilityByDifficulty[difficultyMode];
 
   return (
     <div className="app-shell">
       <div className="layout">
         <main className="board-wrapper">
-<OpponentBoard
-  data={playState.opponent}
-  setHoveredCard={setHoveredCard}
-  onTargetClick={handleAttackTargetClick}
-  visibility={visibility}
-  onTrashClick={() => openTrashViewer("opponent")}
-  onOpenHand={() => openHandViewer("opponent")}
-/>
-<PlayerBoard
-  data={playState.you}
-  setHoveredCard={setHoveredCard}
-  selectedDonIds={selectedDonIds}
-  onDonClick={handleDonClick}
-  onAttachTargetClick={handleAttachTargetClick}
-  onHandCardClick={handleHandCardClick}
-  onEmptyCharacterSlotClick={handleEmptyCharacterSlotClick}
-  selectedHandCardIndex={selectedHandCardIndex}
-  onTrashClick={() => openTrashViewer("you")}
-  onOpenHand={() => openHandViewer("you")}
-/>
+          <OpponentBoard
+            data={playState.opponent}
+            setHoveredCard={setHoveredCard}
+            onTargetClick={handleAttackTargetClick}
+            visibility={visibility}
+            onTrashClick={() => openTrashViewer("opponent")}
+            onOpenHand={() => openHandViewer("opponent")}
+          />
+          <PlayerBoard
+            data={playState.you}
+            setHoveredCard={setHoveredCard}
+            selectedDonIds={selectedDonIds}
+            onDonClick={handleDonClick}
+            onAttachTargetClick={handleAttachTargetClick}
+            onHandCardClick={handleHandCardClick}
+            onEmptyCharacterSlotClick={handleEmptyCharacterSlotClick}
+            selectedHandCardIndex={selectedHandCardIndex}
+            onTrashClick={() => openTrashViewer("you")}
+            onOpenHand={() => openHandViewer("you")}
+          />
         </main>
 
         {trashViewer && (
-  <TrashViewerModal
-    title={trashViewer.title}
-    cards={playState?.[trashViewer.side]?.trash || []}
-    onClose={closeTrashViewer}
-    setHoveredCard={setHoveredCard}
-  />
+          <TrashViewerModal
+            title={trashViewer.title}
+            cards={playState?.[trashViewer.side]?.trash || []}
+            onClose={closeTrashViewer}
+            setHoveredCard={setHoveredCard}
+          />
 
-  
-)}
 
-{handViewer && (
-  <HandViewerModal
-    title={handViewer.title}
-    cards={playState?.[handViewer.side]?.hand || []}
-    hiddenCards={
-      handViewer.side === "opponent" && !visibility.showOpponentHand
-    }
-    onClose={closeHandViewer}
-    setHoveredCard={setHoveredCard}
-    onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
-    selectedHandCardIndex={
-      handViewer.side === "you" ? selectedHandCardIndex : null
-    }
-  />
-)}
+        )}
+
+        {handViewer && (
+          <HandViewerModal
+            title={handViewer.title}
+            cards={playState?.[handViewer.side]?.hand || []}
+            hiddenCards={
+              handViewer.side === "opponent" && !visibility.showOpponentHand
+            }
+            onClose={closeHandViewer}
+            setHoveredCard={setHoveredCard}
+            onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
+            selectedHandCardIndex={
+              handViewer.side === "you" ? selectedHandCardIndex : null
+            }
+          />
+        )}
 
         {hoveredCard && (
           <div className="center-preview">
@@ -1983,22 +1988,22 @@ const visibility = visibilityByDifficulty[difficultyMode];
         )}
 
         {hasWon && (
-  <div className="game-result-overlay">
-    <div className="game-result-text win">You Win</div>
-  </div>
-)}
+          <div className="game-result-overlay">
+            <div className="game-result-text win">You Win</div>
+          </div>
+        )}
 
-{hasLost && (
-  <div className="game-result-overlay">
-    <div className="game-result-text lose">You Lose</div>
-  </div>
-)}
+        {hasLost && (
+          <div className="game-result-overlay">
+            <div className="game-result-text lose">You Lose</div>
+          </div>
+        )}
 
-{hasConceded && (
-  <div className="game-result-overlay">
-    <div className="game-result-text lose">You Lose</div>
-  </div>
-)}
+        {hasConceded && (
+          <div className="game-result-overlay">
+            <div className="game-result-text lose">You Lose</div>
+          </div>
+        )}
 
         {hasWon && (
           <div className="game-result-overlay">
@@ -2017,40 +2022,40 @@ const visibility = visibilityByDifficulty[difficultyMode];
             <h1>{scenario.title}</h1>
           </section>
           <section className="panel">
-  <h2>Difficulty</h2>
+            <h2>Difficulty</h2>
 
-  <div className="difficulty-buttons">
-    <button
-      type="button"
-      className={difficultyMode === "easy" ? "active-difficulty" : ""}
-      onClick={() => setDifficultyMode("easy")}
-    >
-      Easy
-    </button>
+            <div className="difficulty-buttons">
+              <button
+                type="button"
+                className={difficultyMode === "easy" ? "active-difficulty" : ""}
+                onClick={() => setDifficultyMode("easy")}
+              >
+                Easy
+              </button>
 
-    <button
-      type="button"
-      className={difficultyMode === "medium" ? "active-difficulty" : ""}
-      onClick={() => setDifficultyMode("medium")}
-    >
-      Medium
-    </button>
+              <button
+                type="button"
+                className={difficultyMode === "medium" ? "active-difficulty" : ""}
+                onClick={() => setDifficultyMode("medium")}
+              >
+                Medium
+              </button>
 
-    <button
-      type="button"
-      className={difficultyMode === "hard" ? "active-difficulty" : ""}
-      onClick={() => setDifficultyMode("hard")}
-    >
-      Hard
-    </button>
-  </div>
+              <button
+                type="button"
+                className={difficultyMode === "hard" ? "active-difficulty" : ""}
+                onClick={() => setDifficultyMode("hard")}
+              >
+                Hard
+              </button>
+            </div>
 
-  <p>
-    {difficultyMode === "easy" && "Opponent hand and life are visible."}
-    {difficultyMode === "medium" && "Opponent hand is visible. Life is hidden."}
-    {difficultyMode === "hard" && "Opponent hand and life are hidden."}
-  </p>
-</section>
+            <p>
+              {difficultyMode === "easy" && "Opponent hand and life are visible."}
+              {difficultyMode === "medium" && "Opponent hand is visible. Life is hidden."}
+              {difficultyMode === "hard" && "Opponent hand and life are hidden."}
+            </p>
+          </section>
 
           {message && (
             <section className="panel">
