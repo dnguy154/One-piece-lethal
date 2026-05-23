@@ -48,11 +48,9 @@ function CardTile({
     }
   };
 
-  const hideDesktopPreview = () => {
-    if (shouldUseHoverPreview()) {
-      setHoveredCard?.(null);
-    }
-  };
+const hideDesktopPreview = () => {
+  setHoveredCard?.(null);
+};
 
   const startLongPress = () => {
     if (!card || hidden) return;
@@ -104,15 +102,10 @@ function CardTile({
   return (
     <div
       className={className}
-      onPointerEnter={(event) => {
-        if (event.pointerType === "mouse") {
-          showDesktopPreview();
-        }
-      }}
-      onPointerLeave={(event) => {
-        if (event.pointerType === "mouse") {
-          hideDesktopPreview();
-        }
+      onMouseEnter={showDesktopPreview}
+      onMouseLeave={() => {
+        clearLongPressTimer();
+        setHoveredCard?.(null);
       }}
       onPointerCancel={() => {
         clearLongPressTimer();
@@ -1652,6 +1645,29 @@ function App() {
   const [mobilePreviewCard, setMobilePreviewCard] = useState(null);
 
   useEffect(() => {
+    const clearPreviewWhenNotOverCard = (event) => {
+      if (!shouldUseHoverPreview()) return;
+
+      const elementUnderMouse = document.elementFromPoint(
+        event.clientX,
+        event.clientY
+      );
+
+      const isOverCard = elementUnderMouse?.closest?.(".card-tile");
+
+      if (!isOverCard) {
+        setHoveredCard(null);
+      }
+    };
+
+    window.addEventListener("mousemove", clearPreviewWhenNotOverCard);
+
+    return () => {
+      window.removeEventListener("mousemove", clearPreviewWhenNotOverCard);
+    };
+  }, []);
+
+  useEffect(() => {
     if (SHOW_BUILDER) return;
 
     axios.get(`${API_BASE_URL}/scenario/1`)
@@ -1720,15 +1736,15 @@ function App() {
     setTrashViewer(null);
   };
 
-const clearSelections = () => {
-  setSelectedDonIds([]);
-  setSelectedHandCardIndex(null);
-  setSelectedAttackerId(null);
-  setActionMode("idle");
-  setHandViewer(null);
-  setHoveredCard(null);
-  setMobilePreviewCard(null);
-};
+  const clearSelections = () => {
+    setSelectedDonIds([]);
+    setSelectedHandCardIndex(null);
+    setSelectedAttackerId(null);
+    setActionMode("idle");
+    setHandViewer(null);
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
+  };
 
   const checkForNoLethal = (nextState) => {
     if (!nextState) return false;
