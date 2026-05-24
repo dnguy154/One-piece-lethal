@@ -1030,6 +1030,25 @@ button:disabled {
   display: block;
 }
 
+.card-tile,
+.card-tile img,
+.card-image,
+.mobile-card-preview,
+.mobile-card-preview img,
+.center-preview,
+.center-preview img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+.card-tile img,
+.card-image {
+  pointer-events: none;
+}
+
 
 .desktop-card-preview {
   display: none;

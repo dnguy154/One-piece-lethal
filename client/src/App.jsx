@@ -123,7 +123,13 @@ function CardTile({
       onClick={handleClick}
     >
       {card.image ? (
-        <img src={card.image} alt={card.name} className="card-image" />
+        <img
+  src={card.image}
+  alt={card.name}
+  className="card-image"
+  draggable={false}
+  onContextMenu={(event) => event.preventDefault()}
+/>
       ) : (
         <div className="card-missing-image">
           {card.name || card.cardId || "Missing Card"}
