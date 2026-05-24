@@ -1158,6 +1158,14 @@ textarea {
     align-items: center;
     justify-content: center;
   }
+
+  .playmat {
+  gap: 0px;
+
+  .zone {
+  padding: 0.5px 0.5px;
+}
+}
 }
 
 @media (max-width: 1200px) {
