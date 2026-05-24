@@ -23,7 +23,6 @@ function CardTile({
   setHoveredCard,
   onClick,
   onMobilePreview,
-  onMobilePreviewClose,
   powerValue,
   attachedDonCount = 0,
   disableHoverPreview = false
@@ -71,16 +70,12 @@ function CardTile({
     }, 350);
   };
 
-  const endLongPress = () => {
+  const cancelLongPress = () => {
     clearLongPressTimer();
 
-    if (longPressTriggeredRef.current) {
-      onMobilePreviewClose?.();
-
-      window.setTimeout(() => {
-        longPressTriggeredRef.current = false;
-      }, 150);
-    }
+    window.setTimeout(() => {
+      longPressTriggeredRef.current = false;
+    }, 250);
   };
 
   const handleClick = (event) => {
@@ -103,8 +98,16 @@ function CardTile({
 
   if (hidden) {
     return (
-      <div className={`${className} real-card-back`}>
-        <img src="/images/card_back.png" alt="Hidden card" className="card-image" />
+      <div
+        className={`${className} real-card-back`}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        <img
+          src="/images/card_back.png"
+          alt="Hidden card"
+          className="card-image"
+          draggable={false}
+        />
       </div>
     );
   }
@@ -117,19 +120,19 @@ function CardTile({
       onMouseEnter={showDesktopPreview}
       onMouseLeave={hideDesktopPreview}
       onTouchStart={startLongPress}
-      onTouchEnd={endLongPress}
-      onTouchCancel={endLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchCancel={cancelLongPress}
       onContextMenu={(event) => event.preventDefault()}
       onClick={handleClick}
     >
       {card.image ? (
         <img
-  src={card.image}
-  alt={card.name}
-  className="card-image"
-  draggable={false}
-  onContextMenu={(event) => event.preventDefault()}
-/>
+          src={card.image}
+          alt={card.name}
+          className="card-image"
+          draggable={false}
+          onContextMenu={(event) => event.preventDefault()}
+        />
       ) : (
         <div className="card-missing-image">
           {card.name || card.cardId || "Missing Card"}
@@ -1728,17 +1731,13 @@ function App() {
 
 const openMobilePreview = (card) => {
   setHoveredCard(null);
-  setMobilePreviewCard(null);
-
-  requestAnimationFrame(() => {
-    setMobilePreviewCard({ ...card });
-  });
+  setMobilePreviewCard({ ...card });
 };
 
-  const closeMobilePreview = () => {
-    setMobilePreviewCard(null);
-    setHoveredCard(null);
-  };
+const closeMobilePreview = () => {
+  setMobilePreviewCard(null);
+  setHoveredCard(null);
+};
 
   useEffect(() => {
   const closeOnTouchRelease = () => {
@@ -2115,13 +2114,26 @@ const openMobilePreview = (card) => {
           />
         </main>
 
-        {mobilePreviewCard && (
-          <div className="mobile-card-preview-overlay">
-            <div className="mobile-card-preview">
-              <img src={mobilePreviewCard.image} alt={mobilePreviewCard.name} />
-            </div>
-          </div>
-        )}
+{mobilePreviewCard && (
+  <div className="mobile-card-preview-overlay">
+    <div className="mobile-card-preview-modal">
+      <button
+        type="button"
+        className="mobile-card-preview-close"
+        onClick={closeMobilePreview}
+      >
+        X
+      </button>
+
+      <img
+        src={mobilePreviewCard.image}
+        alt={mobilePreviewCard.name}
+        draggable={false}
+        onContextMenu={(event) => event.preventDefault()}
+      />
+    </div>
+  </div>
+)}
 
         {trashViewer && (
           <TrashViewerModal
