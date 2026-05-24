@@ -1028,47 +1028,50 @@ function getDefenseTypePriority(type, context = {}) {
     case "take_life": {
       let score = 0;
 
-      // Small swings can be countered cheaply if hand exists.
-      if (neededCounter <= 2000) {
-        score -= 50000;
-      } else if (neededCounter <= 3000) {
+      if (neededCounter <= 1000) {
+        score -= 100000;
+      } else if (neededCounter <= 2000) {
         score += 50000;
-      } else if (neededCounter <= 4000) {
+      } else if (neededCounter <= 3000) {
         score += 200000;
       } else {
-        score += 500000;
+        score += 350000;
       }
 
-      // Taking life while life exists is usually correct.
+      // Taking life is good if you still have life because it adds a card.
       if (lifeBefore > 0) {
-        score += 600000;
+        score += 300000;
       }
 
-      // Going to 0 is dangerous, but not worse than wasting blocker too early.
+      // Going to 0 is dangerous, but still better than wasting blocker too early
+      // if minimax says it survives.
       if (lifeAfter === 0) {
-        score -= 75000;
+        score -= 100000;
       }
 
       return score;
     }
 
     case "counter": {
-      // Cheap counter is okay, expensive counter is bad.
-      return 220000 - counterUsed * 80;
-    }
+      let score = 250000 - counterUsed * 60;
 
+      // Cheap counter at 1 life is good.
+      if (lifeBefore <= 1 && counterUsed <= 2000) {
+        score += 400000;
+      }
+
+      return score;
+    }
     case "block_survive":
-      // Blocking while still having life should be discouraged.
-      if (lifeBefore > 0) return -300000;
+      if (lifeBefore > 0) return -900000;
       return 180000;
 
     case "block_ko":
-      // Losing blocker while still having life is very bad.
-      if (lifeBefore > 0) return -450000;
+      if (lifeBefore > 0) return -950000;
       return 100000;
 
     case "block_counter_save":
-      if (lifeBefore > 0) return -500000 - counterUsed * 80;
+      if (lifeBefore > 0) return -1000000 - counterUsed * 80;
       return 50000 - counterUsed * 80;
 
     case "no_defense_needed":
@@ -1508,18 +1511,75 @@ function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
 
   const isLeaderAttack = targetRef?.zone === "leader";
   const opponentLife = getLifeCount(state.opponent.life);
+  const opponentHasBlocker = getAvailableBlockers(state.opponent.board).length > 0;
+
+  const neededCounter = Math.max(0, attackerPower - targetPower + 1000);
+
+  const availableCounter = (state.opponent.hand || []).reduce(
+    (total, card) => total + getCounterValue(card),
+    0
+  );
 
   /*
-    Important defensive rule:
-
-    If this is a leader attack and opponent still has life,
-    check "take life" before blocker/counter.
-
-    Reason:
-    - Blocking while life remains gives the player free information.
-    - Taking life may add counter to hand.
-    - Blockers should usually be saved for when life is 0.
+    Defensive rule:
+  
+    Do NOT auto-take small leader swings when opponent is at low life
+    and has counter available.
+  
+    Example:
+    - opponent has 1 life
+    - opponent has 2k counter in hand
+    - opponent has blocker
+    - player swings 5k/6k
+  
+    Correct defense: counter first, preserve life.
   */
+  if (isLeaderAttack && opponentLife > 0) {
+    const isSmallSwing = neededCounter > 0 && neededCounter <= 2000;
+    const canCounterSmallSwing = availableCounter >= neededCounter;
+
+    const shouldAvoidTakingLife =
+      opponentLife <= 1 &&
+      opponentHasBlocker &&
+      isSmallSwing &&
+      canCounterSmallSwing;
+
+    if (!shouldAvoidTakingLife) {
+      const takeLifeOption = defenseOptions.find(
+        (option) => option.type === "take_life"
+      );
+
+      if (takeLifeOption) {
+        const takeLifeState = applyAttackWithDefense(
+          state,
+          attackerId,
+          takeLifeOption
+        );
+
+        const playerStillForcesWinAfterTaking = playerCanForceWin(
+          takeLifeState,
+          depth + 1
+        );
+
+        if (!playerStillForcesWinAfterTaking) {
+          return {
+            nextState: takeLifeState,
+            message: takeLifeOption.message,
+            playerStillForcesWin: false
+          };
+        }
+      }
+    }
+  }
+
+  let bestLosingOption = null;
+  let bestLosingScore = -Infinity;
+
+  let bestSurvivingOption = null;
+  let bestSurvivingScore = -Infinity;
+
+  // If opponent still has life, taking life should be tested before blocking.
+  // Blocker should only be used if taking life loses but blocking survives.
   if (isLeaderAttack && opponentLife > 0) {
     const takeLifeOption = defenseOptions.find(
       (option) => option.type === "take_life"
@@ -1532,13 +1592,12 @@ function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
         takeLifeOption
       );
 
-      const playerStillForcesWinAfterTaking = playerCanForceWin(
+      const takingLifeStillLoses = playerCanForceWin(
         takeLifeState,
         depth + 1
       );
 
-      // If taking life survives, always take life.
-      if (!playerStillForcesWinAfterTaking) {
+      if (!takingLifeStillLoses) {
         return {
           nextState: takeLifeState,
           message: takeLifeOption.message,
@@ -1547,12 +1606,6 @@ function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
       }
     }
   }
-
-  let bestLosingOption = null;
-  let bestLosingScore = -Infinity;
-
-  let bestSurvivingOption = null;
-  let bestSurvivingScore = -Infinity;
 
   for (const defenseOption of defenseOptions) {
     const nextState = applyAttackWithDefense(state, attackerId, defenseOption);
@@ -1729,30 +1782,30 @@ function App() {
       });
   }, []);
 
-const openMobilePreview = (card) => {
-  setHoveredCard(null);
-  setMobilePreviewCard({ ...card });
-};
+  const openMobilePreview = (card) => {
+    setHoveredCard(null);
+    setMobilePreviewCard({ ...card });
+  };
 
-const closeMobilePreview = () => {
-  setMobilePreviewCard(null);
-  setHoveredCard(null);
-};
-
-  useEffect(() => {
-  const closeOnTouchRelease = () => {
+  const closeMobilePreview = () => {
     setMobilePreviewCard(null);
     setHoveredCard(null);
   };
 
-  window.addEventListener("touchend", closeOnTouchRelease);
-  window.addEventListener("touchcancel", closeOnTouchRelease);
+  useEffect(() => {
+    const closeOnTouchRelease = () => {
+      setMobilePreviewCard(null);
+      setHoveredCard(null);
+    };
 
-  return () => {
-    window.removeEventListener("touchend", closeOnTouchRelease);
-    window.removeEventListener("touchcancel", closeOnTouchRelease);
-  };
-}, []);
+    window.addEventListener("touchend", closeOnTouchRelease);
+    window.addEventListener("touchcancel", closeOnTouchRelease);
+
+    return () => {
+      window.removeEventListener("touchend", closeOnTouchRelease);
+      window.removeEventListener("touchcancel", closeOnTouchRelease);
+    };
+  }, []);
   const openHandViewer = (side) => {
     setHandViewer({
       side,
@@ -2114,26 +2167,26 @@ const closeMobilePreview = () => {
           />
         </main>
 
-{mobilePreviewCard && (
-  <div className="mobile-card-preview-overlay">
-    <div className="mobile-card-preview-modal">
-      <button
-        type="button"
-        className="mobile-card-preview-close"
-        onClick={closeMobilePreview}
-      >
-        X
-      </button>
+        {mobilePreviewCard && (
+          <div className="mobile-card-preview-overlay">
+            <div className="mobile-card-preview-modal">
+              <button
+                type="button"
+                className="mobile-card-preview-close"
+                onClick={closeMobilePreview}
+              >
+                X
+              </button>
 
-      <img
-        src={mobilePreviewCard.image}
-        alt={mobilePreviewCard.name}
-        draggable={false}
-        onContextMenu={(event) => event.preventDefault()}
-      />
-    </div>
-  </div>
-)}
+              <img
+                src={mobilePreviewCard.image}
+                alt={mobilePreviewCard.name}
+                draggable={false}
+                onContextMenu={(event) => event.preventDefault()}
+              />
+            </div>
+          </div>
+        )}
 
         {trashViewer && (
           <TrashViewerModal
