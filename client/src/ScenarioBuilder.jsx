@@ -2,11 +2,13 @@ import { useState } from "react";
 import axios from "axios";
 import "./App.css";
 
+const API_BASE_URL = "http://localhost:3000";
+
 const DON_IMAGE =
   "https://www.optcgapi.com/media/static/Card_Images/DON_Card__Green_Compass_-_Starter_Deck_1_Straw_Hat_Crew_ST-01_img.jpg";
 
 const EMPTY_SCENARIO = {
-  id: "daily-test-1",
+  id: 1,
   title: "Daily Test",
   difficulty: "Medium",
   goal: {
@@ -44,7 +46,26 @@ const EMPTY_SCENARIO = {
       deckCount: 40,
       trashCount: 0
     }
-  }
+  },
+  steps: [
+    {
+      id: "start",
+      prompt: "Solve the scenario",
+      options: []
+    },
+    {
+      id: "win",
+      prompt: "You win",
+      options: [],
+      result: "win"
+    },
+    {
+      id: "fail",
+      prompt: "Incorrect line",
+      options: [],
+      result: "fail"
+    }
+  ]
 };
 
 function CardTile({
@@ -289,7 +310,7 @@ function makeBoardInstance(cardData, side, index) {
   return {
     ...cardData,
     cardId: cardData.id,
-    instanceId: `${side}-board-${Date.now()}-${index + 1}`,
+    instanceId: `${side}-board-${index + 1}`,
     attachedDon: [],
     rested: false,
     isBlocker: false,
@@ -318,7 +339,7 @@ function makeLifeCard(cardData, side, index) {
   return {
     ...cardData,
     cardId: cardData.id,
-    instanceId: `${side}-life-${Date.now()}-${index + 1}`
+    instanceId: `${side}-life-${index + 1}`
   };
 }
 
@@ -528,80 +549,210 @@ export default function ScenarioBuilder() {
     }));
   };
 
-  const exportScenario = () => {
-    const exportScenarioData = {
-      ...scenario,
-      initialState: {
-        you: {
-          ...scenario.initialState.you,
-          hand: scenario.initialState.you.hand.map((card) => ({ cardId: card.cardId })),
-          life: scenario.initialState.you.life.map((card) => ({
-            cardId: card.cardId,
-            instanceId: card.instanceId
-          })),
-          board: scenario.initialState.you.board.map((card) => ({
-            cardId: card.cardId,
-            instanceId: card.instanceId,
-            attachedDon: card.attachedDon || [],
-            rested: !!card.rested,
-            isBlocker: !!card.isBlocker,
-            summoningSick: !!card.summoningSick
-          })),
-          leader: scenario.initialState.you.leader
-            ? {
-                cardId: scenario.initialState.you.leader.cardId,
-                instanceId: scenario.initialState.you.leader.instanceId,
-                attachedDon: scenario.initialState.you.leader.attachedDon || [],
-                rested: !!scenario.initialState.you.leader.rested
-              }
-            : null,
-          stage: scenario.initialState.you.stage
-            ? {
-                cardId: scenario.initialState.you.stage.cardId,
-                instanceId: scenario.initialState.you.stage.instanceId,
-                attachedDon: scenario.initialState.you.stage.attachedDon || [],
-                rested: !!scenario.initialState.you.stage.rested
-              }
-            : null
-        },
-        opponent: {
-          ...scenario.initialState.opponent,
-          hand: scenario.initialState.opponent.hand.map((card) => ({ cardId: card.cardId })),
-          life: scenario.initialState.opponent.life.map((card) => ({
-            cardId: card.cardId,
-            instanceId: card.instanceId
-          })),
-          board: scenario.initialState.opponent.board.map((card) => ({
-            cardId: card.cardId,
-            instanceId: card.instanceId,
-            attachedDon: card.attachedDon || [],
-            rested: !!card.rested,
-            isBlocker: !!card.isBlocker,
-            summoningSick: !!card.summoningSick
-          })),
-          leader: scenario.initialState.opponent.leader
-            ? {
-                cardId: scenario.initialState.opponent.leader.cardId,
-                instanceId: scenario.initialState.opponent.leader.instanceId,
-                attachedDon: scenario.initialState.opponent.leader.attachedDon || [],
-                rested: !!scenario.initialState.opponent.leader.rested
-              }
-            : null,
-          stage: scenario.initialState.opponent.stage
-            ? {
-                cardId: scenario.initialState.opponent.stage.cardId,
-                instanceId: scenario.initialState.opponent.stage.instanceId,
-                attachedDon: scenario.initialState.opponent.stage.attachedDon || [],
-                rested: !!scenario.initialState.opponent.stage.rested
-              }
-            : null
-        }
-      }
-    };
+ const cleanCardRef = (card) => {
+  if (!card) return null;
 
-    setExportText(JSON.stringify(exportScenarioData, null, 2));
+  return {
+    cardId: card.cardId || card.id,
+    instanceId: card.instanceId,
+    attachedDon: card.attachedDon || [],
+    rested: !!card.rested
+  };
+};
+
+const cleanBoardCardRef = (card) => {
+  if (!card) return null;
+
+  return {
+    cardId: card.cardId || card.id,
+    instanceId: card.instanceId,
+    attachedDon: card.attachedDon || [],
+    rested: !!card.rested,
+    isBlocker: !!card.isBlocker,
+    summoningSick: !!card.summoningSick
+  };
+};
+
+const cleanHandCardRef = (card) => ({
+  cardId: card.cardId || card.id
+});
+
+const cleanLifeCardRef = (card) => ({
+  cardId: card.cardId || card.id,
+  instanceId: card.instanceId
+});
+
+const cleanSide = (sideData) => ({
+  life: Array.isArray(sideData.life)
+    ? sideData.life.map(cleanLifeCardRef)
+    : sideData.life,
+  don: sideData.don,
+  leader: sideData.leader ? cleanCardRef(sideData.leader) : null,
+  hand: sideData.hand.map(cleanHandCardRef),
+  board: sideData.board.map(cleanBoardCardRef),
+  stage: sideData.stage ? cleanCardRef(sideData.stage) : null,
+  deckCount: sideData.deckCount ?? 40,
+  trashCount: sideData.trashCount ?? 0
+});
+
+function normalizeScenarioForExport(scenario) {
+  const normalizeLeader = (card, side) => {
+    if (!card) return null;
+
+    return {
+      cardId: card.cardId || card.id,
+      instanceId: `${side}-leader`,
+      attachedDon: card.attachedDon || [],
+      rested: !!card.rested
+    };
   };
 
+  const normalizeStage = (card, side) => {
+    if (!card) return null;
+
+    return {
+      cardId: card.cardId || card.id,
+      instanceId: `${side}-stage`,
+      attachedDon: card.attachedDon || [],
+      rested: !!card.rested
+    };
+  };
+
+  const normalizeHand = (cards) => {
+    return cards.map((card) => ({
+      cardId: card.cardId || card.id
+    }));
+  };
+
+  const normalizeLife = (life, side) => {
+    if (!Array.isArray(life)) return life;
+
+    return life.map((card, index) => ({
+      cardId: card.cardId || card.id,
+      instanceId: `${side}-life-${index + 1}`
+    }));
+  };
+
+  const normalizeBoard = (cards, side) => {
+    return cards.map((card, index) => ({
+      cardId: card.cardId || card.id,
+      instanceId: `${side}-board-${index + 1}`,
+      attachedDon: card.attachedDon || [],
+      rested: !!card.rested,
+      isBlocker: !!card.isBlocker,
+      summoningSick: !!card.summoningSick
+    }));
+  };
+
+  const normalizeSide = (sideData, side) => ({
+    life: normalizeLife(sideData.life, side),
+    don: sideData.don || [],
+    leader: normalizeLeader(sideData.leader, side),
+    hand: normalizeHand(sideData.hand || []),
+    board: normalizeBoard(sideData.board || [], side),
+    stage: normalizeStage(sideData.stage, side),
+    deckCount: Number(sideData.deckCount) || 40,
+    trashCount: Number(sideData.trashCount) || 0
+  });
+
+  return {
+    id: Number(scenario.id) || 1,
+    title: scenario.title || "Daily Test",
+    difficulty: scenario.difficulty || "Medium",
+
+    goal: scenario.goal || {
+      type: "win_this_turn"
+    },
+
+    opponentAI: scenario.opponentAI || {
+      counterFromHand: {
+        enabled: true,
+        allowedZones: ["leader", "board"],
+        strategy: "minimum_to_survive"
+      },
+      blocker: {
+        enabled: true,
+        onlyWhenLethal: true
+      }
+    },
+
+    initialState: {
+      you: normalizeSide(scenario.initialState.you, "you"),
+      opponent: normalizeSide(scenario.initialState.opponent, "opponent")
+    },
+
+    steps: scenario.steps?.length
+      ? scenario.steps
+      : [
+          {
+            id: "start",
+            prompt: "Solve the scenario",
+            options: []
+          },
+          {
+            id: "win",
+            prompt: "You win",
+            options: [],
+            result: "win"
+          },
+          {
+            id: "fail",
+            prompt: "Incorrect line",
+            options: [],
+            result: "fail"
+          }
+        ]
+  };
+}
+
+function toJsValue(value, indentLevel = 0) {
+  const indent = "  ".repeat(indentLevel);
+  const nextIndent = "  ".repeat(indentLevel + 1);
+
+  if (value === null) return "null";
+
+  if (typeof value === "string") {
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+
+    const items = value.map((item) => `${nextIndent}${toJsValue(item, indentLevel + 1)}`);
+
+    return `[\n${items.join(",\n")}\n${indent}]`;
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value);
+
+    if (entries.length === 0) return "{}";
+
+    const props = entries.map(([key, val]) => {
+      return `${nextIndent}${key}: ${toJsValue(val, indentLevel + 1)}`;
+    });
+
+    return `{\n${props.join(",\n")}\n${indent}}`;
+  }
+
+  return "undefined";
+}
+
+const exportScenario = () => {
+  const cleanScenario = normalizeScenarioForExport(scenario);
+
+  const fileText = `const scenario =
+${toJsValue(cleanScenario, 1)};
+
+module.exports = scenario;
+`;
+
+  setExportText(fileText);
+};
   const importScenario = async () => {
     if (!exportText.trim()) return;
 
@@ -624,25 +775,25 @@ export default function ScenarioBuilder() {
         nextScenario.initialState[side].don = Array.isArray(source.don) ? source.don : [];
 
         if (source.leader?.cardId) {
-          const res = await axios.get(`http://localhost:3000/card/${source.leader.cardId}`);
+          const res = await axios.get(`${API_BASE_URL}/card/${source.leader.cardId}`);
           nextScenario.initialState[side].leader = hydrateCardRef(res.data, source.leader);
         }
 
         if (source.stage?.cardId) {
-          const res = await axios.get(`http://localhost:3000/card/${source.stage.cardId}`);
+          const res = await axios.get(`${API_BASE_URL}/card/${source.stage.cardId}`);
           nextScenario.initialState[side].stage = hydrateCardRef(res.data, source.stage);
         }
 
         nextScenario.initialState[side].hand = await Promise.all(
           (source.hand || []).map(async (cardRef) => {
-            const res = await axios.get(`http://localhost:3000/card/${cardRef.cardId}`);
+            const res = await axios.get(`${API_BASE_URL}/card/${cardRef.cardId}`);
             return hydrateCardRef(res.data, cardRef);
           })
         );
 
         nextScenario.initialState[side].life = await Promise.all(
           (source.life || []).map(async (cardRef) => {
-            const res = await axios.get(`http://localhost:3000/card/${cardRef.cardId}`);
+            const res = await axios.get(`${API_BASE_URL}/card/${cardRef.cardId}`);
             return hydrateCardRef(res.data, cardRef);
           })
         );
@@ -665,17 +816,27 @@ export default function ScenarioBuilder() {
     }
   };
 
-  const downloadScenario = () => {
-    const content = exportText || JSON.stringify(scenario, null, 2);
-    const blob = new Blob([content], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${scenario.id || "scenario"}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+const downloadScenario = () => {
+  const cleanScenario = normalizeScenarioForExport(scenario);
 
+  const content =
+    exportText ||
+    `const scenario =
+${toJsValue(cleanScenario, 1)};
+
+module.exports = scenario;
+`;
+
+  const blob = new Blob([content], { type: "text/javascript" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  a.href = url;
+  a.download = `scenario-${Number(cleanScenario.id) || 1}.js`;
+  a.click();
+
+  URL.revokeObjectURL(url);
+};
   return (
     <div className="app-shell">
       <div className="layout">

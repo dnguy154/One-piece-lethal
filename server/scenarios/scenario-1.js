@@ -1,4 +1,4 @@
-const scenarios = [
+const scenario =
   {
     id: 1,
     title: "Find Lethal",
@@ -61,7 +61,6 @@ opponentAI: {
         trashCount: 0
       }
     },
-  }
-];
+  };
 
-module.exports = scenarios;
+module.exports = scenario;

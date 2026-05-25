@@ -916,7 +916,7 @@ function canAttackCharacterTarget(attacker, target) {
 
 // Limit search depth so the AI cannot accidentally recurse forever.
 // 8 is enough for most lethal puzzles because there are usually 3-6 attacks max.
-const MAX_MINIMAX_DEPTH = 10;
+const MAX_MINIMAX_DEPTH = 2;
 
 function getCounterValue(card) {
   return Number(card?.counter || 0);
@@ -1519,6 +1519,65 @@ function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
     lifeBefore: getLifeCount(state.opponent.life)
   };
 
+  // Priority rule:
+// If opponent can cheaply counter a small leader swing,
+// counter before taking life.
+// Priority rule:
+// If opponent is at low life and can reasonably counter a leader swing,
+// preserve life instead of taking the hit.
+if (targetRef?.zone === "leader") {
+  const opponentLifeNow = getLifeCount(state.opponent.life);
+  const counterNeededForAttack = Math.max(0, attackerPower - targetPower + 1000);
+
+  const LIFE_PRESERVE_COUNTER_LIMIT = opponentLifeNow <= 1 ? 5000 : 4000;
+
+  const counterOption = defenseOptions.find(
+    (option) => option.type === "counter"
+  );
+
+  if (
+    counterOption &&
+    opponentLifeNow <= 2 &&
+    counterNeededForAttack > 0 &&
+    counterNeededForAttack <= LIFE_PRESERVE_COUNTER_LIMIT
+  ) {
+    const counterState = applyAttackWithDefense(
+      state,
+      attackerId,
+      counterOption
+    );
+
+    return {
+      nextState: counterState,
+      message: counterOption.message,
+      playerStillForcesWin: false
+    };
+  }
+}
+
+  // Priority rule:
+// If opponent is at 0 life and can counter the current leader attack,
+// counter first before using blocker.
+if (targetRef?.zone === "leader" && getLifeCount(state.opponent.life) === 0) {
+  const counterOption = defenseOptions.find(
+    (option) => option.type === "counter"
+  );
+
+  if (counterOption) {
+    const counterState = applyAttackWithDefense(
+      state,
+      attackerId,
+      counterOption
+    );
+
+    return {
+      nextState: counterState,
+      message: counterOption.message,
+      playerStillForcesWin: false
+    };
+  }
+}
+
   if (defenseOptions.length === 0) {
     return {
       nextState: state,
@@ -2077,28 +2136,7 @@ function App() {
     setMobilePreviewCard(null);
   };
 
-  const checkForNoLethal = (nextState) => {
-    if (!nextState) return false;
 
-    if (nextState.opponent?.defeated) {
-      return false;
-    }
-
-    const canStillWin = playerCanForceWin(nextState, 0);
-
-    if (!canStillWin) {
-      setHasLost(true);
-      setHasWon(false);
-      setHasConceded(false);
-      setMessage("");
-
-      finishDailyChallenge({ solved: false });
-
-      return true;
-    }
-
-    return false;
-  };
   const handleHandCardClick = (card, handIndex) => {
     if (hasWon || hasLost || hasConceded) return;
     if (handIndex == null || !playState) return;
@@ -2132,9 +2170,6 @@ function App() {
       setActionMode("idle");
       setHoveredCard(null);
 
-      if (checkForNoLethal(nextState)) {
-        return;
-      }
 
       setMessage(resultMessage);
       return;
@@ -2190,7 +2225,6 @@ function App() {
     setHoveredCard(null);
     setMessage(resultMessage);
 
-    checkForNoLethal(nextState);
   };
 
   const handleAttackerClick = (card) => {
@@ -2276,8 +2310,6 @@ function App() {
       setActionMode("idle");
       setHoveredCard(null);
       setMessage(resultMessage);
-
-      checkForNoLethal(nextState);
       return;
     }
 
@@ -2312,10 +2344,6 @@ function App() {
 
       finishDailyChallenge({ solved: true });
 
-      return;
-    }
-
-    if (checkForNoLethal(nextState)) {
       return;
     }
 

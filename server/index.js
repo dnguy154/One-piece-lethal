@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const scenarios = require("./scenarios");
+const dailyChallenges = require("./dailyChallenges");
 const { hydrateScenario, fetchCard } = require("./cardService");
 
 const app = express();
@@ -57,36 +58,51 @@ app.get("/debug-card/:id", async (req, res) => {
 
 
 function getTodayDateKey() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Brisbane",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
 }
 
 function getTodayChallenge() {
   const today = getTodayDateKey();
 
-  return {
-    id: 1,
-    date: today,
-    scenarioId: 1,
-    title: "OP Lethal #1"
-  };
+  const challenge = dailyChallenges.find(
+    (dailyChallenge) => dailyChallenge.date === today
+  );
+
+  return challenge || null;
 }
 
 app.get("/challenge/today", async (req, res) => {
   try {
     const challenge = getTodayChallenge();
 
+    if (!challenge) {
+      return res.status(404).json({
+        error: "No daily challenge scheduled for today"
+      });
+    }
+
     const scenario = scenarios.find((s) => s.id === challenge.scenarioId);
 
     if (!scenario) {
       return res.status(404).json({
-        error: "Daily challenge scenario not found"
+        error: `Scenario ${challenge.scenarioId} not found`
       });
     }
 
     const hydratedScenario = await hydrateScenario(scenario);
 
     res.json({
-      challenge,
+      challenge: {
+        id: challenge.challengeNumber,
+        date: challenge.date,
+        scenarioId: challenge.scenarioId,
+        title: challenge.title
+      },
       scenario: hydratedScenario
     });
   } catch (error) {
@@ -96,6 +112,9 @@ app.get("/challenge/today", async (req, res) => {
     });
   }
 });
+
+console.log("Loaded scenarios:", scenarios.map((s) => s.id));
+console.log("Loaded daily challenges:", dailyChallenges);
 
 const PORT = process.env.PORT || 3000;
 
