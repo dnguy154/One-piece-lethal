@@ -55,6 +55,48 @@ app.get("/debug-card/:id", async (req, res) => {
   }
 });
 
+
+function getTodayDateKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getTodayChallenge() {
+  const today = getTodayDateKey();
+
+  return {
+    id: 1,
+    date: today,
+    scenarioId: 1,
+    title: "OP Lethal #1"
+  };
+}
+
+app.get("/challenge/today", async (req, res) => {
+  try {
+    const challenge = getTodayChallenge();
+
+    const scenario = scenarios.find((s) => s.id === challenge.scenarioId);
+
+    if (!scenario) {
+      return res.status(404).json({
+        error: "Daily challenge scenario not found"
+      });
+    }
+
+    const hydratedScenario = await hydrateScenario(scenario);
+
+    res.json({
+      challenge,
+      scenario: hydratedScenario
+    });
+  } catch (error) {
+    console.error("Error loading daily challenge:", error);
+    res.status(500).json({
+      error: "Failed to load daily challenge"
+    });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

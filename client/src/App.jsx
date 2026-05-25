@@ -147,6 +147,24 @@ function CardTile({
     </div>
   );
 }
+
+function saveDailyChallengeResult(challenge, result) {
+  if (!challenge?.date) return;
+
+  const current = JSON.parse(
+    localStorage.getItem("opLethalDailyResults") || "{}"
+  );
+
+  current[challenge.date] = {
+    challengeId: challenge.id,
+    challengeTitle: challenge.title,
+    ...result,
+    savedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem("opLethalDailyResults", JSON.stringify(current));
+}
+
 function DonCard({ rested = false, small = true }) {
   return (
     <div className={`don-card ${small ? "small" : ""} ${rested ? "rested" : ""}`}>
@@ -1700,6 +1718,156 @@ function evaluateScenarioResult(state) {
 }
 
 
+function formatTime(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function getDifficultyPoints(difficultyMode) {
+  switch (difficultyMode) {
+    case "easy":
+      return 100;
+    case "medium":
+      return 200;
+    case "hard":
+      return 300;
+    default:
+      return 100;
+  }
+}
+
+function getDailyResultKey(challenge) {
+  if (!challenge?.date) return null;
+  return `opLethalDailyResult:${challenge.date}`;
+}
+
+function getSavedDailyResult(challenge) {
+  const key = getDailyResultKey(challenge);
+  if (!key) return null;
+
+  try {
+    return JSON.parse(localStorage.getItem(key));
+  } catch {
+    return null;
+  }
+}
+
+function getAllDailyResults() {
+  const results = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+
+    if (!key?.startsWith("opLethalDailyResult:")) continue;
+
+    try {
+      const result = JSON.parse(localStorage.getItem(key));
+
+      if (result?.challengeDate) {
+        results.push(result);
+      }
+    } catch {
+      // Ignore broken localStorage entries
+    }
+  }
+
+  return results;
+}
+
+function addDaysToDateKey(dateKey, amount) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function calculateDailyStats() {
+  const results = getAllDailyResults();
+
+  const played = results.length;
+  const solvedResults = results.filter((result) => result.solved);
+  const solved = solvedResults.length;
+
+  const winPercent =
+    played > 0 ? Math.round((solved / played) * 100) : 0;
+
+  const totalPoints = results.reduce(
+    (total, result) => total + Number(result.points || 0),
+    0
+  );
+
+  const solvedDateSet = new Set(
+    solvedResults.map((result) => result.challengeDate)
+  );
+
+  const sortedSolvedDates = [...solvedDateSet].sort();
+
+  let maxStreak = 0;
+  let runningStreak = 0;
+  let previousDate = null;
+
+  for (const dateKey of sortedSolvedDates) {
+    if (!previousDate) {
+      runningStreak = 1;
+    } else {
+      const expectedNextDate = addDaysToDateKey(previousDate, 1);
+
+      if (dateKey === expectedNextDate) {
+        runningStreak += 1;
+      } else {
+        runningStreak = 1;
+      }
+    }
+
+    maxStreak = Math.max(maxStreak, runningStreak);
+    previousDate = dateKey;
+  }
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  let currentStreak = 0;
+  let checkDate = todayKey;
+
+  while (solvedDateSet.has(checkDate)) {
+    currentStreak += 1;
+    checkDate = addDaysToDateKey(checkDate, -1);
+  }
+
+  return {
+    played,
+    solved,
+    winPercent,
+    currentStreak,
+    maxStreak,
+    totalPoints
+  };
+}
+
+function saveFirstDailyResult(challenge, result) {
+  const key = getDailyResultKey(challenge);
+  if (!key) return null;
+
+  const existingResult = getSavedDailyResult(challenge);
+
+  // Important: first result of the day is locked.
+  // Replays must not overwrite it.
+  if (existingResult) {
+    return existingResult;
+  }
+
+  const finalResult = {
+    challengeId: challenge.id,
+    challengeTitle: challenge.title,
+    challengeDate: challenge.date,
+    ...result,
+    savedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem(key, JSON.stringify(finalResult));
+  return finalResult;
+}
+
+
 
 function App() {
   const [hoveredCard, setHoveredCard] = useState(null);
@@ -1720,6 +1888,17 @@ function App() {
   const [trashViewer, setTrashViewer] = useState(null);
   const [handViewer, setHandViewer] = useState(null);
   const [mobilePreviewCard, setMobilePreviewCard] = useState(null);
+
+  const [dailyChallenge, setDailyChallenge] = useState(null);
+  const [hasStartedAction, setHasStartedAction] = useState(false);
+  const [startTimeMs, setStartTimeMs] = useState(null);
+  const [finishedTimeSeconds, setFinishedTimeSeconds] = useState(null);
+  const startTimeRef = useRef(null);
+
+  const [dailyResult, setDailyResult] = useState(null);
+  const [resultModalOpen, setResultModalOpen] = useState(false);
+  const [isReplayAttempt, setIsReplayAttempt] = useState(false);
+  const [dailyStats, setDailyStats] = useState(calculateDailyStats());
 
   useEffect(() => {
     const clearPreviewWhenNotOverCard = (event) => {
@@ -1747,12 +1926,23 @@ function App() {
   useEffect(() => {
     if (SHOW_BUILDER) return;
 
-    axios.get(`${API_BASE_URL}/scenario/1`)
+    axios
+      .get(`${API_BASE_URL}/challenge/today`)
       .then((res) => {
-        const loadedScenario = res.data;
+        const loadedChallenge = res.data.challenge;
+        const loadedScenario = res.data.scenario;
 
+        setDailyChallenge(loadedChallenge);
         setScenario(loadedScenario);
         setPlayState(deepClone(loadedScenario.initialState));
+
+        const savedResult = getSavedDailyResult(loadedChallenge);
+        const latestStats = calculateDailyStats();
+
+        setDailyResult(savedResult);
+        setDailyStats(latestStats);
+        setIsReplayAttempt(!!savedResult);
+        setResultModalOpen(false);
 
         setSelectedDonIds([]);
         setSelectedHandCardIndex(null);
@@ -1762,11 +1952,18 @@ function App() {
         setMessage("");
         setLoadError("");
         setHoveredCard(null);
+
         setHasWon(false);
+        setHasLost(false);
         setHasConceded(false);
+
+        setHasStartedAction(false);
+        setStartTimeMs(null);
+        startTimeRef.current = null;
+        setFinishedTimeSeconds(null);
       })
       .catch((err) => {
-        console.error("Error fetching scenario:", err);
+        console.error("Error fetching daily challenge:", err);
 
         const errorData = err.response?.data;
 
@@ -1776,11 +1973,53 @@ function App() {
             : errorData?.message ||
             errorData?.error ||
             err.message ||
-            "Failed to load scenario.";
+            "Failed to load daily challenge.";
 
         setLoadError(errorMessage);
       });
   }, []);
+
+  const finishDailyChallenge = ({ solved }) => {
+    const endTimeMs = Date.now();
+    const startedAt = startTimeRef.current || startTimeMs;
+
+    const totalSeconds = startedAt
+      ? Math.max(1, Math.floor((endTimeMs - startedAt) / 1000))
+      : 0;
+
+    const points = solved ? getDifficultyPoints(difficultyMode) : 0;
+
+    const result = {
+      solved,
+      difficulty: difficultyMode,
+      points,
+      timeSeconds: totalSeconds,
+      timeText: formatTime(totalSeconds)
+    };
+
+    const existingResult = getSavedDailyResult(dailyChallenge);
+    const lockedResult = saveFirstDailyResult(dailyChallenge, result);
+    const latestStats = calculateDailyStats();
+
+    setDailyResult(lockedResult || result);
+    setDailyStats(latestStats);
+    setFinishedTimeSeconds(totalSeconds);
+    setResultModalOpen(true);
+    setIsReplayAttempt(!!existingResult);
+  };
+  const markActionStarted = () => {
+    if (hasStartedAction || hasWon || hasLost || hasConceded) {
+      return startTimeRef.current;
+    }
+
+    const now = Date.now();
+
+    startTimeRef.current = now;
+    setHasStartedAction(true);
+    setStartTimeMs(now);
+
+    return now;
+  };
 
   const openMobilePreview = (card) => {
     setHoveredCard(null);
@@ -1851,13 +2090,15 @@ function App() {
       setHasLost(true);
       setHasWon(false);
       setHasConceded(false);
-      setMessage("No lethal remains. You lose.");
+      setMessage("");
+
+      finishDailyChallenge({ solved: false });
+
       return true;
     }
 
     return false;
   };
-
   const handleHandCardClick = (card, handIndex) => {
     if (hasWon || hasLost || hasConceded) return;
     if (handIndex == null || !playState) return;
@@ -1884,6 +2125,8 @@ function App() {
         return;
       }
 
+      markActionStarted();
+
       setPlayState(nextState);
       setSelectedHandCardIndex(null);
       setActionMode("idle");
@@ -1909,8 +2152,6 @@ function App() {
       setSelectedAttackerId(null);
       setActionMode(nextSelectedIndex === null ? "idle" : "play_hand_character");
 
-      // Close mobile hand modal after selecting a card,
-      // so the user can click an empty board slot to summon.
       setHandViewer(null);
 
       setMessage(
@@ -1923,9 +2164,9 @@ function App() {
 
     setMessage(`${card.name} cannot be played with the current rules yet.`);
   };
-
   const handleEmptyCharacterSlotClick = () => {
     if (hasWon || hasLost || hasConceded) return;
+
     if (selectedHandCardIndex == null || actionMode !== "play_hand_character" || !playState) {
       return;
     }
@@ -1940,12 +2181,16 @@ function App() {
       return;
     }
 
+    markActionStarted();
+
     setPlayState(nextState);
     setSelectedHandCardIndex(null);
     setSelectedAttackerId(null);
     setActionMode("idle");
     setHoveredCard(null);
     setMessage(resultMessage);
+
+    checkForNoLethal(nextState);
   };
 
   const handleAttackerClick = (card) => {
@@ -1986,6 +2231,8 @@ function App() {
         card.instanceId
       );
 
+      markActionStarted();
+
       setPlayState(nextState);
       setSelectedDonIds([]);
       setSelectedHandCardIndex(null);
@@ -1993,7 +2240,6 @@ function App() {
       setActionMode("idle");
       setMessage("DON attached.");
       return;
-
     }
 
     if (selectedHandCardIndex != null) {
@@ -2022,12 +2268,16 @@ function App() {
         return;
       }
 
+      markActionStarted();
+
       setPlayState(nextState);
       setSelectedHandCardIndex(null);
       setSelectedAttackerId(null);
       setActionMode("idle");
       setHoveredCard(null);
       setMessage(resultMessage);
+
+      checkForNoLethal(nextState);
       return;
     }
 
@@ -2039,6 +2289,8 @@ function App() {
     if (actionMode !== "select_attack_target" || !selectedAttackerId || !card?.instanceId) {
       return;
     }
+
+    markActionStarted();
 
     const { nextState, resultMessage } = resolveAttack(
       playState,
@@ -2056,7 +2308,10 @@ function App() {
       setHasWon(true);
       setHasLost(false);
       setHasConceded(false);
-      setMessage(scenarioResult.message);
+      setMessage("");
+
+      finishDailyChallenge({ solved: true });
+
       return;
     }
 
@@ -2085,20 +2340,37 @@ function App() {
   const resetScenario = () => {
     if (!scenario) return;
 
+    // Cannot reset mid-attempt after making an action.
+    if (hasStartedAction && !hasWon && !hasLost && !hasConceded) {
+      setMessage("You cannot reset after making an action.");
+      return;
+    }
+
     setPlayState(deepClone(scenario.initialState));
     clearSelections();
+
     setMessage("");
     setHasWon(false);
-    setHasConceded(false);
     setHasLost(false);
+    setHasConceded(false);
+
+    setHasStartedAction(false);
+    setStartTimeMs(null);
+    startTimeRef.current = null;
+    setFinishedTimeSeconds(null);
+
+    // If today already has a locked result, this new run is replay/practice.
+    setIsReplayAttempt(!!getSavedDailyResult(dailyChallenge));
   };
 
   const handleConcede = () => {
     clearSelections();
     setMessage("");
     setHasWon(false);
+    setHasLost(false);
     setHasConceded(true);
-    setHasWon(false);
+
+    finishDailyChallenge({ solved: false });
   };
 
   if (SHOW_BUILDER) {
@@ -2221,6 +2493,51 @@ function App() {
           </div>
         )}
 
+        {resultModalOpen && dailyResult && (
+          <div className="daily-result-modal-overlay">
+            <div className="daily-result-modal">
+              <h2>
+                {dailyResult.solved ? "Challenge Complete" : "Challenge Lost"}
+              </h2>
+
+              <pre className="daily-result-text">
+                {`${dailyResult.challengeTitle || "OP Lethal"}
+${dailyResult.solved ? `Solved ✅ (${dailyStats.solved} solved)` : `Lost ❌ (${dailyStats.solved} solved)`}
+Win %: ${dailyStats.winPercent}%
+Time: ${dailyResult.timeText || formatTime(dailyResult.timeSeconds || 0)}
+Current Streak: ${dailyStats.currentStreak}
+Max Streak: ${dailyStats.maxStreak}
+Total Points: ${dailyStats.totalPoints}`}
+              </pre>
+
+              {isReplayAttempt && (
+                <p className="daily-result-note">
+                  Your first result for today is already locked. Replays will not change it.
+                </p>
+              )}
+
+              <div className="daily-result-buttons">
+                <button
+                  type="button"
+                  onClick={() => setResultModalOpen(false)}
+                >
+                  Close
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResultModalOpen(false);
+                    resetScenario();
+                  }}
+                >
+                  Play Again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {hasWon && (
           <div className="game-result-overlay">
             <div className="game-result-text win">You Win</div>
@@ -2287,8 +2604,12 @@ function App() {
           )}
 
           <section className="panel">
-            <button type="button" onClick={resetScenario}>
-              Reset Scenario
+            <button
+              type="button"
+              onClick={resetScenario}
+              disabled={hasStartedAction && !hasWon && !hasLost && !hasConceded}
+            >
+              {hasWon || hasLost || hasConceded ? "Retry Scenario" : "Reset Scenario"}
             </button>
 
             <button type="button" onClick={handleConcede}>

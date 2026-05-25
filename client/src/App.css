@@ -176,11 +176,11 @@ button:disabled {
 }
 
 .opponent-board {
-  background: rgba(110, 160, 220, 0.22);
+    background: rgba(225, 95, 95, 0.22);
 }
 
 .player-board {
-  background: rgba(225, 95, 95, 0.22);
+    background: rgba(110, 160, 220, 0.22);
 }
 
 .board-body {
@@ -982,6 +982,68 @@ button:disabled {
 
 .desktop-card-preview {
   display: none;
+}
+
+.solved-summary {
+  margin: 0;
+  white-space: pre-line;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.daily-result-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100002;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.daily-result-modal {
+  width: min(430px, 92vw);
+  background: rgba(245, 235, 210, 0.98);
+  border: 1px solid #cdbb92;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+
+.daily-result-modal h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.daily-result-text {
+  margin: 12px 0;
+  white-space: pre-line;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.daily-result-note {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 10px 0;
+  color: #5c3b1e;
+}
+
+.daily-result-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.daily-result-modal button {
+  margin: 4px;
 }
 
 @media (hover: hover) and (pointer: fine) {
