@@ -1520,63 +1520,63 @@ function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
   };
 
   // Priority rule:
-// If opponent can cheaply counter a small leader swing,
-// counter before taking life.
-// Priority rule:
-// If opponent is at low life and can reasonably counter a leader swing,
-// preserve life instead of taking the hit.
-if (targetRef?.zone === "leader") {
-  const opponentLifeNow = getLifeCount(state.opponent.life);
-  const counterNeededForAttack = Math.max(0, attackerPower - targetPower + 1000);
+  // If opponent can cheaply counter a small leader swing,
+  // counter before taking life.
+  // Priority rule:
+  // If opponent is at low life and can reasonably counter a leader swing,
+  // preserve life instead of taking the hit.
+  if (targetRef?.zone === "leader") {
+    const opponentLifeNow = getLifeCount(state.opponent.life);
+    const counterNeededForAttack = Math.max(0, attackerPower - targetPower + 1000);
 
-  const LIFE_PRESERVE_COUNTER_LIMIT = opponentLifeNow <= 1 ? 5000 : 4000;
+    const LIFE_PRESERVE_COUNTER_LIMIT = opponentLifeNow <= 1 ? 5000 : 4000;
 
-  const counterOption = defenseOptions.find(
-    (option) => option.type === "counter"
-  );
-
-  if (
-    counterOption &&
-    opponentLifeNow <= 2 &&
-    counterNeededForAttack > 0 &&
-    counterNeededForAttack <= LIFE_PRESERVE_COUNTER_LIMIT
-  ) {
-    const counterState = applyAttackWithDefense(
-      state,
-      attackerId,
-      counterOption
+    const counterOption = defenseOptions.find(
+      (option) => option.type === "counter"
     );
 
-    return {
-      nextState: counterState,
-      message: counterOption.message,
-      playerStillForcesWin: false
-    };
+    if (
+      counterOption &&
+      opponentLifeNow <= 2 &&
+      counterNeededForAttack > 0 &&
+      counterNeededForAttack <= LIFE_PRESERVE_COUNTER_LIMIT
+    ) {
+      const counterState = applyAttackWithDefense(
+        state,
+        attackerId,
+        counterOption
+      );
+
+      return {
+        nextState: counterState,
+        message: counterOption.message,
+        playerStillForcesWin: false
+      };
+    }
   }
-}
 
   // Priority rule:
-// If opponent is at 0 life and can counter the current leader attack,
-// counter first before using blocker.
-if (targetRef?.zone === "leader" && getLifeCount(state.opponent.life) === 0) {
-  const counterOption = defenseOptions.find(
-    (option) => option.type === "counter"
-  );
-
-  if (counterOption) {
-    const counterState = applyAttackWithDefense(
-      state,
-      attackerId,
-      counterOption
+  // If opponent is at 0 life and can counter the current leader attack,
+  // counter first before using blocker.
+  if (targetRef?.zone === "leader" && getLifeCount(state.opponent.life) === 0) {
+    const counterOption = defenseOptions.find(
+      (option) => option.type === "counter"
     );
 
-    return {
-      nextState: counterState,
-      message: counterOption.message,
-      playerStillForcesWin: false
-    };
+    if (counterOption) {
+      const counterState = applyAttackWithDefense(
+        state,
+        attackerId,
+        counterOption
+      );
+
+      return {
+        nextState: counterState,
+        message: counterOption.message,
+        playerStillForcesWin: false
+      };
+    }
   }
-}
 
   if (defenseOptions.length === 0) {
     return {
@@ -1952,8 +1952,8 @@ function App() {
   const [hasStartedAction, setHasStartedAction] = useState(false);
 
   const [challengeList, setChallengeList] = useState([]);
-const [selectedArchiveDate, setSelectedArchiveDate] = useState("");
-const [isArchiveMode, setIsArchiveMode] = useState(false);
+  const [selectedArchiveDate, setSelectedArchiveDate] = useState("");
+  const [isArchiveMode, setIsArchiveMode] = useState(false);
   const [startTimeMs, setStartTimeMs] = useState(null);
   const [finishedTimeSeconds, setFinishedTimeSeconds] = useState(null);
   const startTimeRef = useRef(null);
@@ -1987,167 +1987,167 @@ const [isArchiveMode, setIsArchiveMode] = useState(false);
   }, []);
 
   const loadChallengeFromResponse = (loadedChallenge, loadedScenario, archiveMode = false) => {
-  setDailyChallenge(loadedChallenge);
-  setScenario(loadedScenario);
-  setPlayState(deepClone(loadedScenario.initialState));
+    setDailyChallenge(loadedChallenge);
+    setScenario(loadedScenario);
+    setPlayState(deepClone(loadedScenario.initialState));
 
-  const savedResult = archiveMode ? null : getSavedDailyResult(loadedChallenge);
-  const latestStats = calculateDailyStats();
+    const savedResult = archiveMode ? null : getSavedDailyResult(loadedChallenge);
+    const latestStats = calculateDailyStats();
 
-  setDailyResult(savedResult);
-  setDailyStats(latestStats);
-  setIsReplayAttempt(!archiveMode && !!savedResult);
-  setIsArchiveMode(archiveMode);
-  setResultModalOpen(false);
+    setDailyResult(savedResult);
+    setDailyStats(latestStats);
+    setIsReplayAttempt(!archiveMode && !!savedResult);
+    setIsArchiveMode(archiveMode);
+    setResultModalOpen(false);
 
-  setSelectedDonIds([]);
-  setSelectedHandCardIndex(null);
-  setSelectedAttackerId(null);
-  setActionMode("idle");
+    setSelectedDonIds([]);
+    setSelectedHandCardIndex(null);
+    setSelectedAttackerId(null);
+    setActionMode("idle");
 
-  setMessage("");
-  setLoadError("");
-  setHoveredCard(null);
-  setMobilePreviewCard(null);
+    setMessage("");
+    setLoadError("");
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
 
-  setHasWon(false);
-  setHasLost(false);
-  setHasConceded(false);
+    setHasWon(false);
+    setHasLost(false);
+    setHasConceded(false);
 
-  setHasStartedAction(false);
-  setStartTimeMs(null);
-  startTimeRef.current = null;
-  setFinishedTimeSeconds(null);
-};
+    setHasStartedAction(false);
+    setStartTimeMs(null);
+    startTimeRef.current = null;
+    setFinishedTimeSeconds(null);
+  };
 
-useEffect(() => {
-  if (SHOW_BUILDER) return;
+  useEffect(() => {
+    if (SHOW_BUILDER) return;
 
-  axios
-    .get(`${API_BASE_URL}/challenge/today`)
-    .then((res) => {
-      const loadedChallenge = res.data.challenge;
-      const loadedScenario = res.data.scenario;
+    axios
+      .get(`${API_BASE_URL}/challenge/today`)
+      .then((res) => {
+        const loadedChallenge = res.data.challenge;
+        const loadedScenario = res.data.scenario;
 
-      loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
-      setSelectedArchiveDate(loadedChallenge.date);
-    })
-    .catch((err) => {
-      console.error("Error fetching daily challenge:", err);
+        loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
+        setSelectedArchiveDate(loadedChallenge.date);
+      })
+      .catch((err) => {
+        console.error("Error fetching daily challenge:", err);
 
-      const errorData = err.response?.data;
+        const errorData = err.response?.data;
 
-      const errorMessage =
-        typeof errorData === "string"
-          ? errorData
-          : errorData?.message ||
+        const errorMessage =
+          typeof errorData === "string"
+            ? errorData
+            : errorData?.message ||
             errorData?.error ||
             err.message ||
             "Failed to load daily challenge.";
 
-      setLoadError(errorMessage);
-    });
+        setLoadError(errorMessage);
+      });
 
-  axios
-    .get(`${API_BASE_URL}/challenges`)
-    .then((res) => {
-      setChallengeList(res.data || []);
-    })
-    .catch((err) => {
-      console.error("Error fetching challenge list:", err);
-    });
-}, []);
+    axios
+      .get(`${API_BASE_URL}/challenges`)
+      .then((res) => {
+        setChallengeList(res.data || []);
+      })
+      .catch((err) => {
+        console.error("Error fetching challenge list:", err);
+      });
+  }, []);
 
-const loadArchiveChallenge = (date) => {
-  if (!date) return;
+  const loadArchiveChallenge = (date) => {
+    if (!date) return;
 
-  axios
-    .get(`${API_BASE_URL}/challenge/${date}`)
-    .then((res) => {
-      const loadedChallenge = res.data.challenge;
-      const loadedScenario = res.data.scenario;
+    axios
+      .get(`${API_BASE_URL}/challenge/${date}`)
+      .then((res) => {
+        const loadedChallenge = res.data.challenge;
+        const loadedScenario = res.data.scenario;
 
-      loadChallengeFromResponse(loadedChallenge, loadedScenario, true);
-      setSelectedArchiveDate(date);
-    })
-    .catch((err) => {
-      console.error("Error loading archive challenge:", err);
+        loadChallengeFromResponse(loadedChallenge, loadedScenario, true);
+        setSelectedArchiveDate(date);
+      })
+      .catch((err) => {
+        console.error("Error loading archive challenge:", err);
 
-      const errorData = err.response?.data;
+        const errorData = err.response?.data;
 
-      const errorMessage =
-        typeof errorData === "string"
-          ? errorData
-          : errorData?.message ||
+        const errorMessage =
+          typeof errorData === "string"
+            ? errorData
+            : errorData?.message ||
             errorData?.error ||
             err.message ||
             "Failed to load archive challenge.";
 
-      setMessage(errorMessage);
-    });
-};
-
-const loadTodayChallenge = () => {
-  axios
-    .get(`${API_BASE_URL}/challenge/today`)
-    .then((res) => {
-      const loadedChallenge = res.data.challenge;
-      const loadedScenario = res.data.scenario;
-
-      loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
-      setSelectedArchiveDate(loadedChallenge.date);
-    })
-    .catch((err) => {
-      console.error("Error loading today challenge:", err);
-      setMessage("Failed to load today's challenge.");
-    });
-};
-
-const finishDailyChallenge = ({ solved }) => {
-  const endTimeMs = Date.now();
-  const startedAt = startTimeRef.current || startTimeMs;
-
-  const totalSeconds = startedAt
-    ? Math.max(1, Math.floor((endTimeMs - startedAt) / 1000))
-    : 0;
-
-  const points = solved ? getDifficultyPoints(difficultyMode) : 0;
-
-  const result = {
-    solved,
-    difficulty: difficultyMode,
-    points: isArchiveMode ? 0 : points,
-    timeSeconds: totalSeconds,
-    timeText: formatTime(totalSeconds)
+        setMessage(errorMessage);
+      });
   };
 
-  if (isArchiveMode) {
-    const archiveResult = {
-      challengeId: dailyChallenge?.id,
-      challengeTitle: dailyChallenge?.title,
-      challengeDate: dailyChallenge?.date,
-      ...result,
-      savedAt: new Date().toISOString()
+  const loadTodayChallenge = () => {
+    axios
+      .get(`${API_BASE_URL}/challenge/today`)
+      .then((res) => {
+        const loadedChallenge = res.data.challenge;
+        const loadedScenario = res.data.scenario;
+
+        loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
+        setSelectedArchiveDate(loadedChallenge.date);
+      })
+      .catch((err) => {
+        console.error("Error loading today challenge:", err);
+        setMessage("Failed to load today's challenge.");
+      });
+  };
+
+  const finishDailyChallenge = ({ solved }) => {
+    const endTimeMs = Date.now();
+    const startedAt = startTimeRef.current || startTimeMs;
+
+    const totalSeconds = startedAt
+      ? Math.max(1, Math.floor((endTimeMs - startedAt) / 1000))
+      : 0;
+
+    const points = solved ? getDifficultyPoints(difficultyMode) : 0;
+
+    const result = {
+      solved,
+      difficulty: difficultyMode,
+      points: isArchiveMode ? 0 : points,
+      timeSeconds: totalSeconds,
+      timeText: formatTime(totalSeconds)
     };
 
-    setDailyResult(archiveResult);
+    if (isArchiveMode) {
+      const archiveResult = {
+        challengeId: dailyChallenge?.id,
+        challengeTitle: dailyChallenge?.title,
+        challengeDate: dailyChallenge?.date,
+        ...result,
+        savedAt: new Date().toISOString()
+      };
+
+      setDailyResult(archiveResult);
+      setFinishedTimeSeconds(totalSeconds);
+      setResultModalOpen(true);
+      setIsReplayAttempt(true);
+
+      return;
+    }
+
+    const existingResult = getSavedDailyResult(dailyChallenge);
+    const lockedResult = saveFirstDailyResult(dailyChallenge, result);
+    const latestStats = calculateDailyStats();
+
+    setDailyResult(lockedResult || result);
+    setDailyStats(latestStats);
     setFinishedTimeSeconds(totalSeconds);
     setResultModalOpen(true);
-    setIsReplayAttempt(true);
-
-    return;
-  }
-
-  const existingResult = getSavedDailyResult(dailyChallenge);
-  const lockedResult = saveFirstDailyResult(dailyChallenge, result);
-  const latestStats = calculateDailyStats();
-
-  setDailyResult(lockedResult || result);
-  setDailyStats(latestStats);
-  setFinishedTimeSeconds(totalSeconds);
-  setResultModalOpen(true);
-  setIsReplayAttempt(!!existingResult);
-};
+    setIsReplayAttempt(!!existingResult);
+  };
   const markActionStarted = () => {
     if (hasStartedAction || hasWon || hasLost || hasConceded) {
       return startTimeRef.current;
@@ -2451,10 +2451,10 @@ const finishDailyChallenge = ({ solved }) => {
     if (!scenario) return;
 
     // Cannot reset mid-attempt after making an action.
-if (!isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded) {
-  setMessage("You cannot reset after making an action.");
-  return;
-}
+    if (!isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded) {
+      setMessage("You cannot reset after making an action.");
+      return;
+    }
     setPlayState(deepClone(scenario.initialState));
     clearSelections();
 
@@ -2619,17 +2619,17 @@ Max Streak: ${dailyStats.maxStreak}
 Total Points: ${dailyStats.totalPoints}`}
               </pre>
 
-{isArchiveMode ? (
-  <p className="daily-result-note">
-    Archive practice does not affect your daily streak, points, or first result.
-  </p>
-) : (
-  isReplayAttempt && (
-    <p className="daily-result-note">
-      Your first result for today is already locked. Replays will not change it.
-    </p>
-  )
-)}
+              {isArchiveMode ? (
+                <p className="daily-result-note">
+                  Archive practice does not affect your daily streak, points, or first result.
+                </p>
+              ) : (
+                isReplayAttempt && (
+                  <p className="daily-result-note">
+                    Your first result for today is already locked. Replays will not change it.
+                  </p>
+                )
+              )}
 
               <div className="daily-result-buttons">
                 <button
@@ -2673,11 +2673,20 @@ Total Points: ${dailyStats.totalPoints}`}
 
         <aside className="sidebar">
           <section className="panel">
-<h1>
-  {scenario.title}
-  {isArchiveMode ? " — Archive" : ""}
-</h1>
+            <h1>
+              {scenario.title}
+              {isArchiveMode ? " — Archive" : ""}
+            </h1>
+
+
           </section>
+          {message && (
+            <section className="panel">
+              <h2>Feedback</h2>
+              <p>{message}</p>
+            </section>
+          )}
+
           <section className="panel">
             <h2>Difficulty</h2>
 
@@ -2713,14 +2722,6 @@ Total Points: ${dailyStats.totalPoints}`}
               {difficultyMode === "hard" && "Opponent hand and life are hidden."}
             </p>
           </section>
-
-          {message && (
-            <section className="panel">
-              <h2>Feedback</h2>
-              <p>{message}</p>
-            </section>
-          )}
-
           <section className="panel">
             <button
               type="button"
@@ -2735,34 +2736,34 @@ Total Points: ${dailyStats.totalPoints}`}
             </button>
           </section>
           <section className="panel">
-  <h2>{isArchiveMode ? "Archive Practice" : "Daily Challenge"}</h2>
+            <h2>{isArchiveMode ? "Archive Practice" : "Daily Challenge"}</h2>
 
-  <button type="button" onClick={loadTodayChallenge}>
-    Load Today
-  </button>
+            <button type="button" onClick={loadTodayChallenge}>
+              Load Today
+            </button>
 
-  <div style={{ marginTop: "8px" }}>
-    <label>Previous Scenarios</label>
+            <div style={{ marginTop: "8px" }}>
+              <label>Previous Scenarios</label>
 
-    <select
-      value={selectedArchiveDate}
-      onChange={(e) => loadArchiveChallenge(e.target.value)}
-      style={{ width: "100%", marginTop: "4px" }}
-    >
-      {challengeList.map((challenge) => (
-        <option key={challenge.date} value={challenge.date}>
-          {challenge.date} - {challenge.title}
-        </option>
-      ))}
-    </select>
-  </div>
+              <select
+                value={selectedArchiveDate}
+                onChange={(e) => loadArchiveChallenge(e.target.value)}
+                style={{ width: "100%", marginTop: "4px" }}
+              >
+                {challengeList.map((challenge) => (
+                  <option key={challenge.date} value={challenge.date}>
+                    {challenge.date} - {challenge.title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-  {isArchiveMode && (
-    <p style={{ marginTop: "8px" }}>
-      Practice mode. This does not affect streak, points, or daily result.
-    </p>
-  )}
-</section>
+            {isArchiveMode && (
+              <p style={{ marginTop: "8px" }}>
+                Practice mode. This does not affect streak, points, or daily result.
+              </p>
+            )}
+          </section>
         </aside>
       </div>
     </div>
