@@ -3,6 +3,7 @@ const cors = require("cors");
 const scenarios = require("./scenarios");
 const dailyChallenges = require("./dailyChallenges");
 const { hydrateScenario, fetchCard } = require("./cardService");
+const challenges = require("./challenges");
 
 const app = express();
 
@@ -76,6 +77,11 @@ function getTodayChallenge() {
   return challenge || null;
 }
 
+function findScenarioById(scenarioId) {
+  return scenarios.find((scenario) => Number(scenario.id) === Number(scenarioId));
+}
+
+
 app.get("/challenge/today", async (req, res) => {
   try {
     const challenge = getTodayChallenge();
@@ -112,9 +118,38 @@ app.get("/challenge/today", async (req, res) => {
     });
   }
 });
+app.get("/challenge/:date", async (req, res) => {
+  try {
+    const { date } = req.params;
+    const todayKey = getTodayDateKey();
 
-console.log("Loaded scenarios:", scenarios.map((s) => s.id));
-console.log("Loaded daily challenges:", dailyChallenges);
+    if (date > todayKey) {
+      return res.status(403).json({ error: "Future challenge is locked." });
+    }
+
+    const challenge = challenges.find((entry) => entry.date === date);
+
+    if (!challenge) {
+      return res.status(404).json({ error: "Challenge not found." });
+    }
+
+    const scenario = findScenarioById(challenge.scenarioId);
+
+    if (!scenario) {
+      return res.status(404).json({ error: "Scenario not found for challenge." });
+    }
+
+    const hydrated = await hydrateScenario(scenario);
+
+    res.json({
+      challenge,
+      scenario: hydrated
+    });
+  } catch (error) {
+    console.error("Error loading archive challenge:", error);
+    res.status(500).json({ error: "Failed to load archive challenge." });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 
