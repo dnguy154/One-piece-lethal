@@ -1,7 +1,9 @@
 export function getDisplayedPower(card) {
   const basePower = Number(card?.power || 0);
   const donBonus = (card?.attachedDon?.length || 0) * 1000;
-  return basePower + donBonus;
+  const tempPower = Number(card?.tempPower || 0);
+
+  return basePower + donBonus + tempPower;
 }
 
 export function getCardCost(card) {

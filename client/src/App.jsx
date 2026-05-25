@@ -27,7 +27,6 @@ import {
   calculateDailyStats,
   saveFirstDailyResult
 } from "./services/dailyStorage";
-import { cardEffects } from "./cardEffects";
 import {
   fetchTodayChallenge,
   fetchChallengeList,
@@ -46,10 +45,12 @@ import {
   VISIBILITY_BY_DIFFICULTY
 } from "./constants/config";
 import GameResultOverlay from "./components/GameResultOverlay";
+import { getCardEffect } from "./cardEffects";
 
-
-const DON_IMAGE =
-  "https://www.optcgapi.com/media/static/Card_Images/DON_Card__Green_Compass_-_Starter_Deck_1_Straw_Hat_Crew_ST-01_img.jpg";
+import {
+  applyEffectStep,
+  payAndTrashEvent
+} from "./engine/effectRules";
 
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
   const [selectedHandCardIndex, setSelectedHandCardIndex] = useState(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState(null);
   const [actionMode, setActionMode] = useState("idle");
+  const [activeEffect, setActiveEffect] = useState(null);
 
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -326,15 +328,16 @@ function App() {
     setTrashViewer(null);
   };
 
-  const clearSelections = () => {
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setHandViewer(null);
-    setHoveredCard(null);
-    setMobilePreviewCard(null);
-  };
+const clearSelections = () => {
+  setSelectedDonIds([]);
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setActiveEffect(null);
+  setActionMode("idle");
+  setHandViewer(null);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+};
 
 
   const handleHandCardClick = (card, handIndex) => {
@@ -351,6 +354,21 @@ function App() {
     }
 
     if (isEventCard(card)) {
+     const effect = getCardEffect(card);
+
+if (effect?.steps?.length) {
+  setActiveEffect({
+    handIndex,
+    effect,
+    stepIndex: 0,
+    workingState: playState
+  });
+
+  setActionMode("select_effect_target");
+  setMessage(effect.steps[0].prompt);
+  return;
+}
+
       const { nextState, success, message: resultMessage } = playHandCardToState(
         playState,
         handIndex
@@ -369,7 +387,6 @@ function App() {
       setSelectedHandCardIndex(null);
       setActionMode("idle");
       setHoveredCard(null);
-
 
       setMessage(resultMessage);
       return;
@@ -454,9 +471,68 @@ function App() {
     setMessage(`Selected attacker: ${card.name}. Choose a target.`);
   };
 
+const handleEffectTargetClick = (card) => {
+  if (!activeEffect || actionMode !== "select_effect_target") {
+    return false;
+  }
+
+  if (!card?.instanceId) {
+    return true;
+  }
+
+  const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+  const { nextState, success, message } = applyEffectStep(
+    activeEffect.workingState,
+    currentStep,
+    card.instanceId
+  );
+
+  if (!success) {
+    setMessage(message);
+    return true;
+  }
+
+  const nextStepIndex = activeEffect.stepIndex + 1;
+  const nextStep = activeEffect.effect.steps[nextStepIndex];
+
+  if (nextStep) {
+    setActiveEffect({
+      ...activeEffect,
+      stepIndex: nextStepIndex,
+      workingState: nextState
+    });
+
+    setPlayState(nextState);
+    setMessage(nextStep.prompt);
+    return true;
+  }
+
+  const paidResult = payAndTrashEvent(nextState, activeEffect.handIndex);
+
+  if (!paidResult.success) {
+    setMessage(paidResult.message);
+    return true;
+  }
+
+  markActionStarted();
+
+  setPlayState(paidResult.nextState);
+  setActiveEffect(null);
+  setActionMode("idle");
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+  setMessage(`${activeEffect.effect.name || "Effect"} resolved.`);
+
+  return true;
+};
+
   const handleAttachTargetClick = (card) => {
     if (hasWon || hasLost || hasConceded) return;
     if (!card?.instanceId || !playState) return;
+    if (handleEffectTargetClick(card)) {
+      return;
+    }
 
     if (selectedDonIds.length > 0) {
       const nextState = attachMultipleDonToTarget(
@@ -518,6 +594,11 @@ function App() {
 
   const handleAttackTargetClick = (card) => {
     if (hasWon || hasLost || hasConceded) return;
+
+    if (handleEffectTargetClick(card)) {
+      return;
+    }
+
     if (actionMode !== "select_attack_target" || !selectedAttackerId || !card?.instanceId) {
       return;
     }
@@ -556,6 +637,7 @@ function App() {
     setHoveredCard(null);
     setSelectedAttackerId(null);
     setSelectedHandCardIndex(null);
+setActiveEffect(null);
     setActionMode("idle");
 
     setSelectedDonIds((prev) =>
