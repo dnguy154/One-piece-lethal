@@ -57,6 +57,55 @@ export function validateEffectTarget(state, step, targetInstanceId) {
 export function applyEffectStep(state, step, targetInstanceId) {
   const nextState = structuredClone(state);
 
+    if (step.type === "draw_specific") {
+    const playerKey = step.player || "you";
+    const playerState = nextState[playerKey];
+
+    if (!playerState) {
+      return {
+        nextState: state,
+        success: false,
+        message: "Player state not found."
+      };
+    }
+
+    playerState.deck = playerState.deck || [];
+    playerState.hand = playerState.hand || [];
+
+    const drawnCards = [];
+
+    for (const cardId of step.cardIds || []) {
+      const deckIndex = playerState.deck.findIndex(
+        (card) => (card.cardId || card.id) === cardId
+      );
+
+      if (deckIndex === -1) {
+        return {
+          nextState: state,
+          success: false,
+          message: `Could not draw ${cardId}. It is not in the scripted deck.`
+        };
+      }
+
+      const [drawnCard] = playerState.deck.splice(deckIndex, 1);
+      playerState.hand.push(drawnCard);
+      drawnCards.push(drawnCard);
+    }
+
+    playerState.deckCount = Math.max(
+      0,
+      Number(playerState.deckCount || 0) - drawnCards.length
+    );
+
+    return {
+      nextState,
+      success: true,
+      message: `Drew ${drawnCards
+        .map((card) => card.name || card.cardId || card.id)
+        .join(", ")}.`
+    };
+  }
+
   const validation = validateEffectTarget(nextState, step, targetInstanceId);
 
   if (!validation.valid) {
@@ -96,6 +145,56 @@ export function applyEffectStep(state, step, targetInstanceId) {
       };
     }
 
+    case "draw_specific": {
+  const playerKey = step.player || "you";
+  const playerState = nextState[playerKey];
+
+  if (!playerState) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  playerState.deck = playerState.deck || [];
+  playerState.hand = playerState.hand || [];
+
+  const drawnCards = [];
+
+  for (const cardId of step.cardIds || []) {
+    const deckIndex = playerState.deck.findIndex(
+      (card) => (card.cardId || card.id) === cardId
+    );
+
+    if (deckIndex === -1) {
+      return {
+        nextState: state,
+        success: false,
+        message: `Could not draw ${cardId}. It is not in the scripted deck.`
+      };
+    }
+
+    const [drawnCard] = playerState.deck.splice(deckIndex, 1);
+
+    playerState.hand.push(drawnCard);
+    drawnCards.push(drawnCard);
+  }
+
+  playerState.deckCount = Math.max(
+    0,
+    Number(playerState.deckCount || 0) - drawnCards.length
+  );
+
+  return {
+    nextState,
+    success: true,
+    message: `Drew ${drawnCards
+      .map((card) => card.name || card.cardId || card.id)
+      .join(", ")}.`
+  };
+}
+
     default:
       return {
         nextState: state,
@@ -103,6 +202,8 @@ export function applyEffectStep(state, step, targetInstanceId) {
         message: `Effect type "${step.type}" is not supported yet.`
       };
   }
+  
+  
 }
 
 export function payAndTrashEvent(state, handIndex) {

@@ -362,9 +362,11 @@ const clearSelections = () => {
     }
 
     if (isEventCard(card)) {
-     const effect = getCardEffect(card);
+     const effect = getCardEffect(card, scenario);
 
 if (effect?.steps?.length) {
+  const firstStep = effect.steps[0];
+
   setActiveEffect({
     handIndex,
     effect,
@@ -372,8 +374,41 @@ if (effect?.steps?.length) {
     workingState: playState
   });
 
-  setActionMode("select_effect_target");
-  setMessage(effect.steps[0].prompt);
+  if (firstStep.targetRules) {
+    setActionMode("select_effect_target");
+    setMessage(firstStep.prompt);
+    return;
+  }
+
+  const { nextState, success, message: resultMessage } = applyEffectStep(
+    playState,
+    firstStep,
+    null
+  );
+
+  if (!success) {
+    setMessage(resultMessage);
+    setActiveEffect(null);
+    setActionMode("idle");
+    return;
+  }
+
+  const paidResult = payAndTrashEvent(nextState, handIndex);
+
+  if (!paidResult.success) {
+    setMessage(paidResult.message);
+    setActiveEffect(null);
+    setActionMode("idle");
+    return;
+  }
+
+  markActionStarted();
+
+  setPlayState(paidResult.nextState);
+  setActiveEffect(null);
+  setActionMode("idle");
+  setHoveredCard(null);
+  setMessage(resultMessage);
   return;
 }
 

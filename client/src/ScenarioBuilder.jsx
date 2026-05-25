@@ -33,6 +33,7 @@ const EMPTY_SCENARIO = {
       hand: [],
       board: [],
       stage: null,
+      deck:[],
       deckCount: 40,
       trashCount: 0
     },
@@ -43,10 +44,14 @@ const EMPTY_SCENARIO = {
       hand: [],
       board: [],
       stage: null,
+      deck:[],
       deckCount: 40,
       trashCount: 0
     }
   },
+
+  effects: {},
+
   steps: [
     {
       id: "start",
@@ -360,12 +365,15 @@ function BuilderListCard({ title, children }) {
   );
 }
 
+
 export default function ScenarioBuilder() {
   const [scenario, setScenario] = useState(EMPTY_SCENARIO);
   const [searchId, setSearchId] = useState("");
   const [cardResult, setCardResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [exportText, setExportText] = useState("");
+  const [effectCardId, setEffectCardId] = useState("");
+const [drawCardIdsText, setDrawCardIdsText] = useState("");
 
   const updateScenarioMeta = (field, value) => {
     setScenario((prev) => ({
@@ -411,6 +419,34 @@ export default function ScenarioBuilder() {
   const clearLeader = (side) => {
     updatePlayerField(side, "leader", null);
   };
+
+  const addToDeck = (side) => {
+  if (!cardResult) return;
+
+  setScenario((prev) => ({
+    ...prev,
+    initialState: {
+      ...prev.initialState,
+      [side]: {
+        ...prev.initialState[side],
+        deck: [...(prev.initialState[side].deck || []), makeDeckCard(cardResult)]
+      }
+    }
+  }));
+};
+
+const removeFromDeck = (side, index) => {
+  setScenario((prev) => ({
+    ...prev,
+    initialState: {
+      ...prev.initialState,
+      [side]: {
+        ...prev.initialState[side],
+        deck: (prev.initialState[side].deck || []).filter((_, i) => i !== index)
+      }
+    }
+  }));
+};
 
   const addToHand = (side) => {
     if (!cardResult) return;
@@ -573,6 +609,14 @@ const cleanBoardCardRef = (card) => {
   };
 };
 
+function makeDeckCard(cardData) {
+  return {
+    ...cardData,
+    cardId: cardData.id
+  };
+}
+
+
 const cleanHandCardRef = (card) => ({
   cardId: card.cardId || card.id
 });
@@ -589,12 +633,12 @@ const cleanSide = (sideData) => ({
   don: sideData.don,
   leader: sideData.leader ? cleanCardRef(sideData.leader) : null,
   hand: sideData.hand.map(cleanHandCardRef),
+  deck: (sideData.deck || []).map(cleanDeckCardRef),
   board: sideData.board.map(cleanBoardCardRef),
   stage: sideData.stage ? cleanCardRef(sideData.stage) : null,
   deckCount: sideData.deckCount ?? 40,
   trashCount: sideData.trashCount ?? 0
 });
-
 function normalizeScenarioForExport(scenario) {
   const normalizeLeader = (card, side) => {
     if (!card) return null;
@@ -649,12 +693,12 @@ function normalizeScenarioForExport(scenario) {
     don: sideData.don || [],
     leader: normalizeLeader(sideData.leader, side),
     hand: normalizeHand(sideData.hand || []),
+    deck: normalizeHand(sideData.deck || []),
     board: normalizeBoard(sideData.board || [], side),
     stage: normalizeStage(sideData.stage, side),
     deckCount: Number(sideData.deckCount) || 40,
     trashCount: Number(sideData.trashCount) || 0
   });
-
   return {
     id: Number(scenario.id) || 1,
     title: scenario.title || "Daily Test",
@@ -680,6 +724,8 @@ function normalizeScenarioForExport(scenario) {
       you: normalizeSide(scenario.initialState.you, "you"),
       opponent: normalizeSide(scenario.initialState.opponent, "opponent")
     },
+
+    effects: scenario.effects || {},
 
     steps: scenario.steps?.length
       ? scenario.steps
@@ -742,6 +788,89 @@ function toJsValue(value, indentLevel = 0) {
   return "undefined";
 }
 
+const upsertScenarioEffect = (cardId, effectData) => {
+  if (!cardId) return;
+
+  setScenario((prev) => ({
+    ...prev,
+    effects: {
+      ...(prev.effects || {}),
+      [cardId]: effectData
+    }
+  }));
+};
+
+const removeScenarioEffect = (cardId) => {
+  setScenario((prev) => {
+    const nextEffects = { ...(prev.effects || {}) };
+    delete nextEffects[cardId];
+
+    return {
+      ...prev,
+      effects: nextEffects
+    };
+  });
+};
+
+const addDrawSpecificEffect = (sourceCardId, drawCardIdsText) => {
+  const cardIds = drawCardIdsText
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (!sourceCardId || cardIds.length === 0) {
+    alert("Enter the event card ID and at least one card ID to draw.");
+    return;
+  }
+
+  upsertScenarioEffect(sourceCardId, {
+    id: sourceCardId,
+    name: "Scenario Draw Effect",
+    steps: [
+      {
+        id: "draw_specific_1",
+        type: "draw_specific",
+        player: "you",
+        cardIds
+      }
+    ]
+  });
+};
+
+const addBuffAndKoEffect = (sourceCardId) => {
+  if (!sourceCardId) {
+    alert("Enter the event card ID.");
+    return;
+  }
+
+  upsertScenarioEffect(sourceCardId, {
+    id: sourceCardId,
+    name: "Give +2000 and KO 2000 or less",
+    steps: [
+      {
+        id: "buff_target",
+        type: "buff_power",
+        amount: 2000,
+        prompt: "Choose your leader or character to give +2000 power.",
+        targetRules: {
+          sides: ["you"],
+          zones: ["leader", "board"]
+        }
+      },
+      {
+        id: "ko_target",
+        type: "ko_power_or_less",
+        maxPower: 2000,
+        prompt: "Choose an opponent character with 2000 power or less to KO.",
+        targetRules: {
+          sides: ["opponent"],
+          zones: ["board"]
+        }
+      }
+    ]
+  });
+};
+
 const exportScenario = () => {
   const cleanScenario = normalizeScenarioForExport(scenario);
 
@@ -765,6 +894,7 @@ module.exports = scenario;
       nextScenario.difficulty = parsed.difficulty || EMPTY_SCENARIO.difficulty;
       nextScenario.goal = parsed.goal || EMPTY_SCENARIO.goal;
       nextScenario.opponentAI = parsed.opponentAI || EMPTY_SCENARIO.opponentAI;
+      nextScenario.effects = parsed.effects || {};
 
       const hydrateSide = async (side) => {
         const source = parsed.initialState?.[side];
@@ -801,6 +931,13 @@ module.exports = scenario;
         nextScenario.initialState[side].board = await Promise.all(
           (source.board || []).map(async (cardRef) => {
             const res = await axios.get(`http://localhost:3000/card/${cardRef.cardId}`);
+            return hydrateCardRef(res.data, cardRef);
+          })
+        );
+
+        nextScenario.initialState[side].deck = await Promise.all(
+          (source.deck || []).map(async (cardRef) => {
+            const res = await axios.get(`${API_BASE_URL}/card/${cardRef.cardId}`);
             return hydrateCardRef(res.data, cardRef);
           })
         );
@@ -897,6 +1034,8 @@ module.exports = scenario;
                     <button onClick={() => setStage("opponent")}>Set Opponent Stage</button>
                     <button onClick={() => addToHand("you")}>Add to Your Hand</button>
                     <button onClick={() => addToHand("opponent")}>Add to Opponent Hand</button>
+                    <button onClick={() => addToDeck("you")}>Add to Your Deck</button>
+<button onClick={() => addToDeck("opponent")}>Add to Opponent Deck</button>
                     <button onClick={() => addToBoard("you")}>Add to Your Board</button>
                     <button onClick={() => addToBoard("opponent")}>Add to Opponent Board</button>
                     <button onClick={() => addToLife("you")}>Add to Your Life</button>
@@ -993,6 +1132,32 @@ module.exports = scenario;
           </section>
 
           <section className="panel">
+  <h2>Your Deck</h2>
+  {(scenario.initialState.you.deck || []).length === 0 ? (
+    <p>No scripted deck cards.</p>
+  ) : (
+    scenario.initialState.you.deck.map((card, index) => (
+      <BuilderListCard key={`you-deck-${index}`} title={card.name || card.cardId}>
+        <button onClick={() => removeFromDeck("you", index)}>Remove</button>
+      </BuilderListCard>
+    ))
+  )}
+</section>
+
+<section className="panel">
+  <h2>Opponent Deck</h2>
+  {(scenario.initialState.opponent.deck || []).length === 0 ? (
+    <p>No scripted deck cards.</p>
+  ) : (
+    scenario.initialState.opponent.deck.map((card, index) => (
+      <BuilderListCard key={`opp-deck-${index}`} title={card.name || card.cardId}>
+        <button onClick={() => removeFromDeck("opponent", index)}>Remove</button>
+      </BuilderListCard>
+    ))
+  )}
+</section>
+
+          <section className="panel">
             <h2>Your Hand</h2>
             {scenario.initialState.you.hand.length === 0 ? (
               <p>No cards.</p>
@@ -1087,6 +1252,57 @@ module.exports = scenario;
               ))
             )}
           </section>
+
+          <section className="panel">
+  <h2>Scenario Effects</h2>
+
+  <label>Event Card ID</label>
+  <input
+    value={effectCardId}
+    onChange={(e) => setEffectCardId(e.target.value)}
+    placeholder="OP05-020"
+  />
+
+  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+    <button onClick={() => addBuffAndKoEffect(effectCardId.trim())}>
+      Add +2000 and KO 2000 or Less Effect
+    </button>
+  </div>
+
+  <label style={{ marginTop: "12px" }}>Draw Specific Card IDs</label>
+  <input
+    value={drawCardIdsText}
+    onChange={(e) => setDrawCardIdsText(e.target.value)}
+    placeholder="OP05-015, OP05-015"
+  />
+
+  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+    <button
+      onClick={() =>
+        addDrawSpecificEffect(effectCardId.trim(), drawCardIdsText)
+      }
+    >
+      Add Draw Specific Effect
+    </button>
+  </div>
+
+  <h3>Current Effects</h3>
+
+  {Object.keys(scenario.effects || {}).length === 0 ? (
+    <p>No scenario effects.</p>
+  ) : (
+    Object.entries(scenario.effects || {}).map(([cardId, effect]) => (
+      <BuilderListCard
+        key={cardId}
+        title={`${cardId}: ${effect.name || "Effect"}`}
+      >
+        <button onClick={() => removeScenarioEffect(cardId)}>
+          Remove Effect
+        </button>
+      </BuilderListCard>
+    ))
+  )}
+</section>
 
           <section className="panel">
             <h2>Export / Import JSON</h2>

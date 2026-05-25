@@ -6,41 +6,15 @@ import {
   removeCardFromBoard
 } from "./engine/gameState";
 
-export const cardEffects = {
-  "OP05-020": {
-    id: "OP05-020",
-    name: "OP05-020 Effect",
-    requiresTargets: true,
-    steps: [
-      {
-        id: "buff_target",
-        type: "buff_power",
-        amount: 2000,
-        prompt: "Choose your leader or character to give +2000 power.",
-        targetRules: {
-          sides: ["you"],
-          zones: ["leader", "board"]
-        }
-      },
-      {
-        id: "ko_target",
-        type: "ko_power_or_less",
-        maxPower: 2000,
-        prompt: "Choose an opponent character with 2000 power or less to KO.",
-        targetRules: {
-          sides: ["opponent"],
-          zones: ["board"]
-        }
-      }
-    ]
-  }
-};
+export const cardEffects = {};
 
-export function getCardEffect(card) {
+export function getCardEffect(card, scenario = null) {
   if (!card) return null;
-  return cardEffects[card.cardId || card.id] || null;
-}
 
+  const cardId = card.cardId || card.id;
+
+  return scenario?.effects?.[cardId] || cardEffects[cardId] || null;
+}
 export function applyOp05020FirstTarget(state, handIndex, buffTargetInstanceId) {
   const nextState = structuredClone(state);
   const player = nextState.you;

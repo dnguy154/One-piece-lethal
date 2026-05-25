@@ -72,6 +72,22 @@ async function hydrateScenario(scenario) {
   hydrated.initialState.you.hand = await hydrateCardArray(scenario.initialState.you.hand);
   hydrated.initialState.you.board = await hydrateCardArray(scenario.initialState.you.board);
 
+  if (Array.isArray(scenario.initialState.you.deck)) {
+  hydrated.initialState.you.deck = await hydrateCardArray(
+    scenario.initialState.you.deck
+  );
+} else {
+  hydrated.initialState.you.deck = [];
+}
+
+if (Array.isArray(scenario.initialState.opponent.deck)) {
+  hydrated.initialState.opponent.deck = await hydrateCardArray(
+    scenario.initialState.opponent.deck
+  );
+} else {
+  hydrated.initialState.opponent.deck = [];
+}
+
   if (Array.isArray(scenario.initialState.you.life)) {
     hydrated.initialState.you.life = await hydrateCardArray(scenario.initialState.you.life);
   } else {
