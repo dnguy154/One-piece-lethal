@@ -209,20 +209,28 @@ function App() {
       });
   };
 
-  const loadTodayChallenge = () => {
-    fetchTodayChallenge()
-      .then((data) => {
-        const loadedChallenge = data.challenge;
-        const loadedScenario = data.scenario;
+const loadTodayChallenge = () => {
+  const isLockedDailyAttempt =
+    !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded;
 
-        loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
-        setSelectedArchiveDate(loadedChallenge.date);
-      })
-      .catch((err) => {
-        console.error("Error loading today challenge:", err);
-        setMessage("Failed to load today's challenge.");
-      });
-  };
+  if (isLockedDailyAttempt) {
+    setMessage("You cannot reload today's challenge after making an action.");
+    return;
+  }
+
+  fetchTodayChallenge()
+    .then((data) => {
+      const loadedChallenge = data.challenge;
+      const loadedScenario = data.scenario;
+
+      loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
+      setSelectedArchiveDate(loadedChallenge.date);
+    })
+    .catch((err) => {
+      console.error("Error loading today challenge:", err);
+      setMessage("Failed to load today's challenge.");
+    });
+};
   const finishDailyChallenge = ({ solved }) => {
     const endTimeMs = Date.now();
     const startedAt = startTimeRef.current || startTimeMs;
@@ -792,6 +800,7 @@ setActiveEffect(null);
 
 
         <GameSidebar
+
           scenario={scenario}
           isArchiveMode={isArchiveMode}
           message={message}
@@ -808,9 +817,13 @@ setActiveEffect(null);
           hasConceded={hasConceded}
 
           loadTodayChallenge={loadTodayChallenge}
+          disableLoadToday={
+  !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
+}
           selectedArchiveDate={selectedArchiveDate}
           loadArchiveChallenge={loadArchiveChallenge}
           challengeList={challengeList}
+          
         />
       </div>
     </div>

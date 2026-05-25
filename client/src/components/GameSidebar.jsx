@@ -15,6 +15,7 @@ export default function GameSidebar({
   hasConceded,
 
   loadTodayChallenge,
+  disableLoadToday,
   selectedArchiveDate,
   loadArchiveChallenge,
   challengeList
@@ -88,9 +89,13 @@ export default function GameSidebar({
       <section className="panel">
         <h2>{isArchiveMode ? "Archive Practice" : "Daily Challenge"}</h2>
 
-        <button type="button" onClick={loadTodayChallenge}>
-          Load Today
-        </button>
+<button
+  type="button"
+  onClick={loadTodayChallenge}
+  disabled={disableLoadToday}
+>
+  Load Today
+</button>
 
         <div style={{ marginTop: "8px" }}>
           <label>Previous Scenarios</label>
