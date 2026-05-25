@@ -817,6 +817,9 @@ setActiveEffect(null);
           hasConceded={hasConceded}
 
           loadTodayChallenge={loadTodayChallenge}
+          disableDifficultyChange={
+  !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
+}
           disableLoadToday={
   !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
 }

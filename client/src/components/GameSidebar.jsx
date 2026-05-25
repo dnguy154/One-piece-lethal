@@ -16,6 +16,7 @@ export default function GameSidebar({
 
   loadTodayChallenge,
   disableLoadToday,
+  disableDifficultyChange,
   selectedArchiveDate,
   loadArchiveChallenge,
   challengeList
@@ -40,29 +41,37 @@ export default function GameSidebar({
         <h2>Difficulty</h2>
 
         <div className="difficulty-buttons">
-          <button
-            type="button"
-            className={difficultyMode === "easy" ? "active-difficulty" : ""}
-            onClick={() => setDifficultyMode("easy")}
-          >
-            Easy
-          </button>
+<button
+  type="button"
+  className={difficultyMode === "easy" ? "active-difficulty" : ""}
+  onClick={() => setDifficultyMode("easy")}
+  disabled={disableDifficultyChange}
+>
+  Easy
+</button>
 
-          <button
-            type="button"
-            className={difficultyMode === "medium" ? "active-difficulty" : ""}
-            onClick={() => setDifficultyMode("medium")}
-          >
-            Medium
-          </button>
+<button
+  type="button"
+  className={difficultyMode === "medium" ? "active-difficulty" : ""}
+  onClick={() => setDifficultyMode("medium")}
+  disabled={disableDifficultyChange}
+>
+  Medium
+</button>
 
-          <button
-            type="button"
-            className={difficultyMode === "hard" ? "active-difficulty" : ""}
-            onClick={() => setDifficultyMode("hard")}
-          >
-            Hard
-          </button>
+<button
+  type="button"
+  className={difficultyMode === "hard" ? "active-difficulty" : ""}
+  onClick={() => setDifficultyMode("hard")}
+  disabled={disableDifficultyChange}
+>
+  Hard
+</button>
+{disableDifficultyChange && (
+  <p>
+    Difficulty is locked after your first action.
+  </p>
+)}
         </div>
 
         <p>
