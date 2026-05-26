@@ -7,7 +7,8 @@ export default function HandViewerModal({
   onClose,
   setHoveredCard,
   onCardClick,
-  selectedHandCardIndex
+  selectedHandCardIndex,
+  onMobilePreview
 }) {
   return (
     <div className="hand-modal-overlay" onClick={onClose}>
@@ -35,6 +36,7 @@ export default function HandViewerModal({
                   variant="hand"
                   setHoveredCard={hiddenCards ? undefined : setHoveredCard}
                   onClick={hiddenCards ? undefined : () => onCardClick?.(card, index)}
+                  onMobilePreview={hiddenCards ? undefined : onMobilePreview}
                 />
               </div>
             ))}

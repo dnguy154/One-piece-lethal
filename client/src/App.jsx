@@ -792,19 +792,20 @@ setActiveEffect(null);
         )}
 
         {handViewer && (
-          <HandViewerModal
-            title={handViewer.title}
-            cards={playState?.[handViewer.side]?.hand || []}
-            hiddenCards={
-              handViewer.side === "opponent" && !visibility.showOpponentHand
-            }
-            onClose={closeHandViewer}
-            setHoveredCard={setHoveredCard}
-            onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
-            selectedHandCardIndex={
-              handViewer.side === "you" ? selectedHandCardIndex : null
-            }
-          />
+<HandViewerModal
+  title={handViewer.title}
+  cards={playState?.[handViewer.side]?.hand || []}
+  hiddenCards={
+    handViewer.side === "opponent" && !visibility.showOpponentHand
+  }
+  onClose={closeHandViewer}
+  setHoveredCard={setHoveredCard}
+  onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
+  selectedHandCardIndex={
+    handViewer.side === "you" ? selectedHandCardIndex : null
+  }
+  onMobilePreview={openMobilePreview}
+/>
         )}
 
         {hoveredCard && (
