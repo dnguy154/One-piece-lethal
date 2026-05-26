@@ -379,6 +379,7 @@ export default function ScenarioBuilder() {
   const [reducePowerAmount, setReducePowerAmount] = useState(4000);
   const [koMaxPower, setKoMaxPower] = useState(0);
   const [buffPowerAmount, setBuffPowerAmount] = useState(2000);
+  const [effectStepOptional, setEffectStepOptional] = useState(false);
 
   const updateScenarioMeta = (field, value) => {
     setScenario((prev) => ({
@@ -835,7 +836,8 @@ export default function ScenarioBuilder() {
       id: `draw_specific_${Date.now()}`,
       type: "draw_specific",
       player: "you",
-      cardIds
+      cardIds,
+      optional: effectStepOptional
     });
   };
 
@@ -856,6 +858,7 @@ export default function ScenarioBuilder() {
       id: `buff_power_${Date.now()}`,
       type: "buff_power",
       amount: parsedAmount,
+      optional: effectStepOptional,
       prompt: `Choose your leader or character to give +${parsedAmount} power.`,
       targetRules: {
         sides: ["you"],
@@ -881,6 +884,7 @@ export default function ScenarioBuilder() {
       id: `reduce_power_${Date.now()}`,
       type: "reduce_power",
       amount: parsedAmount,
+      optional: effectStepOptional,
       prompt: `Choose an opponent character to give -${parsedAmount} power.`,
       targetRules: {
         sides: ["opponent"],
@@ -906,7 +910,7 @@ export default function ScenarioBuilder() {
       id: `ko_power_or_less_${Date.now()}`,
       type: "ko_power_or_less",
       maxPower: parsedMaxPower,
-      optional: true,
+      optional: effectStepOptional,
       prompt: `Choose an opponent character with ${parsedMaxPower} power or less to KO.`,
       targetRules: {
         sides: ["opponent"],
@@ -1034,49 +1038,49 @@ export default function ScenarioBuilder() {
   }
 
   function toJsValue(value, indentLevel = 0) {
-  const indent = "  ".repeat(indentLevel);
-  const nextIndent = "  ".repeat(indentLevel + 1);
+    const indent = "  ".repeat(indentLevel);
+    const nextIndent = "  ".repeat(indentLevel + 1);
 
-  if (value === null) return "null";
+    if (value === null) return "null";
 
-  if (typeof value === "string") {
-    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    if (typeof value === "string") {
+      return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    }
+
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "[]";
+
+      const items = value.map(
+        (item) => `${nextIndent}${toJsValue(item, indentLevel + 1)}`
+      );
+
+      return `[\n${items.join(",\n")}\n${indent}]`;
+    }
+
+    if (typeof value === "object") {
+      const entries = Object.entries(value);
+
+      if (entries.length === 0) return "{}";
+
+      const props = entries.map(([key, val]) => {
+        const isValidIdentifier = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key);
+
+        const safeKey = isValidIdentifier
+          ? key
+          : `"${key.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
+        return `${nextIndent}${safeKey}: ${toJsValue(val, indentLevel + 1)}`;
+      });
+
+      return `{\n${props.join(",\n")}\n${indent}}`;
+    }
+
+    return "undefined";
   }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) return "[]";
-
-    const items = value.map(
-      (item) => `${nextIndent}${toJsValue(item, indentLevel + 1)}`
-    );
-
-    return `[\n${items.join(",\n")}\n${indent}]`;
-  }
-
-  if (typeof value === "object") {
-    const entries = Object.entries(value);
-
-    if (entries.length === 0) return "{}";
-
-    const props = entries.map(([key, val]) => {
-      const isValidIdentifier = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key);
-
-      const safeKey = isValidIdentifier
-        ? key
-        : `"${key.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-
-      return `${nextIndent}${safeKey}: ${toJsValue(val, indentLevel + 1)}`;
-    });
-
-    return `{\n${props.join(",\n")}\n${indent}}`;
-  }
-
-  return "undefined";
-}
 
 
 
@@ -1092,113 +1096,113 @@ module.exports = scenario;
     setExportText(fileText);
   };
   const parseScenarioImportText = (text) => {
-  const trimmed = text.trim();
+    const trimmed = text.trim();
 
-  if (!trimmed) {
-    throw new Error("No scenario text provided.");
-  }
+    if (!trimmed) {
+      throw new Error("No scenario text provided.");
+    }
 
-  // Supports pure JSON import.
-  if (trimmed.startsWith("{")) {
-    return JSON.parse(trimmed);
-  }
+    // Supports pure JSON import.
+    if (trimmed.startsWith("{")) {
+      return JSON.parse(trimmed);
+    }
 
-  // Supports builder-exported JS:
-  // const scenario = { ... };
-  // module.exports = scenario;
-  const scenarioMatch = trimmed.match(
-    /const\s+scenario\s*=\s*([\s\S]*?);\s*module\.exports\s*=\s*scenario\s*;?\s*$/
-  );
+    // Supports builder-exported JS:
+    // const scenario = { ... };
+    // module.exports = scenario;
+    const scenarioMatch = trimmed.match(
+      /const\s+scenario\s*=\s*([\s\S]*?);\s*module\.exports\s*=\s*scenario\s*;?\s*$/
+    );
 
-  if (!scenarioMatch?.[1]) {
-    throw new Error("Could not find exported scenario object.");
-  }
+    if (!scenarioMatch?.[1]) {
+      throw new Error("Could not find exported scenario object.");
+    }
 
-  // This is only for your local ScenarioBuilder import tool.
-  // It evaluates the object literal from your own exported scenario file.
-  return Function(`"use strict"; return (${scenarioMatch[1]});`)();
-};
+    // This is only for your local ScenarioBuilder import tool.
+    // It evaluates the object literal from your own exported scenario file.
+    return Function(`"use strict"; return (${scenarioMatch[1]});`)();
+  };
 
-const hydrateCardList = async (cards = []) => {
-  return Promise.all(
-    (cards || []).map(async (cardRef) => {
-      const cardId = cardRef.cardId || cardRef.id;
+  const hydrateCardList = async (cards = []) => {
+    return Promise.all(
+      (cards || []).map(async (cardRef) => {
+        const cardId = cardRef.cardId || cardRef.id;
 
-      if (!cardId) {
-        return cardRef;
-      }
+        if (!cardId) {
+          return cardRef;
+        }
 
-      const res = await axios.get(`${API_BASE_URL}/card/${cardId}`);
-      return hydrateCardRef(res.data, cardRef);
-    })
-  );
-};
+        const res = await axios.get(`${API_BASE_URL}/card/${cardId}`);
+        return hydrateCardRef(res.data, cardRef);
+      })
+    );
+  };
 
-const importScenario = async () => {
-  if (!exportText.trim()) return;
+  const importScenario = async () => {
+    if (!exportText.trim()) return;
 
-  try {
-    const parsed = parseScenarioImportText(exportText);
-    const nextScenario = structuredClone(EMPTY_SCENARIO);
+    try {
+      const parsed = parseScenarioImportText(exportText);
+      const nextScenario = structuredClone(EMPTY_SCENARIO);
 
-    nextScenario.id = parsed.id || EMPTY_SCENARIO.id;
-    nextScenario.title = parsed.title || EMPTY_SCENARIO.title;
-    nextScenario.difficulty = parsed.difficulty || EMPTY_SCENARIO.difficulty;
-    nextScenario.goal = parsed.goal || EMPTY_SCENARIO.goal;
-    nextScenario.opponentAI = parsed.opponentAI || EMPTY_SCENARIO.opponentAI;
-    nextScenario.effects = parsed.effects || {};
-    nextScenario.steps = parsed.steps || EMPTY_SCENARIO.steps;
+      nextScenario.id = parsed.id || EMPTY_SCENARIO.id;
+      nextScenario.title = parsed.title || EMPTY_SCENARIO.title;
+      nextScenario.difficulty = parsed.difficulty || EMPTY_SCENARIO.difficulty;
+      nextScenario.goal = parsed.goal || EMPTY_SCENARIO.goal;
+      nextScenario.opponentAI = parsed.opponentAI || EMPTY_SCENARIO.opponentAI;
+      nextScenario.effects = parsed.effects || {};
+      nextScenario.steps = parsed.steps || EMPTY_SCENARIO.steps;
 
-    const hydrateSide = async (side) => {
-      const source = parsed.initialState?.[side];
-      if (!source) return;
+      const hydrateSide = async (side) => {
+        const source = parsed.initialState?.[side];
+        if (!source) return;
 
-      nextScenario.initialState[side].deckCount = source.deckCount ?? 40;
-      nextScenario.initialState[side].trashCount = source.trashCount ?? 0;
-      nextScenario.initialState[side].don = Array.isArray(source.don)
-        ? source.don
-        : [];
+        nextScenario.initialState[side].deckCount = source.deckCount ?? 40;
+        nextScenario.initialState[side].trashCount = source.trashCount ?? 0;
+        nextScenario.initialState[side].don = Array.isArray(source.don)
+          ? source.don
+          : [];
 
-      if (source.leader?.cardId) {
-        const res = await axios.get(`${API_BASE_URL}/card/${source.leader.cardId}`);
-        nextScenario.initialState[side].leader = hydrateCardRef(
-          res.data,
-          source.leader
-        );
-      } else {
-        nextScenario.initialState[side].leader = null;
-      }
+        if (source.leader?.cardId) {
+          const res = await axios.get(`${API_BASE_URL}/card/${source.leader.cardId}`);
+          nextScenario.initialState[side].leader = hydrateCardRef(
+            res.data,
+            source.leader
+          );
+        } else {
+          nextScenario.initialState[side].leader = null;
+        }
 
-      if (source.stage?.cardId) {
-        const res = await axios.get(`${API_BASE_URL}/card/${source.stage.cardId}`);
-        nextScenario.initialState[side].stage = hydrateCardRef(
-          res.data,
-          source.stage
-        );
-      } else {
-        nextScenario.initialState[side].stage = null;
-      }
+        if (source.stage?.cardId) {
+          const res = await axios.get(`${API_BASE_URL}/card/${source.stage.cardId}`);
+          nextScenario.initialState[side].stage = hydrateCardRef(
+            res.data,
+            source.stage
+          );
+        } else {
+          nextScenario.initialState[side].stage = null;
+        }
 
-      nextScenario.initialState[side].hand = await hydrateCardList(source.hand || []);
-      nextScenario.initialState[side].deck = await hydrateCardList(source.deck || []);
-      nextScenario.initialState[side].trash = await hydrateCardList(source.trash || []);
-      nextScenario.initialState[side].life = await hydrateCardList(source.life || []);
-      nextScenario.initialState[side].board = await hydrateCardList(source.board || []);
+        nextScenario.initialState[side].hand = await hydrateCardList(source.hand || []);
+        nextScenario.initialState[side].deck = await hydrateCardList(source.deck || []);
+        nextScenario.initialState[side].trash = await hydrateCardList(source.trash || []);
+        nextScenario.initialState[side].life = await hydrateCardList(source.life || []);
+        nextScenario.initialState[side].board = await hydrateCardList(source.board || []);
 
-      nextScenario.initialState[side].trashCount =
-        nextScenario.initialState[side].trash.length || source.trashCount || 0;
-    };
+        nextScenario.initialState[side].trashCount =
+          nextScenario.initialState[side].trash.length || source.trashCount || 0;
+      };
 
-    await hydrateSide("you");
-    await hydrateSide("opponent");
+      await hydrateSide("you");
+      await hydrateSide("opponent");
 
-    setScenario(nextScenario);
-    alert("Scenario imported.");
-  } catch (error) {
-    console.error("Import scenario error:", error);
-    alert(`Import failed: ${error.message}`);
-  }
-};
+      setScenario(nextScenario);
+      alert("Scenario imported.");
+    } catch (error) {
+      console.error("Import scenario error:", error);
+      alert(`Import failed: ${error.message}`);
+    }
+  };
 
   const downloadScenario = () => {
     const cleanScenario = normalizeScenarioForExport(scenario);
@@ -1613,6 +1617,14 @@ module.exports = scenario;
               onChange={(e) => setEffectCardId(e.target.value)}
               placeholder="OP05-020"
             />
+            <label style={{ marginTop: "8px" }}>
+              <input
+                type="checkbox"
+                checked={effectStepOptional}
+                onChange={(e) => setEffectStepOptional(e.target.checked)}
+              />
+              Optional Step
+            </label>
 
             <hr style={{ margin: "16px 0" }} />
 
@@ -1729,6 +1741,8 @@ module.exports = scenario;
                             {step.amount != null ? ` (${step.amount})` : ""}
                             {step.maxPower != null ? ` (max ${step.maxPower})` : ""}
                             {step.cardIds ? ` (${step.cardIds.join(", ")})` : ""}
+                            {step.optional ? " - Optional" : " - Required"}
+
                           </div>
 
                           <div className="builder-list-card-actions">
