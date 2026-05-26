@@ -70,7 +70,8 @@ export function calculateDailyStats() {
   const results = getAllDailyResults();
 
   const played = results.length;
-  const solvedResults = results.filter((result) => result.solved);
+
+  const solvedResults = results.filter((result) => result.solved === true);
   const solved = solvedResults.length;
 
   const winPercent =
@@ -82,7 +83,9 @@ export function calculateDailyStats() {
   );
 
   const solvedDateSet = new Set(
-    solvedResults.map((result) => result.challengeDate)
+    solvedResults
+      .map((result) => result.challengeDate)
+      .filter(Boolean)
   );
 
   const sortedSolvedDates = [...solvedDateSet].sort();
@@ -108,14 +111,18 @@ export function calculateDailyStats() {
     previousDate = dateKey;
   }
 
-  const todayKey = new Date().toISOString().slice(0, 10);
-
+  // Important:
+  // Current streak should be based on the latest solved challenge date,
+  // not the user's current UTC/local date.
   let currentStreak = 0;
-  let checkDate = todayKey;
 
-  while (solvedDateSet.has(checkDate)) {
-    currentStreak += 1;
-    checkDate = addDaysToDateKey(checkDate, -1);
+  if (sortedSolvedDates.length > 0) {
+    let checkDate = sortedSolvedDates[sortedSolvedDates.length - 1];
+
+    while (solvedDateSet.has(checkDate)) {
+      currentStreak += 1;
+      checkDate = addDaysToDateKey(checkDate, -1);
+    }
   }
 
   return {
