@@ -49,7 +49,8 @@ import { getCardEffect } from "./cardEffects";
 
 import {
   applyEffectStep,
-  payAndTrashEvent
+  payAndTrashEvent,
+  hasValidEffectTarget
 } from "./engine/effectRules";
 
 
@@ -536,10 +537,47 @@ const handleEffectTargetClick = (card) => {
     return true;
   }
 
+  // Important:
+  // Once an effect step successfully changes the board,
+  // the daily attempt must be locked.
+  markActionStarted();
+
   const nextStepIndex = activeEffect.stepIndex + 1;
   const nextStep = activeEffect.effect.steps[nextStepIndex];
 
   if (nextStep) {
+    const nextStepHasTarget = hasValidEffectTarget(nextState, nextStep);
+
+    if (!nextStepHasTarget && nextStep.optional) {
+      const paidResult = payAndTrashEvent(nextState, activeEffect.handIndex);
+
+      if (!paidResult.success) {
+        setMessage(paidResult.message);
+        return true;
+      }
+
+      setPlayState(paidResult.nextState);
+      setActiveEffect(null);
+      setActionMode("idle");
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
+      setMessage(`${message} No valid target for the next effect, so it was skipped.`);
+
+      return true;
+    }
+
+    if (!nextStepHasTarget) {
+      setPlayState(nextState);
+      setActiveEffect({
+        ...activeEffect,
+        stepIndex: nextStepIndex,
+        workingState: nextState
+      });
+
+      setMessage("No valid target for the next effect. You may need to concede.");
+      return true;
+    }
+
     setActiveEffect({
       ...activeEffect,
       stepIndex: nextStepIndex,
@@ -557,8 +595,6 @@ const handleEffectTargetClick = (card) => {
     setMessage(paidResult.message);
     return true;
   }
-
-  markActionStarted();
 
   setPlayState(paidResult.nextState);
   setActiveEffect(null);

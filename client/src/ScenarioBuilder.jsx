@@ -906,6 +906,7 @@ export default function ScenarioBuilder() {
       id: `ko_power_or_less_${Date.now()}`,
       type: "ko_power_or_less",
       maxPower: parsedMaxPower,
+      optional: true,
       prompt: `Choose an opponent character with ${parsedMaxPower} power or less to KO.`,
       targetRules: {
         sides: ["opponent"],
@@ -1090,84 +1091,114 @@ module.exports = scenario;
 
     setExportText(fileText);
   };
-  const importScenario = async () => {
-    if (!exportText.trim()) return;
+  const parseScenarioImportText = (text) => {
+  const trimmed = text.trim();
 
-    try {
-      const parsed = JSON.parse(exportText);
-      const nextScenario = structuredClone(EMPTY_SCENARIO);
+  if (!trimmed) {
+    throw new Error("No scenario text provided.");
+  }
 
-      nextScenario.id = parsed.id || EMPTY_SCENARIO.id;
-      nextScenario.title = parsed.title || EMPTY_SCENARIO.title;
-      nextScenario.difficulty = parsed.difficulty || EMPTY_SCENARIO.difficulty;
-      nextScenario.goal = parsed.goal || EMPTY_SCENARIO.goal;
-      nextScenario.opponentAI = parsed.opponentAI || EMPTY_SCENARIO.opponentAI;
-      nextScenario.effects = parsed.effects || {};
+  // Supports pure JSON import.
+  if (trimmed.startsWith("{")) {
+    return JSON.parse(trimmed);
+  }
 
-      const hydrateSide = async (side) => {
-        const source = parsed.initialState?.[side];
-        if (!source) return;
+  // Supports builder-exported JS:
+  // const scenario = { ... };
+  // module.exports = scenario;
+  const scenarioMatch = trimmed.match(
+    /const\s+scenario\s*=\s*([\s\S]*?);\s*module\.exports\s*=\s*scenario\s*;?\s*$/
+  );
 
-        nextScenario.initialState[side].deckCount = source.deckCount ?? 40;
-        nextScenario.initialState[side].trashCount = source.trashCount ?? 0;
-        nextScenario.initialState[side].don = Array.isArray(source.don) ? source.don : [];
+  if (!scenarioMatch?.[1]) {
+    throw new Error("Could not find exported scenario object.");
+  }
 
-        if (source.leader?.cardId) {
-          const res = await axios.get(`${API_BASE_URL}/card/${source.leader.cardId}`);
-          nextScenario.initialState[side].leader = hydrateCardRef(res.data, source.leader);
-        }
+  // This is only for your local ScenarioBuilder import tool.
+  // It evaluates the object literal from your own exported scenario file.
+  return Function(`"use strict"; return (${scenarioMatch[1]});`)();
+};
 
-        if (source.stage?.cardId) {
-          const res = await axios.get(`${API_BASE_URL}/card/${source.stage.cardId}`);
-          nextScenario.initialState[side].stage = hydrateCardRef(res.data, source.stage);
-        }
+const hydrateCardList = async (cards = []) => {
+  return Promise.all(
+    (cards || []).map(async (cardRef) => {
+      const cardId = cardRef.cardId || cardRef.id;
 
-        nextScenario.initialState[side].hand = await Promise.all(
-          (source.hand || []).map(async (cardRef) => {
-            const res = await axios.get(`${API_BASE_URL}/card/${cardRef.cardId}`);
-            return hydrateCardRef(res.data, cardRef);
-          })
+      if (!cardId) {
+        return cardRef;
+      }
+
+      const res = await axios.get(`${API_BASE_URL}/card/${cardId}`);
+      return hydrateCardRef(res.data, cardRef);
+    })
+  );
+};
+
+const importScenario = async () => {
+  if (!exportText.trim()) return;
+
+  try {
+    const parsed = parseScenarioImportText(exportText);
+    const nextScenario = structuredClone(EMPTY_SCENARIO);
+
+    nextScenario.id = parsed.id || EMPTY_SCENARIO.id;
+    nextScenario.title = parsed.title || EMPTY_SCENARIO.title;
+    nextScenario.difficulty = parsed.difficulty || EMPTY_SCENARIO.difficulty;
+    nextScenario.goal = parsed.goal || EMPTY_SCENARIO.goal;
+    nextScenario.opponentAI = parsed.opponentAI || EMPTY_SCENARIO.opponentAI;
+    nextScenario.effects = parsed.effects || {};
+    nextScenario.steps = parsed.steps || EMPTY_SCENARIO.steps;
+
+    const hydrateSide = async (side) => {
+      const source = parsed.initialState?.[side];
+      if (!source) return;
+
+      nextScenario.initialState[side].deckCount = source.deckCount ?? 40;
+      nextScenario.initialState[side].trashCount = source.trashCount ?? 0;
+      nextScenario.initialState[side].don = Array.isArray(source.don)
+        ? source.don
+        : [];
+
+      if (source.leader?.cardId) {
+        const res = await axios.get(`${API_BASE_URL}/card/${source.leader.cardId}`);
+        nextScenario.initialState[side].leader = hydrateCardRef(
+          res.data,
+          source.leader
         );
-        nextScenario.initialState[side].deck = await Promise.all(
-          (source.deck || []).map(async (cardRef) => {
-            const res = await axios.get(`${API_BASE_URL}/card/${cardRef.cardId}`);
-            return hydrateCardRef(res.data, cardRef);
-          })
-        );
-        nextScenario.initialState[side].trash = await Promise.all(
-          (source.trash || []).map(async (cardRef) => {
-            const res = await axios.get(`${API_BASE_URL}/card/${cardRef.cardId}`);
-            return hydrateCardRef(res.data, cardRef);
-          })
-        );
+      } else {
+        nextScenario.initialState[side].leader = null;
+      }
 
-        nextScenario.initialState[side].trashCount =
-          nextScenario.initialState[side].trash.length || source.trashCount || 0;
-
-        nextScenario.initialState[side].life = await Promise.all(
-          (source.life || []).map(async (cardRef) => {
-            const res = await axios.get(`${API_BASE_URL}/card/${cardRef.cardId}`);
-            return hydrateCardRef(res.data, cardRef);
-          })
+      if (source.stage?.cardId) {
+        const res = await axios.get(`${API_BASE_URL}/card/${source.stage.cardId}`);
+        nextScenario.initialState[side].stage = hydrateCardRef(
+          res.data,
+          source.stage
         );
+      } else {
+        nextScenario.initialState[side].stage = null;
+      }
 
-        nextScenario.initialState[side].board = await Promise.all(
-          (source.board || []).map(async (cardRef) => {
-            const res = await axios.get(`http://localhost:3000/card/${cardRef.cardId}`);
-            return hydrateCardRef(res.data, cardRef);
-          })
-        );
-      };
+      nextScenario.initialState[side].hand = await hydrateCardList(source.hand || []);
+      nextScenario.initialState[side].deck = await hydrateCardList(source.deck || []);
+      nextScenario.initialState[side].trash = await hydrateCardList(source.trash || []);
+      nextScenario.initialState[side].life = await hydrateCardList(source.life || []);
+      nextScenario.initialState[side].board = await hydrateCardList(source.board || []);
 
-      await hydrateSide("you");
-      await hydrateSide("opponent");
-      setScenario(nextScenario);
-      alert("Scenario imported.");
-    } catch (error) {
-      console.error(error);
-      alert("Invalid JSON or failed to hydrate cards.");
-    }
-  };
+      nextScenario.initialState[side].trashCount =
+        nextScenario.initialState[side].trash.length || source.trashCount || 0;
+    };
+
+    await hydrateSide("you");
+    await hydrateSide("opponent");
+
+    setScenario(nextScenario);
+    alert("Scenario imported.");
+  } catch (error) {
+    console.error("Import scenario error:", error);
+    alert(`Import failed: ${error.message}`);
+  }
+};
 
   const downloadScenario = () => {
     const cleanScenario = normalizeScenarioForExport(scenario);

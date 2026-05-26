@@ -54,6 +54,23 @@ export function validateEffectTarget(state, step, targetInstanceId) {
   };
 }
 
+export function hasValidEffectTarget(state, step) {
+  if (!step?.targetRules) return true;
+
+  const possibleTargets = [
+    state.you?.leader,
+    ...(state.you?.board || []),
+    state.opponent?.leader,
+    ...(state.opponent?.board || [])
+  ].filter(Boolean);
+
+  return possibleTargets.some((card) => {
+    if (!card?.instanceId) return false;
+
+    const validation = validateEffectTarget(state, step, card.instanceId);
+    return validation.valid;
+  });
+}
 export function applyEffectStep(state, step, targetInstanceId) {
   const nextState = structuredClone(state);
 
