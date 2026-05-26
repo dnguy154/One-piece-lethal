@@ -375,9 +375,18 @@ if (effect?.steps?.length) {
     workingState: playState
   });
 
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setSelectedDonIds([]);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+
+  // Important: close hand modal so user can pick effect targets on the board.
+  setHandViewer(null);
+
   if (firstStep.targetRules) {
     setActionMode("select_effect_target");
-    setMessage(firstStep.prompt);
+    setMessage(firstStep.prompt || `Selected ${card.name}. Choose a target.`);
     return;
   }
 
@@ -409,6 +418,7 @@ if (effect?.steps?.length) {
   setActiveEffect(null);
   setActionMode("idle");
   setHoveredCard(null);
+  setMobilePreviewCard(null);
   setMessage(resultMessage);
   return;
 }
@@ -425,15 +435,17 @@ if (effect?.steps?.length) {
         return;
       }
 
-      markActionStarted();
+markActionStarted();
 
-      setPlayState(nextState);
-      setSelectedHandCardIndex(null);
-      setActionMode("idle");
-      setHoveredCard(null);
+setPlayState(nextState);
+setSelectedHandCardIndex(null);
+setActionMode("idle");
+setHandViewer(null);
+setHoveredCard(null);
+setMobilePreviewCard(null);
 
-      setMessage(resultMessage);
-      return;
+setMessage(resultMessage);
+return;
     }
 
     if (isCharacterCard(card)) {
@@ -556,13 +568,13 @@ const handleEffectTargetClick = (card) => {
         return true;
       }
 
-      setPlayState(paidResult.nextState);
-      setActiveEffect(null);
-      setActionMode("idle");
-      setHoveredCard(null);
-      setMobilePreviewCard(null);
-      setMessage(`${message} No valid target for the next effect, so it was skipped.`);
-
+setPlayState(paidResult.nextState);
+setActiveEffect(null);
+setActionMode("idle");
+setHandViewer(null);
+setHoveredCard(null);
+setMobilePreviewCard(null);
+setMessage(`${activeEffect.effect.name || "Effect"} resolved.`);
       return true;
     }
 
