@@ -130,6 +130,17 @@ export function applyEffectStep(state, step, targetInstanceId) {
       };
     }
 
+    case "reduce_power": {
+  targetRef.card.tempPower =
+    Number(targetRef.card.tempPower || 0) - Number(step.amount || 0);
+
+  return {
+    nextState,
+    success: true,
+    message: `${targetRef.card.name} gets -${step.amount} power.`
+  };
+}
+
     case "ko_power_or_less": {
       addCardToTrash(nextState.opponent, targetRef.card);
 

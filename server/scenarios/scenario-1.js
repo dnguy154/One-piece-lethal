@@ -1,7 +1,7 @@
 const scenario =
 {
   id: 1,
-  title: "Find Lethal",
+  title: "Find Lethal #1",
   difficulty: "Medium",
   opponentAI: {
     counterFromHand: {

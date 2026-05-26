@@ -53,13 +53,13 @@ async function hydrateCardRef(cardRef) {
 
   const cardData = await fetchCard(cardRef.cardId);
 
-return {
-  ...cardData,
-  ...cardRef,
-  attachedDon: cardRef.attachedDon || [],
-  rested: cardRef.rested || false,
-  summoningSick: cardRef.summoningSick || false
-};
+  return {
+    ...cardData,
+    ...cardRef,
+    attachedDon: cardRef.attachedDon || [],
+    rested: cardRef.rested || false,
+    summoningSick: cardRef.summoningSick || false
+  };
 }
 
 async function hydrateCardArray(cardRefs = []) {
@@ -73,19 +73,41 @@ async function hydrateScenario(scenario) {
   hydrated.initialState.you.board = await hydrateCardArray(scenario.initialState.you.board);
 
   if (Array.isArray(scenario.initialState.you.deck)) {
-  hydrated.initialState.you.deck = await hydrateCardArray(
-    scenario.initialState.you.deck
+    hydrated.initialState.you.deck = await hydrateCardArray(
+      scenario.initialState.you.deck
+    );
+  } else {
+    hydrated.initialState.you.deck = [];
+  }
+
+  if (Array.isArray(scenario.initialState.opponent.deck)) {
+    hydrated.initialState.opponent.deck = await hydrateCardArray(
+      scenario.initialState.opponent.deck
+    );
+  } else {
+    hydrated.initialState.opponent.deck = [];
+  }
+
+  if (Array.isArray(scenario.initialState.you.trash)) {
+  hydrated.initialState.you.trash = await hydrateCardArray(
+    scenario.initialState.you.trash
   );
+  hydrated.initialState.you.trashCount = hydrated.initialState.you.trash.length;
 } else {
-  hydrated.initialState.you.deck = [];
+  hydrated.initialState.you.trash = [];
+  hydrated.initialState.you.trashCount = scenario.initialState.you.trashCount || 0;
 }
 
-if (Array.isArray(scenario.initialState.opponent.deck)) {
-  hydrated.initialState.opponent.deck = await hydrateCardArray(
-    scenario.initialState.opponent.deck
+if (Array.isArray(scenario.initialState.opponent.trash)) {
+  hydrated.initialState.opponent.trash = await hydrateCardArray(
+    scenario.initialState.opponent.trash
   );
+  hydrated.initialState.opponent.trashCount =
+    hydrated.initialState.opponent.trash.length;
 } else {
-  hydrated.initialState.opponent.deck = [];
+  hydrated.initialState.opponent.trash = [];
+  hydrated.initialState.opponent.trashCount =
+    scenario.initialState.opponent.trashCount || 0;
 }
 
   if (Array.isArray(scenario.initialState.you.life)) {
@@ -93,11 +115,11 @@ if (Array.isArray(scenario.initialState.opponent.deck)) {
   } else {
     hydrated.initialState.you.life = scenario.initialState.you.life;
   }
-  
+
   hydrated.initialState.opponent.hand = await hydrateCardArray(scenario.initialState.opponent.hand);
   hydrated.initialState.opponent.board = await hydrateCardArray(scenario.initialState.opponent.board);
-  
-   if (Array.isArray(scenario.initialState.opponent.life)) {
+
+  if (Array.isArray(scenario.initialState.opponent.life)) {
     hydrated.initialState.opponent.life = await hydrateCardArray(scenario.initialState.opponent.life);
   } else {
     hydrated.initialState.opponent.life = scenario.initialState.opponent.life;
