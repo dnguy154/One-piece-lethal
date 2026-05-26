@@ -817,7 +817,7 @@ button:disabled {
 .trash-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100000;
+  z-index: 5000;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
@@ -912,7 +912,7 @@ button:disabled {
 .hand-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100000;
+  z-index: 5000;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
@@ -948,10 +948,11 @@ button:disabled {
   gap: 8px;
 }
 
+
 .mobile-card-preview-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 99999;
   background: rgba(0, 0, 0, 0.78);
   display: flex;
   align-items: center;
@@ -961,6 +962,7 @@ button:disabled {
 
 .mobile-card-preview-modal {
   position: relative;
+  z-index: 100000;
   width: min(92vw, 420px);
   height: min(88vh, 620px);
   display: flex;
@@ -984,7 +986,7 @@ button:disabled {
   position: absolute;
   top: -10px;
   right: -10px;
-  z-index: 2;
+  z-index: 100001;
   width: 34px;
   height: 34px;
   border-radius: 999px;

@@ -780,17 +780,15 @@ setActiveEffect(null);
           onClose={closeMobilePreview}
         />
 
-        {trashViewer && (
-          <TrashViewerModal
-            title={trashViewer.title}
-            cards={playState?.[trashViewer.side]?.trash || []}
-            onClose={closeTrashViewer}
-            setHoveredCard={setHoveredCard}
-          />
-
-
-        )}
-
+{trashViewer && (
+  <TrashViewerModal
+    title={trashViewer.title}
+    cards={playState?.[trashViewer.side]?.trash || []}
+    onClose={closeTrashViewer}
+    setHoveredCard={setHoveredCard}
+    onMobilePreview={openMobilePreview}
+  />
+)}
         {handViewer && (
 <HandViewerModal
   title={handViewer.title}

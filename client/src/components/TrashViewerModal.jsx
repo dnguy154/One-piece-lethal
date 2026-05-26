@@ -4,7 +4,8 @@ export default function TrashViewerModal({
   title,
   cards = [],
   onClose,
-  setHoveredCard
+  setHoveredCard,
+  onMobilePreview
 }) {
   return (
     <div className="trash-modal-overlay" onClick={onClose}>
@@ -27,6 +28,7 @@ export default function TrashViewerModal({
                 card={card}
                 variant="hand"
                 setHoveredCard={setHoveredCard}
+                onMobilePreview={onMobilePreview}
               />
             ))}
           </div>
