@@ -118,6 +118,22 @@ app.get("/challenge/today", async (req, res) => {
     });
   }
 });
+
+app.get("/challenges", (req, res) => {
+  const todayKey = getTodayDateKey();
+
+  const visibleChallenges = challenges
+    .filter((challenge) => challenge.date <= todayKey)
+    .map((challenge) => ({
+      id: challenge.id,
+      date: challenge.date,
+      scenarioId: challenge.scenarioId,
+      title: challenge.title
+    }));
+
+  res.json(visibleChallenges);
+});
+
 app.get("/challenge/:date", async (req, res) => {
   try {
     const { date } = req.params;
