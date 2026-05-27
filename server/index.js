@@ -7,12 +7,40 @@ const challenges = require("./challenges");
 
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+
+  // Player frontend
+  "https://one-piece-lethal.vercel.app",
+
+  // Builder frontend - update this if your builder Vercel URL is different
+  "https://one-piece-lethal-builder.vercel.app"
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-    ]
+    origin(origin, callback) {
+      // Allow server-to-server requests, Postman, direct browser visits, etc.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        origin.endsWith(".vercel.app");
+
+      if (isAllowed) {
+        callback(null, true);
+        return;
+      }
+
+      console.log("CORS blocked origin:", origin);
+      callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
   })
 );
 app.use(express.json());
