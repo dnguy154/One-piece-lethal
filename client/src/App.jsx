@@ -807,6 +807,36 @@ const handleEffectTargetClick = (card) => {
     handleAttackerClick(card);
   };
 
+  const canPlayerStillAttackOrCreateAttack = (state) => {
+  if (!state?.you) return false;
+
+  const yourCardsThatCanAttack = [
+    state.you.leader,
+    ...(state.you.board || [])
+  ].filter(Boolean);
+
+  const hasReadyAttacker = yourCardsThatCanAttack.some((card) =>
+    canAttack(card)
+  );
+
+  if (hasReadyAttacker) {
+    return true;
+  }
+
+  const boardCanReceiveCharacter = (state.you.board || []).length < 5;
+  const boardCanReplaceCharacter = (state.you.board || []).length >= 5;
+
+  const canPlayRushCharacter = (state.you.hand || []).some((card) => {
+    if (!isCharacterCard(card)) return false;
+    if (!hasRush(card)) return false;
+    if (!canAffordCard(state.you, card)) return false;
+
+    return boardCanReceiveCharacter || boardCanReplaceCharacter;
+  });
+
+  return canPlayRushCharacter;
+};
+
   const handleAttackTargetClick = (card) => {
     if (hasWon || hasLost || hasConceded) return;
 
@@ -832,18 +862,32 @@ const handleEffectTargetClick = (card) => {
     setPlayState(nextState);
     clearSelections();
 
-    if (scenarioResult.finished) {
-      setHasWon(true);
-      setHasLost(false);
-      setHasConceded(false);
-      setMessage("");
+if (scenarioResult.finished) {
+  setHasWon(true);
+  setHasLost(false);
+  setHasConceded(false);
+  setMessage("");
 
-      finishDailyChallenge({ solved: true });
+  finishDailyChallenge({ solved: true });
 
-      return;
-    }
+  return;
+}
 
-    setMessage(resultMessage);
+if (!canPlayerStillAttackOrCreateAttack(nextState)) {
+  setHasWon(false);
+  setHasLost(true);
+  setHasConceded(false);
+
+  setMessage(
+    `${resultMessage} You have no attacks left and cannot play a Rush character.`
+  );
+
+  finishDailyChallenge({ solved: false });
+
+  return;
+}
+
+setMessage(resultMessage);
   };
 
   const handleDonClick = (donId) => {
