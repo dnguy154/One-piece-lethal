@@ -971,8 +971,17 @@ setMessage("");
       </div>
     );
   }
-  const visibility = VISIBILITY_BY_DIFFICULTY[difficultyMode];
+  const baseVisibility = VISIBILITY_BY_DIFFICULTY[difficultyMode];
 
+const gameIsFinished = hasWon || hasLost || hasConceded;
+
+const visibility = gameIsFinished
+  ? {
+      ...baseVisibility,
+      showOpponentHand: true,
+      showOpponentLife: true
+    }
+  : baseVisibility;
   return (
     <div className="app-shell">
       <div className="layout">
