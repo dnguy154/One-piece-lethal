@@ -1133,6 +1133,53 @@ textarea {
   }
 }
 
+.builder-auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #4b2f22;
+  color: white;
+}
+
+.builder-auth-card {
+  width: min(420px, 100%);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.builder-auth-card h1 {
+  margin: 0;
+}
+
+.builder-auth-card p {
+  margin: 0;
+}
+
+.builder-auth-card input {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #c9b28d;
+  font-size: 16px;
+}
+
+.builder-auth-card button {
+  padding: 12px;
+  border-radius: 8px;
+  border: 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.builder-auth-error {
+  color: #ffb4b4;
+}
+
 @media (max-width: 800px) {
   :root {
     --side-hand-w: 38px;

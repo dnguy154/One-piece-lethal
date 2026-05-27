@@ -1,6 +1,11 @@
 import ScenarioBuilder from "./ScenarioBuilder";
+import BuilderAuth from "./BuilderAuth";
 import "./App.css";
 
 export default function App() {
-  return <ScenarioBuilder />;
+  return (
+    <BuilderAuth>
+      <ScenarioBuilder />
+    </BuilderAuth>
+  );
 }
