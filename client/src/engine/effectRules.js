@@ -37,16 +37,18 @@ export function validateEffectTarget(state, step, targetInstanceId) {
     };
   }
 
-  if (step.type === "ko_power_or_less") {
-    const targetPower = getDisplayedPower(targetRef.card);
+if (step.type === "ko_power_or_less") {
+  const targetPower = getDisplayedPower(targetRef.card, {
+    includeAttachedDon: targetRef.side === "you"
+  });
 
-    if (targetPower > step.maxPower) {
-      return {
-        valid: false,
-        message: `${targetRef.card.name} has more than ${step.maxPower} power. Choose a valid target.`
-      };
-    }
+  if (targetPower > step.maxPower) {
+    return {
+      valid: false,
+      message: `${targetRef.card.name} has more than ${step.maxPower} power. Choose a valid target.`
+    };
   }
+}
 
   return {
     valid: true,

@@ -61,7 +61,7 @@ export default function OpponentBoard({
                 onClick={onTargetClick}
                 onMobilePreview={onMobilePreview}
                 onMobilePreviewClose={onMobilePreviewClose}
-                powerValue={getDisplayedPower(data.leader)}
+                powerValue={getDisplayedPower(data.leader, { includeAttachedDon: false })}
                 attachedDonCount={data.leader?.attachedDon?.length || 0}
               />
             </Zone>
@@ -83,13 +83,14 @@ export default function OpponentBoard({
           </div>
 
           <Zone title="Character Area" className="character-zone">
-            <CharacterCards
-              cards={data.board}
-              setHoveredCard={setHoveredCard}
-              onCardClick={onTargetClick}
-              onMobilePreview={onMobilePreview}
-              onMobilePreviewClose={onMobilePreviewClose}
-            />
+<CharacterCards
+  cards={data.board}
+  setHoveredCard={setHoveredCard}
+  onCardClick={onTargetClick}
+  onMobilePreview={onMobilePreview}
+  onMobilePreviewClose={onMobilePreviewClose}
+  includeAttachedDonPower={false}
+/>
           </Zone>
         </div>
       </div>

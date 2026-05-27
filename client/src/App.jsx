@@ -210,28 +210,28 @@ function App() {
       });
   };
 
-const loadTodayChallenge = () => {
-  const isLockedDailyAttempt =
-    !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded;
+  const loadTodayChallenge = () => {
+    const isLockedDailyAttempt =
+      !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded;
 
-  if (isLockedDailyAttempt) {
-    setMessage("You cannot reload today's challenge after making an action.");
-    return;
-  }
+    if (isLockedDailyAttempt) {
+      setMessage("You cannot reload today's challenge after making an action.");
+      return;
+    }
 
-  fetchTodayChallenge()
-    .then((data) => {
-      const loadedChallenge = data.challenge;
-      const loadedScenario = data.scenario;
+    fetchTodayChallenge()
+      .then((data) => {
+        const loadedChallenge = data.challenge;
+        const loadedScenario = data.scenario;
 
-      loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
-      setSelectedArchiveDate(loadedChallenge.date);
-    })
-    .catch((err) => {
-      console.error("Error loading today challenge:", err);
-      setMessage("Failed to load today's challenge.");
-    });
-};
+        loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
+        setSelectedArchiveDate(loadedChallenge.date);
+      })
+      .catch((err) => {
+        console.error("Error loading today challenge:", err);
+        setMessage("Failed to load today's challenge.");
+      });
+  };
   const finishDailyChallenge = ({ solved }) => {
     const endTimeMs = Date.now();
     const startedAt = startTimeRef.current || startTimeMs;
@@ -337,21 +337,37 @@ const loadTodayChallenge = () => {
     setTrashViewer(null);
   };
 
-const clearSelections = () => {
-  setSelectedDonIds([]);
-  setSelectedHandCardIndex(null);
-  setSelectedAttackerId(null);
-  setActiveEffect(null);
-  setActionMode("idle");
-  setHandViewer(null);
-  setHoveredCard(null);
-  setMobilePreviewCard(null);
-};
+  const clearSelections = () => {
+    setSelectedDonIds([]);
+    setSelectedHandCardIndex(null);
+    setSelectedAttackerId(null);
+    setActiveEffect(null);
+    setActionMode("idle");
+    setHandViewer(null);
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
+  };
 
 
+
+  const isResolvingEffect = activeEffect && actionMode === "select_effect_target";
   const handleHandCardClick = (card, handIndex) => {
     if (hasWon || hasLost || hasConceded) return;
     if (handIndex == null || !playState) return;
+
+    if (isResolvingEffect) {
+      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+      setMessage(
+        currentStep?.prompt ||
+        "Finish resolving the current event effect before playing another card."
+      );
+
+      setHandViewer(null);
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
+      return;
+    }
 
     if (selectedDonIds.length > 0) {
       setMessage("Finish attaching DON first.");
@@ -363,47 +379,12 @@ const clearSelections = () => {
     }
 
     if (isEventCard(card)) {
-     const effect = getCardEffect(card, scenario);
+      const effect = getCardEffect(card, scenario);
 
-if (effect?.steps?.length) {
+     if (effect?.steps?.length) {
   const firstStep = effect.steps[0];
 
-  setActiveEffect({
-    handIndex,
-    effect,
-    stepIndex: 0,
-    workingState: playState
-  });
-
-  setSelectedHandCardIndex(null);
-  setSelectedAttackerId(null);
-  setSelectedDonIds([]);
-  setHoveredCard(null);
-  setMobilePreviewCard(null);
-
-  // Important: close hand modal so user can pick effect targets on the board.
-  setHandViewer(null);
-
-  if (firstStep.targetRules) {
-    setActionMode("select_effect_target");
-    setMessage(firstStep.prompt || `Selected ${card.name}. Choose a target.`);
-    return;
-  }
-
-  const { nextState, success, message: resultMessage } = applyEffectStep(
-    playState,
-    firstStep,
-    null
-  );
-
-  if (!success) {
-    setMessage(resultMessage);
-    setActiveEffect(null);
-    setActionMode("idle");
-    return;
-  }
-
-  const paidResult = payAndTrashEvent(nextState, handIndex);
+  const paidResult = payAndTrashEvent(playState, handIndex);
 
   if (!paidResult.success) {
     setMessage(paidResult.message);
@@ -414,7 +395,44 @@ if (effect?.steps?.length) {
 
   markActionStarted();
 
-  setPlayState(paidResult.nextState);
+  const paidState = paidResult.nextState;
+
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setSelectedDonIds([]);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+  setHandViewer(null);
+
+  if (firstStep.targetRules) {
+    setPlayState(paidState);
+
+setActiveEffect({
+  effect,
+  sourceCardName: card.name || card.cardId || card.id,
+  stepIndex: 0,
+  workingState: paidState
+});
+    setActionMode("select_effect_target");
+    setMessage(firstStep.prompt || `Selected ${card.name}. Choose a target.`);
+    return;
+  }
+
+  const { nextState, success, message: resultMessage } = applyEffectStep(
+    paidState,
+    firstStep,
+    null
+  );
+
+  if (!success) {
+    setPlayState(paidState);
+    setMessage(resultMessage);
+    setActiveEffect(null);
+    setActionMode("idle");
+    return;
+  }
+
+  setPlayState(nextState);
   setActiveEffect(null);
   setActionMode("idle");
   setHoveredCard(null);
@@ -435,17 +453,17 @@ if (effect?.steps?.length) {
         return;
       }
 
-markActionStarted();
+      markActionStarted();
 
-setPlayState(nextState);
-setSelectedHandCardIndex(null);
-setActionMode("idle");
-setHandViewer(null);
-setHoveredCard(null);
-setMobilePreviewCard(null);
+      setPlayState(nextState);
+      setSelectedHandCardIndex(null);
+      setActionMode("idle");
+      setHandViewer(null);
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
 
-setMessage(resultMessage);
-return;
+      setMessage(resultMessage);
+      return;
     }
 
     if (isCharacterCard(card)) {
@@ -502,6 +520,16 @@ return;
 
   const handleAttackerClick = (card) => {
     if (hasWon || hasLost || hasConceded) return;
+    if (isResolvingEffect) {
+      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+      setMessage(
+        currentStep?.prompt ||
+        "Finish resolving the current event effect before attacking."
+      );
+
+      return;
+    }
     if (!card?.instanceId || selectedDonIds.length > 0 || !playState) return;
 
     if (selectedHandCardIndex != null) {
@@ -549,9 +577,6 @@ const handleEffectTargetClick = (card) => {
     return true;
   }
 
-  // Important:
-  // Once an effect step successfully changes the board,
-  // the daily attempt must be locked.
   markActionStarted();
 
   const nextStepIndex = activeEffect.stepIndex + 1;
@@ -561,34 +586,38 @@ const handleEffectTargetClick = (card) => {
     const nextStepHasTarget = hasValidEffectTarget(nextState, nextStep);
 
     if (!nextStepHasTarget && nextStep.optional) {
-      const paidResult = payAndTrashEvent(nextState, activeEffect.handIndex);
+      setPlayState(nextState);
+      setActiveEffect(null);
+      setSelectedHandCardIndex(null);
+      setSelectedAttackerId(null);
+      setSelectedDonIds([]);
+      setActionMode("idle");
+      setHandViewer(null);
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
+      setMessage(`${message} No valid target for the next effect, so it was skipped.`);
 
-      if (!paidResult.success) {
-        setMessage(paidResult.message);
-        return true;
-      }
-
-setPlayState(paidResult.nextState);
-setActiveEffect(null);
-setActionMode("idle");
-setHandViewer(null);
-setHoveredCard(null);
-setMobilePreviewCard(null);
-setMessage(`${activeEffect.effect.name || "Effect"} resolved.`);
       return true;
     }
 
     if (!nextStepHasTarget) {
       setPlayState(nextState);
+
       setActiveEffect({
         ...activeEffect,
         stepIndex: nextStepIndex,
         workingState: nextState
       });
 
+      setHandViewer(null);
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
       setMessage("No valid target for the next effect. You may need to concede.");
+
       return true;
     }
+
+    setPlayState(nextState);
 
     setActiveEffect({
       ...activeEffect,
@@ -596,24 +625,24 @@ setMessage(`${activeEffect.effect.name || "Effect"} resolved.`);
       workingState: nextState
     });
 
-    setPlayState(nextState);
-    setMessage(nextStep.prompt);
+    setHandViewer(null);
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
+    setMessage(nextStep.prompt || "Choose the next effect target.");
+
     return true;
   }
 
-  const paidResult = payAndTrashEvent(nextState, activeEffect.handIndex);
-
-  if (!paidResult.success) {
-    setMessage(paidResult.message);
-    return true;
-  }
-
-  setPlayState(paidResult.nextState);
+  setPlayState(nextState);
   setActiveEffect(null);
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setSelectedDonIds([]);
   setActionMode("idle");
+  setHandViewer(null);
   setHoveredCard(null);
   setMobilePreviewCard(null);
-  setMessage(`${activeEffect.effect.name || "Effect"} resolved.`);
+  setMessage(`${activeEffect.sourceCardName || activeEffect.effect.name || "Effect"} resolved.`);
 
   return true;
 };
@@ -725,10 +754,21 @@ setMessage(`${activeEffect.effect.name || "Effect"} resolved.`);
   const handleDonClick = (donId) => {
     if (hasWon || hasLost || hasConceded) return;
 
+    if (isResolvingEffect) {
+      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+      setMessage(
+        currentStep?.prompt ||
+        "Finish resolving the current event effect before attaching DON."
+      );
+
+      return;
+    }
+
     setHoveredCard(null);
     setSelectedAttackerId(null);
     setSelectedHandCardIndex(null);
-setActiveEffect(null);
+    setActiveEffect(null);
     setActionMode("idle");
 
     setSelectedDonIds((prev) =>
@@ -828,30 +868,30 @@ setActiveEffect(null);
           onClose={closeMobilePreview}
         />
 
-{trashViewer && (
-  <TrashViewerModal
-    title={trashViewer.title}
-    cards={playState?.[trashViewer.side]?.trash || []}
-    onClose={closeTrashViewer}
-    setHoveredCard={setHoveredCard}
-    onMobilePreview={openMobilePreview}
-  />
-)}
+        {trashViewer && (
+          <TrashViewerModal
+            title={trashViewer.title}
+            cards={playState?.[trashViewer.side]?.trash || []}
+            onClose={closeTrashViewer}
+            setHoveredCard={setHoveredCard}
+            onMobilePreview={openMobilePreview}
+          />
+        )}
         {handViewer && (
-<HandViewerModal
-  title={handViewer.title}
-  cards={playState?.[handViewer.side]?.hand || []}
-  hiddenCards={
-    handViewer.side === "opponent" && !visibility.showOpponentHand
-  }
-  onClose={closeHandViewer}
-  setHoveredCard={setHoveredCard}
-  onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
-  selectedHandCardIndex={
-    handViewer.side === "you" ? selectedHandCardIndex : null
-  }
-  onMobilePreview={openMobilePreview}
-/>
+          <HandViewerModal
+            title={handViewer.title}
+            cards={playState?.[handViewer.side]?.hand || []}
+            hiddenCards={
+              handViewer.side === "opponent" && !visibility.showOpponentHand
+            }
+            onClose={closeHandViewer}
+            setHoveredCard={setHoveredCard}
+            onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
+            selectedHandCardIndex={
+              handViewer.side === "you" ? selectedHandCardIndex : null
+            }
+            onMobilePreview={openMobilePreview}
+          />
         )}
 
         {hoveredCard && (
@@ -900,15 +940,15 @@ setActiveEffect(null);
 
           loadTodayChallenge={loadTodayChallenge}
           disableDifficultyChange={
-  !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
-}
+            !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
+          }
           disableLoadToday={
-  !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
-}
+            !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
+          }
           selectedArchiveDate={selectedArchiveDate}
           loadArchiveChallenge={loadArchiveChallenge}
           challengeList={challengeList}
-          
+
         />
       </div>
     </div>

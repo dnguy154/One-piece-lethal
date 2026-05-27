@@ -8,7 +8,8 @@ export default function CharacterCards({
   onEmptySlotClick,
   disableHoverPreview = false,
   onMobilePreview,
-  onMobilePreviewClose
+  onMobilePreviewClose,
+  includeAttachedDonPower = true
 }) {
   const slots = Array.from({ length: 5 }, (_, index) => cards[index] || null);
 
@@ -31,7 +32,11 @@ export default function CharacterCards({
             onClick={card ? onCardClick : undefined}
             onMobilePreview={onMobilePreview}
             onMobilePreviewClose={onMobilePreviewClose}
-            powerValue={card ? getDisplayedPower(card) : undefined}
+powerValue={
+  card
+    ? getDisplayedPower(card, { includeAttachedDon: includeAttachedDonPower })
+    : undefined
+}
             attachedDonCount={card?.attachedDon?.length || 0}
             disableHoverPreview={disableHoverPreview}
           />

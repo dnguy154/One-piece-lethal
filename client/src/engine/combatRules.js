@@ -21,6 +21,12 @@ import {
   attachDonForSimulation
 } from "./donRules";
 
+
+function getCombatPower(card, side) {
+  return getDisplayedPower(card, {
+    includeAttachedDon: side === "you"
+  });
+}
 // ==============================
 // COMBAT + FULL MINIMAX DEFENSE AI
 // ==============================
@@ -248,7 +254,7 @@ function createCounterDefenseOption(state, attackerPower, targetRef) {
 
   if (!newTargetRef) return null;
 
-  const targetPower = getDisplayedPower(newTargetRef.card);
+  const targetPower = getCombatPower(newTargetRef.card, newTargetRef.side);
   const neededCounter = attackerPower - targetPower + 1000;
 
   if (neededCounter <= 0) {
@@ -317,7 +323,7 @@ function createBlockDefenseOptions(state, attackerPower) {
     const blockedCard = blockedRef.card;
     blockedCard.rested = true;
 
-    const blockerPower = getDisplayedPower(blockedCard);
+    const blockerPower = getCombatPower(blockedCard, "opponent");
 
     if (attackerPower >= blockerPower) {
       addCardToTrash(blockedState.opponent, blockedCard);
@@ -351,7 +357,7 @@ function createBlockDefenseOptions(state, attackerPower) {
 
       counterBlockerRef.card.rested = true;
 
-      const targetPower = getDisplayedPower(counterBlockerRef.card);
+      const targetPower = getCombatPower(counterBlockerRef.card, counterBlockerRef.side);
       const neededCounter = attackerPower - targetPower + 1000;
 
       const selection = chooseMinimumCounterCards(
@@ -394,7 +400,7 @@ function createBoardBattleNoCounterOption(state, attackerPower, targetRef) {
 
   if (!newTargetRef) return null;
 
-  const targetPower = getDisplayedPower(newTargetRef.card);
+  const targetPower = getCombatPower(newTargetRef.card, newTargetRef.side);
 
   if (attackerPower >= targetPower) {
     addCardToTrash(nextState.opponent, newTargetRef.card);
@@ -426,8 +432,8 @@ function generateDefenseOptions(state, attackerId, targetId) {
 
   const attacker = attackerRef.card;
   const target = targetRef.card;
-  const attackerPower = getDisplayedPower(attacker);
-  const targetPower = getDisplayedPower(target);
+const attackerPower = getCombatPower(attacker, attackerRef.side);
+const targetPower = getCombatPower(target, targetRef.side);
 
   const options = [];
 
@@ -519,8 +525,8 @@ function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
   const attackerRef = findCardByInstanceId(state, attackerId);
   const targetRef = findCardByInstanceId(state, targetId);
 
-  const attackerPower = getDisplayedPower(attackerRef?.card);
-  const targetPower = getDisplayedPower(targetRef?.card);
+const attackerPower = getCombatPower(attackerRef?.card, attackerRef?.side);
+const targetPower = getCombatPower(targetRef?.card, targetRef?.side);
 
   const scoreContext = {
     attackerPower,
