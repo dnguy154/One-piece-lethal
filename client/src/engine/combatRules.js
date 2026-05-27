@@ -519,70 +519,251 @@ function playerCanForceWin(state, depth = 0) {
   return false;
 }
 
+function getLifeCountSafe(life) {
+  return Array.isArray(life) ? life.length : Number(life || 0);
+}
+
+function getActiveUnattachedDonCount(state) {
+  return (state.you?.don || []).filter(
+    (don) => !don.rested && don.attachedTo == null
+  ).length;
+}
+
+function getLeaderDefensePower(card, side) {
+  return getDisplayedPower(card, {
+    includeAttachedDon: side === "you"
+  });
+}
+
+function getFutureAttackers(state) {
+  const attackers = [];
+
+  if (state.you?.leader && canAttack(state.you.leader)) {
+    attackers.push({
+      id: state.you.leader.instanceId,
+      power: getDisplayedPower(state.you.leader, { includeAttachedDon: true })
+    });
+  }
+
+  for (const card of state.you?.board || []) {
+    if (canAttack(card)) {
+      attackers.push({
+        id: card.instanceId,
+        power: getDisplayedPower(card, { includeAttachedDon: true })
+      });
+    }
+  }
+
+  return attackers;
+}
+
+function getCounterValuesFromHand(hand = []) {
+  return hand
+    .map((card) => getCounterValue(card))
+    .filter((value) => value > 0)
+    .sort((a, b) => b - a);
+}
+
+function getMinimumCounterDefenses(counterValues, needed) {
+  if (needed <= 0) {
+    return [counterValues];
+  }
+
+  const results = [];
+  let bestTotal = Infinity;
+
+  function backtrack(index, chosenIndexes, total) {
+    if (results.length > 20) return;
+
+    if (total >= needed) {
+      if (total < bestTotal) {
+        bestTotal = total;
+        results.length = 0;
+      }
+
+      if (total === bestTotal) {
+        const chosenSet = new Set(chosenIndexes);
+        const remaining = counterValues.filter((_, i) => !chosenSet.has(i));
+        results.push(remaining);
+      }
+
+      return;
+    }
+
+    if (index >= counterValues.length) return;
+    if (total > bestTotal) return;
+
+    backtrack(index + 1, [...chosenIndexes, index], total + counterValues[index]);
+    backtrack(index + 1, chosenIndexes, total);
+  }
+
+  backtrack(0, [], 0);
+
+  return results;
+}
+
+function canPlayerForceLeaderLethalLight(state) {
+  if (state.opponent?.defeated) {
+    return true;
+  }
+
+  const opponentLife = getLifeCountSafe(state.opponent?.life);
+  const opponentLeaderPower = getLeaderDefensePower(
+    state.opponent?.leader,
+    "opponent"
+  );
+
+  const availableDon = getActiveUnattachedDonCount(state);
+  const attackers = getFutureAttackers(state);
+  const counters = getCounterValuesFromHand(state.opponent?.hand || []);
+
+  const memo = new Map();
+
+  function dfs(attackerPowers, donCount, lifeCount, counterValues) {
+    const key = JSON.stringify({
+      attackerPowers: [...attackerPowers].sort((a, b) => a - b),
+      donCount,
+      lifeCount,
+      counterValues: [...counterValues].sort((a, b) => a - b)
+    });
+
+    if (memo.has(key)) return memo.get(key);
+
+    if (attackerPowers.length === 0) {
+      memo.set(key, false);
+      return false;
+    }
+
+    for (let attackerIndex = 0; attackerIndex < attackerPowers.length; attackerIndex += 1) {
+      const basePower = attackerPowers[attackerIndex];
+
+      for (let donToAttach = 0; donToAttach <= donCount; donToAttach += 1) {
+        const attackPower = basePower + donToAttach * 1000;
+
+        // In One Piece, defender must exceed attacker power to stop the hit.
+        const counterNeeded = attackPower - opponentLeaderPower + 1000;
+
+        if (counterNeeded <= 0) {
+          continue;
+        }
+
+        const remainingAttackers = attackerPowers.filter(
+          (_, index) => index !== attackerIndex
+        );
+
+        const defenseBranches = [];
+
+        // Opponent may take if they still have life.
+        if (lifeCount > 0) {
+          defenseBranches.push({
+            life: lifeCount - 1,
+            counters: counterValues
+          });
+        }
+
+        // Opponent may counter if possible.
+        const counterBranches = getMinimumCounterDefenses(
+          counterValues,
+          counterNeeded
+        );
+
+        for (const remainingCounters of counterBranches) {
+          defenseBranches.push({
+            life: lifeCount,
+            counters: remainingCounters
+          });
+        }
+
+        // If opponent has no legal defense branch, this attack is lethal.
+        if (defenseBranches.length === 0) {
+          memo.set(key, true);
+          return true;
+        }
+
+        // User forces lethal only if every opponent defense still loses.
+        const attackForcesLethal = defenseBranches.every((branch) =>
+          dfs(
+            remainingAttackers,
+            donCount - donToAttach,
+            branch.life,
+            branch.counters
+          )
+        );
+
+        if (attackForcesLethal) {
+          memo.set(key, true);
+          return true;
+        }
+      }
+    }
+
+    memo.set(key, false);
+    return false;
+  }
+
+  return dfs(
+    attackers.map((attacker) => attacker.power),
+    availableDon,
+    opponentLife,
+    counters
+  );
+}
+
+function isDangerousTakeLifeOption(evaluatedOption) {
+  if (evaluatedOption.defenseOption.type !== "take_life") {
+    return false;
+  }
+
+  const lifeAfter = getLifeCount(evaluatedOption.nextState.opponent.life);
+  const remainingAttackers = getFutureAttackers(evaluatedOption.nextState).length;
+
+  // Going to 0 life while the player still has attacks is dangerous.
+  // If another safe defense exists, prefer that instead.
+  return lifeAfter === 0 && remainingAttackers > 0;
+}
+
+function chooseHighestScoringOption(options) {
+  return [...options].sort((a, b) => b.score - a.score)[0] || null;
+}
+
+function chooseBestNonTakeDefense(options) {
+  const counterOptions = options.filter(
+    (option) => option.defenseOption.type === "counter"
+  );
+
+  if (counterOptions.length > 0) {
+    return [...counterOptions].sort(
+      (a, b) =>
+        (a.defenseOption.counterUsed || 0) -
+        (b.defenseOption.counterUsed || 0)
+    )[0];
+  }
+
+  const blockOptions = options.filter((option) =>
+    option.defenseOption.type.startsWith("block")
+  );
+
+  if (blockOptions.length > 0) {
+    return chooseHighestScoringOption(blockOptions);
+  }
+
+  return chooseHighestScoringOption(options);
+}
+
 function chooseBestOpponentDefense(state, attackerId, targetId, depth = 0) {
   const defenseOptions = generateDefenseOptions(state, attackerId, targetId);
 
   const attackerRef = findCardByInstanceId(state, attackerId);
   const targetRef = findCardByInstanceId(state, targetId);
 
-const attackerPower = getCombatPower(attackerRef?.card, attackerRef?.side);
-const targetPower = getCombatPower(targetRef?.card, targetRef?.side);
+  const attackerPower = getCombatPower(attackerRef?.card, attackerRef?.side);
+  const targetPower = getCombatPower(targetRef?.card, targetRef?.side);
 
   const scoreContext = {
     attackerPower,
     targetPower,
     lifeBefore: getLifeCount(state.opponent.life)
   };
-
-  if (targetRef?.zone === "leader") {
-    const opponentLifeNow = getLifeCount(state.opponent.life);
-    const counterNeededForAttack = Math.max(0, attackerPower - targetPower + 1000);
-
-    const LIFE_PRESERVE_COUNTER_LIMIT = opponentLifeNow <= 1 ? 5000 : 4000;
-
-    const counterOption = defenseOptions.find(
-      (option) => option.type === "counter"
-    );
-
-    if (
-      counterOption &&
-      opponentLifeNow <= 2 &&
-      counterNeededForAttack > 0 &&
-      counterNeededForAttack <= LIFE_PRESERVE_COUNTER_LIMIT
-    ) {
-      const counterState = applyAttackWithDefense(
-        state,
-        attackerId,
-        counterOption
-      );
-
-      return {
-        nextState: counterState,
-        message: counterOption.message,
-        playerStillForcesWin: false
-      };
-    }
-  }
-
-  if (targetRef?.zone === "leader" && getLifeCount(state.opponent.life) === 0) {
-    const counterOption = defenseOptions.find(
-      (option) => option.type === "counter"
-    );
-
-    if (counterOption) {
-      const counterState = applyAttackWithDefense(
-        state,
-        attackerId,
-        counterOption
-      );
-
-      return {
-        nextState: counterState,
-        message: counterOption.message,
-        playerStillForcesWin: false
-      };
-    }
-  }
 
   if (defenseOptions.length === 0) {
     return {
@@ -593,52 +774,120 @@ const targetPower = getCombatPower(targetRef?.card, targetRef?.side);
   }
 
   const isLeaderAttack = targetRef?.zone === "leader";
-  const opponentLife = getLifeCount(state.opponent.life);
-  const opponentHasBlocker = getAvailableBlockers(state.opponent.board).length > 0;
 
-  const neededCounter = Math.max(0, attackerPower - targetPower + 1000);
-
-  const availableCounter = (state.opponent.hand || []).reduce(
-    (total, card) => total + getCounterValue(card),
-    0
-  );
-
-  if (isLeaderAttack && opponentLife > 0) {
-    const isSmallSwing = neededCounter > 0 && neededCounter <= 2000;
-    const canCounterSmallSwing = availableCounter >= neededCounter;
-
-    const shouldAvoidTakingLife =
-      opponentLife <= 1 &&
-      opponentHasBlocker &&
-      isSmallSwing &&
-      canCounterSmallSwing;
-
-    if (!shouldAvoidTakingLife) {
-      const takeLifeOption = defenseOptions.find(
-        (option) => option.type === "take_life"
+  if (isLeaderAttack) {
+    const evaluatedOptions = defenseOptions.map((defenseOption) => {
+      const nextState = applyAttackWithDefense(
+        state,
+        attackerId,
+        defenseOption
       );
 
-      if (takeLifeOption) {
-        const takeLifeState = applyAttackWithDefense(
-          state,
-          attackerId,
-          takeLifeOption
-        );
+      const playerStillForcesWin = canPlayerForceLeaderLethalLight(nextState);
 
-        const playerStillForcesWinAfterTaking = playerCanForceWin(
-          takeLifeState,
-          depth + 1
-        );
+      return {
+        defenseOption,
+        nextState,
+        playerStillForcesWin,
+        score: scoreDefenseChoice(nextState, defenseOption, scoreContext)
+      };
+    });
 
-        if (!playerStillForcesWinAfterTaking) {
-          return {
-            nextState: takeLifeState,
-            message: takeLifeOption.message,
-            playerStillForcesWin: false
-          };
-        }
+      const dangerousTakeLifeOption = evaluatedOptions.find(
+    isDangerousTakeLifeOption
+  );
+
+  if (dangerousTakeLifeOption) {
+    const nonTakeOptions = evaluatedOptions.filter(
+      (option) =>
+        option.defenseOption.type !== "take_life" &&
+        option.defenseOption.type !== "lose"
+    );
+
+    if (nonTakeOptions.length > 0) {
+      const survivingNonTakeOptions = nonTakeOptions.filter(
+        (option) => !option.playerStillForcesWin
+      );
+
+      const preferredNonTakeOptions =
+        survivingNonTakeOptions.length > 0
+          ? survivingNonTakeOptions
+          : nonTakeOptions;
+
+      const chosenNonTakeOption = chooseBestNonTakeDefense(
+        preferredNonTakeOptions
+      );
+
+      if (chosenNonTakeOption) {
+        return {
+          nextState: chosenNonTakeOption.nextState,
+          message: chosenNonTakeOption.defenseOption.message,
+          playerStillForcesWin: chosenNonTakeOption.playerStillForcesWin
+        };
       }
     }
+  }
+
+    const survivingOptions = evaluatedOptions.filter(
+      (option) =>
+        !option.playerStillForcesWin &&
+        option.defenseOption.type !== "lose"
+    );
+
+    if (survivingOptions.length > 0) {
+      const nonDangerousSurvivingOptions = survivingOptions.filter(
+        (option) => !isDangerousTakeLifeOption(option)
+      );
+
+      const preferredOptions =
+        nonDangerousSurvivingOptions.length > 0
+          ? nonDangerousSurvivingOptions
+          : survivingOptions;
+
+      const safeTakeLife = preferredOptions.find(
+        (option) => option.defenseOption.type === "take_life"
+      );
+
+      if (safeTakeLife) {
+        return {
+          nextState: safeTakeLife.nextState,
+          message: safeTakeLife.defenseOption.message,
+          playerStillForcesWin: false
+        };
+      }
+
+      const bestSurvivingOption = chooseHighestScoringOption(preferredOptions);
+
+      return {
+        nextState: bestSurvivingOption.nextState,
+        message: bestSurvivingOption.defenseOption.message,
+        playerStillForcesWin: false
+      };
+    }
+
+    const bestLosingOption = chooseHighestScoringOption(
+      evaluatedOptions.filter((option) => option.defenseOption.type !== "lose")
+    );
+
+    if (bestLosingOption) {
+      return {
+        nextState: bestLosingOption.nextState,
+        message: bestLosingOption.defenseOption.message,
+        playerStillForcesWin: true
+      };
+    }
+
+    const loseOption = evaluatedOptions.find(
+      (option) => option.defenseOption.type === "lose"
+    );
+
+    return {
+      nextState: loseOption?.nextState || state,
+      message:
+        loseOption?.defenseOption?.message ||
+        "Opponent could not defend lethal.",
+      playerStillForcesWin: true
+    };
   }
 
   let bestLosingOption = null;
@@ -647,40 +896,17 @@ const targetPower = getCombatPower(targetRef?.card, targetRef?.side);
   let bestSurvivingOption = null;
   let bestSurvivingScore = -Infinity;
 
-  if (isLeaderAttack && opponentLife > 0) {
-    const takeLifeOption = defenseOptions.find(
-      (option) => option.type === "take_life"
-    );
-
-    if (takeLifeOption) {
-      const takeLifeState = applyAttackWithDefense(
-        state,
-        attackerId,
-        takeLifeOption
-      );
-
-      const takingLifeStillLoses = playerCanForceWin(
-        takeLifeState,
-        depth + 1
-      );
-
-      if (!takingLifeStillLoses) {
-        return {
-          nextState: takeLifeState,
-          message: takeLifeOption.message,
-          playerStillForcesWin: false
-        };
-      }
-    }
-  }
-
   for (const defenseOption of defenseOptions) {
     const nextState = applyAttackWithDefense(state, attackerId, defenseOption);
-    const playerStillForcesWin = playerCanForceWin(nextState, depth + 1);
+
+    const playerStillForcesWin = playerCanForceWin(
+      nextState,
+      depth + 1
+    );
+
+    const score = scoreDefenseChoice(nextState, defenseOption, scoreContext);
 
     if (!playerStillForcesWin) {
-      const score = scoreDefenseChoice(nextState, defenseOption, scoreContext);
-
       if (score > bestSurvivingScore) {
         bestSurvivingScore = score;
         bestSurvivingOption = {
@@ -693,10 +919,8 @@ const targetPower = getCombatPower(targetRef?.card, targetRef?.side);
       continue;
     }
 
-    const losingScore = scoreDefenseChoice(nextState, defenseOption, scoreContext);
-
-    if (losingScore > bestLosingScore) {
-      bestLosingScore = losingScore;
+    if (score > bestLosingScore) {
+      bestLosingScore = score;
       bestLosingOption = {
         nextState,
         message: defenseOption.message,
