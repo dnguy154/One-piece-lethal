@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import ScenarioBuilder from "./ScenarioBuilder";
 import {
   isEventCard,
   isCharacterCard,
@@ -44,7 +43,6 @@ import MobileCardPreview from "./components/MobileCardPreview";
 import DailyResultModal from "./components/DailyResultModal";
 import GameSidebar from "./components/GameSidebar";
 import {
-  SHOW_BUILDER,
   VISIBILITY_BY_DIFFICULTY
 } from "./constants/config";
 import GameResultOverlay from "./components/GameResultOverlay";
@@ -201,7 +199,6 @@ const loadChallengeFromResponse = (
 };
 
   useEffect(() => {
-    if (SHOW_BUILDER) return;
 
     fetchTodayChallenge()
       .then((data) => {
@@ -346,7 +343,6 @@ const loadChallengeFromResponse = (
 };
 
   useEffect(() => {
-  if (SHOW_BUILDER) return;
   if (isArchiveMode) return;
   if (!dailyChallenge) return;
   if (!playState) return;
@@ -1000,10 +996,6 @@ setMessage("");
 
     finishDailyChallenge({ solved: false });
   };
-
-  if (SHOW_BUILDER) {
-    return <ScenarioBuilder />;
-  }
 
   if (loadError) {
     return (

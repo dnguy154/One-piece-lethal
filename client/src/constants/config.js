@@ -1,4 +1,3 @@
-export const SHOW_BUILDER = false;
 
 export const VISIBILITY_BY_DIFFICULTY = {
   easy: {
