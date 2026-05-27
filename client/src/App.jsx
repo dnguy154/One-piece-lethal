@@ -342,6 +342,53 @@ const handleDifficultyChange = (nextDifficulty) => {
     setIsReplayAttempt(!!existingResult);
   };
 
+  const cleanCardForProgress = (card) => {
+  if (!card) return card;
+
+  const {
+    raw,
+    fullText,
+    description,
+    ...safeCard
+  } = card;
+
+  return {
+    ...safeCard,
+    attachedDon: card.attachedDon || [],
+    rested: !!card.rested
+  };
+};
+
+const cleanCardArrayForProgress = (cards = []) => {
+  return (cards || []).map(cleanCardForProgress);
+};
+
+const cleanSideForProgress = (side = {}) => {
+  return {
+    ...side,
+    leader: cleanCardForProgress(side.leader),
+    stage: cleanCardForProgress(side.stage),
+    hand: cleanCardArrayForProgress(side.hand),
+    deck: cleanCardArrayForProgress(side.deck),
+    trash: cleanCardArrayForProgress(side.trash),
+    life: Array.isArray(side.life)
+      ? cleanCardArrayForProgress(side.life)
+      : side.life,
+    board: cleanCardArrayForProgress(side.board),
+    don: side.don || []
+  };
+};
+
+const cleanPlayStateForProgress = (state) => {
+  if (!state) return state;
+
+  return {
+    ...state,
+    you: cleanSideForProgress(state.you),
+    opponent: cleanSideForProgress(state.opponent)
+  };
+};
+
   const saveCurrentDailyProgress = (nextPlayState, overrides = {}) => {
   if (isArchiveMode) return;
   if (!dailyChallenge) return;
@@ -353,8 +400,8 @@ const handleDifficultyChange = (nextDifficulty) => {
   // If first result is already locked, this is replay/practice.
   if (savedResult) return;
 
-  saveDailyProgress(dailyChallenge, {
-    playState: nextPlayState,
+  const progressPayload = {
+    playState: cleanPlayStateForProgress(nextPlayState),
     difficultyMode,
 
     selectedDonIds: overrides.selectedDonIds ?? selectedDonIds,
@@ -366,7 +413,14 @@ const handleDifficultyChange = (nextDifficulty) => {
 
     hasStartedAction: true,
     startTimeMs: startTimeRef.current || startTimeMs || Date.now()
-  });
+  };
+
+  try {
+    saveDailyProgress(dailyChallenge, progressPayload);
+    console.log("Daily progress saved:", dailyChallenge.date);
+  } catch (error) {
+    console.error("Failed to save daily progress:", error);
+  }
 };
   const markActionStarted = () => {
   if (hasStartedAction || hasWon || hasLost || hasConceded) {
@@ -722,6 +776,13 @@ const skipCurrentOptionalEffectStep = () => {
 
     setActiveEffect(nextActiveEffect);
     setPlayState(currentState);
+    saveCurrentDailyProgress(nextState, {
+  selectedDonIds: [],
+  selectedHandCardIndex: null,
+  selectedAttackerId: null,
+  activeEffect: null,
+  actionMode: "idle"
+});
     setHandViewer(null);
     setHoveredCard(null);
     setMobilePreviewCard(null);
@@ -740,6 +801,14 @@ const skipCurrentOptionalEffectStep = () => {
   setHandViewer(null);
   setHoveredCard(null);
   setMobilePreviewCard(null);
+
+  saveCurrentDailyProgress(currentState, {
+  activeEffect: null,
+  actionMode: "idle",
+  selectedDonIds: [],
+  selectedHandCardIndex: null,
+  selectedAttackerId: null
+});
 
   setMessage(
     `${activeEffect.sourceCardName || activeEffect.effect.name || "Effect"} resolved. Optional effect skipped.`
@@ -791,7 +860,7 @@ const handleEffectTargetClick = (card) => {
     }
 
     if (!nextStepHasTarget) {
-      const nextActiveEffect = {
+      nextActiveEffect = {
   ...activeEffect,
   stepIndex: nextStepIndex,
   workingState: nextState
