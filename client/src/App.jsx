@@ -25,7 +25,10 @@ import {
   getDifficultyPoints,
   getSavedDailyResult,
   calculateDailyStats,
-  saveFirstDailyResult
+  saveFirstDailyResult,
+  getSavedDailyProgress,
+  saveDailyProgress,
+  clearDailyProgress
 } from "./services/dailyStorage";
 import {
   fetchTodayChallenge,
@@ -113,39 +116,89 @@ function App() {
     };
   }, []);
 
-  const loadChallengeFromResponse = (loadedChallenge, loadedScenario, archiveMode = false) => {
-    setDailyChallenge(loadedChallenge);
-    setScenario(loadedScenario);
-    setPlayState(deepClone(loadedScenario.initialState));
+const loadChallengeFromResponse = (
+  loadedChallenge,
+  loadedScenario,
+  archiveMode = false
+) => {
+  const savedResult = archiveMode ? null : getSavedDailyResult(loadedChallenge);
 
-    const savedResult = archiveMode ? null : getSavedDailyResult(loadedChallenge);
-    const latestStats = calculateDailyStats();
+  if (!archiveMode && savedResult) {
+    clearDailyProgress(loadedChallenge);
+  }
 
-    setDailyResult(savedResult);
-    setDailyStats(latestStats);
-    setIsReplayAttempt(!archiveMode && !!savedResult);
-    setIsArchiveMode(archiveMode);
-    setResultModalOpen(false);
+  const savedProgress =
+    archiveMode || savedResult ? null : getSavedDailyProgress(loadedChallenge);
 
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
+  const shouldRestoreProgress =
+    !!savedProgress &&
+    String(savedProgress.challengeId) === String(loadedChallenge.id) &&
+    !!savedProgress.playState;
 
-    setMessage("");
-    setLoadError("");
-    setHoveredCard(null);
-    setMobilePreviewCard(null);
+  setDailyChallenge(loadedChallenge);
+  setScenario(loadedScenario);
 
-    setHasWon(false);
-    setHasLost(false);
-    setHasConceded(false);
+  setPlayState(
+    shouldRestoreProgress
+      ? savedProgress.playState
+      : deepClone(loadedScenario.initialState)
+  );
 
-    setHasStartedAction(false);
-    setStartTimeMs(null);
-    startTimeRef.current = null;
-    setFinishedTimeSeconds(null);
-  };
+  const latestStats = calculateDailyStats();
+
+  setDailyResult(savedResult);
+  setDailyStats(latestStats);
+  setIsReplayAttempt(!archiveMode && !!savedResult);
+  setIsArchiveMode(archiveMode);
+  setResultModalOpen(false);
+
+  setSelectedDonIds(
+    shouldRestoreProgress ? savedProgress.selectedDonIds || [] : []
+  );
+
+  setSelectedHandCardIndex(
+    shouldRestoreProgress
+      ? savedProgress.selectedHandCardIndex ?? null
+      : null
+  );
+
+  setSelectedAttackerId(
+    shouldRestoreProgress
+      ? savedProgress.selectedAttackerId ?? null
+      : null
+  );
+
+  setActiveEffect(
+    shouldRestoreProgress ? savedProgress.activeEffect || null : null
+  );
+
+  setActionMode(
+    shouldRestoreProgress ? savedProgress.actionMode || "idle" : "idle"
+  );
+
+  setMessage(shouldRestoreProgress ? "Daily attempt restored." : "");
+  setLoadError("");
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+  setHandViewer(null);
+  setTrashViewer(null);
+
+  setHasWon(false);
+  setHasLost(false);
+  setHasConceded(false);
+
+  setHasStartedAction(
+    shouldRestoreProgress ? !!savedProgress.hasStartedAction : false
+  );
+
+  const restoredStartTime = shouldRestoreProgress
+    ? savedProgress.startTimeMs || null
+    : null;
+
+  setStartTimeMs(restoredStartTime);
+  startTimeRef.current = restoredStartTime;
+  setFinishedTimeSeconds(null);
+};
 
   useEffect(() => {
     if (SHOW_BUILDER) return;
@@ -269,6 +322,7 @@ function App() {
 
     const existingResult = getSavedDailyResult(dailyChallenge);
     const lockedResult = saveFirstDailyResult(dailyChallenge, result);
+    clearDailyProgress(dailyChallenge);
     const latestStats = calculateDailyStats();
 
     setDailyResult(lockedResult || result);
@@ -278,18 +332,59 @@ function App() {
     setIsReplayAttempt(!!existingResult);
   };
   const markActionStarted = () => {
-    if (hasStartedAction || hasWon || hasLost || hasConceded) {
-      return startTimeRef.current;
-    }
+  if (hasStartedAction || hasWon || hasLost || hasConceded) {
+    return startTimeRef.current;
+  }
 
-    const now = Date.now();
+  const now = Date.now();
 
-    startTimeRef.current = now;
-    setHasStartedAction(true);
-    setStartTimeMs(now);
+  startTimeRef.current = now;
+  setHasStartedAction(true);
+  setStartTimeMs(now);
 
-    return now;
-  };
+  return now;
+};
+
+  useEffect(() => {
+  if (SHOW_BUILDER) return;
+  if (isArchiveMode) return;
+  if (!dailyChallenge) return;
+  if (!playState) return;
+  if (!hasStartedAction) return;
+  if (hasWon || hasLost || hasConceded) return;
+
+  const savedResult = getSavedDailyResult(dailyChallenge);
+
+  // If first result is already locked, this is replay/practice.
+  if (savedResult) return;
+
+  saveDailyProgress(dailyChallenge, {
+    playState,
+    difficultyMode,
+    selectedDonIds,
+    selectedHandCardIndex,
+    selectedAttackerId,
+    activeEffect,
+    actionMode,
+    hasStartedAction,
+    startTimeMs: startTimeRef.current || startTimeMs
+  });
+}, [
+  dailyChallenge,
+  playState,
+  difficultyMode,
+  selectedDonIds,
+  selectedHandCardIndex,
+  selectedAttackerId,
+  activeEffect,
+  actionMode,
+  hasStartedAction,
+  hasWon,
+  hasLost,
+  hasConceded,
+  isArchiveMode,
+  startTimeMs
+]);
 
   const openMobilePreview = (card) => {
     setHoveredCard(null);
@@ -789,7 +884,7 @@ const handleEffectTargetClick = (card) => {
     setPlayState(deepClone(scenario.initialState));
     clearSelections();
 
-    setMessage("");
+setMessage("");
     setHasWon(false);
     setHasLost(false);
     setHasConceded(false);

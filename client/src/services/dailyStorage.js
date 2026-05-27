@@ -58,6 +58,50 @@ export function getAllDailyResults() {
   return results;
 }
 
+export function getDailyProgressKey(challenge) {
+  if (!challenge?.date) return null;
+
+  return `opLethalDailyProgress:${challenge.date}`;
+}
+
+export function getSavedDailyProgress(challenge) {
+  const key = getDailyProgressKey(challenge);
+
+  if (!key) return null;
+
+  try {
+    return JSON.parse(localStorage.getItem(key));
+  } catch {
+    return null;
+  }
+}
+
+export function saveDailyProgress(challenge, progress) {
+  const key = getDailyProgressKey(challenge);
+
+  if (!key) return null;
+
+  const finalProgress = {
+    version: 1,
+    challengeId: challenge.id,
+    challengeDate: challenge.date,
+    savedAt: new Date().toISOString(),
+    ...progress
+  };
+
+  localStorage.setItem(key, JSON.stringify(finalProgress));
+
+  return finalProgress;
+}
+
+export function clearDailyProgress(challenge) {
+  const key = getDailyProgressKey(challenge);
+
+  if (!key) return;
+
+  localStorage.removeItem(key);
+}
+
 export function addDaysToDateKey(dateKey, amount) {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
