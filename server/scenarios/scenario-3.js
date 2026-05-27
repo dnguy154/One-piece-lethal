@@ -225,9 +225,10 @@ const scenario =
             }
           },
           {
-            id: "ko_power_or_less_1779789804201",
+            id: "ko_power_or_less_1779880416823",
             type: "ko_power_or_less",
             maxPower: 0,
+            optional: true,
             prompt: "Choose an opponent character with 0 power or less to KO.",
             targetRules: {
               sides: [

@@ -17,6 +17,10 @@ export default function GameSidebar({
   loadTodayChallenge,
   disableLoadToday,
   disableDifficultyChange,
+
+  canSkipEffectStep,
+onSkipEffectStep,
+
   selectedArchiveDate,
   loadArchiveChallenge,
   challengeList
@@ -34,6 +38,11 @@ export default function GameSidebar({
         <section className="panel">
           <h2>Feedback</h2>
           <p>{message}</p>
+          {canSkipEffectStep && (
+  <button type="button" onClick={onSkipEffectStep}>
+    Skip Optional Effect
+  </button>
+)}
         </section>
       )}
 

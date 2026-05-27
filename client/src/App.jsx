@@ -15,7 +15,7 @@ import {
   canAffordCard,
   attachMultipleDonToTarget,
 } from "./engine/donRules";
-import { playHandCardToState } from "./engine/playRules";
+import { playHandCardToState } from "./engine/playRules.js";
 import {
   resolveAttack,
   evaluateScenarioResult
@@ -446,6 +446,13 @@ const loadChallengeFromResponse = (
 
 
   const isResolvingEffect = activeEffect && actionMode === "select_effect_target";
+  const currentEffectStep =
+  activeEffect?.effect?.steps?.[activeEffect.stepIndex] || null;
+
+const canSkipCurrentEffectStep =
+  actionMode === "select_effect_target" &&
+  !!activeEffect &&
+  !!currentEffectStep?.optional;
   const handleHandCardClick = (card, handIndex) => {
     if (hasWon || hasLost || hasConceded) return;
     if (handIndex == null || !playState) return;
@@ -649,7 +656,49 @@ setActiveEffect({
     setHoveredCard(null);
     setMessage(`Selected attacker: ${card.name}. Choose a target.`);
   };
+const skipCurrentOptionalEffectStep = () => {
+  if (!canSkipCurrentEffectStep) {
+    return;
+  }
 
+  const currentState = activeEffect.workingState || playState;
+
+  const nextStepIndex = activeEffect.stepIndex + 1;
+  const nextStep = activeEffect.effect.steps[nextStepIndex];
+
+  // If there is another step after the optional one, move to it.
+  if (nextStep) {
+    const nextActiveEffect = {
+      ...activeEffect,
+      stepIndex: nextStepIndex,
+      workingState: currentState
+    };
+
+    setActiveEffect(nextActiveEffect);
+    setPlayState(currentState);
+    setHandViewer(null);
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
+    setMessage(nextStep.prompt || "Choose the next effect target.");
+
+    return;
+  }
+
+  // If the optional step was the final step, finish the effect.
+  setPlayState(currentState);
+  setActiveEffect(null);
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setSelectedDonIds([]);
+  setActionMode("idle");
+  setHandViewer(null);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+
+  setMessage(
+    `${activeEffect.sourceCardName || activeEffect.effect.name || "Effect"} resolved. Optional effect skipped.`
+  );
+};
 const handleEffectTargetClick = (card) => {
   if (!activeEffect || actionMode !== "select_effect_target") {
     return false;
@@ -1093,6 +1142,10 @@ const visibility = gameIsFinished
           disableLoadToday={
             !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
           }
+
+          canSkipEffectStep={canSkipCurrentEffectStep}
+onSkipEffectStep={skipCurrentOptionalEffectStep}
+
           selectedArchiveDate={selectedArchiveDate}
           loadArchiveChallenge={loadArchiveChallenge}
           challengeList={challengeList}
