@@ -232,56 +232,69 @@ const loadChallengeFromResponse = (
         console.error("Error fetching challenge list:", err);
       });
   }, []);
-  const loadArchiveChallenge = (date) => {
-    if (!date) return;
 
-    fetchArchiveChallenge(date)
-      .then((data) => {
-        const loadedChallenge = data.challenge;
-        const loadedScenario = data.scenario;
+  const isDailyAttemptLocked =
+  !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded;
+ const loadArchiveChallenge = (date) => {
+  if (!date) return;
 
-        loadChallengeFromResponse(loadedChallenge, loadedScenario, true);
-        setSelectedArchiveDate(date);
-      })
-      .catch((err) => {
-        console.error("Error loading archive challenge:", err);
+  if (isDailyAttemptLocked) {
+    setMessage("You cannot switch challenges after making an action.");
+    return;
+  }
 
-        const errorData = err.response?.data;
+  fetchArchiveChallenge(date)
+    .then((data) => {
+      const loadedChallenge = data.challenge;
+      const loadedScenario = data.scenario;
 
-        const errorMessage =
-          typeof errorData === "string"
-            ? errorData
-            : errorData?.message ||
+      loadChallengeFromResponse(loadedChallenge, loadedScenario, true);
+      setSelectedArchiveDate(date);
+    })
+    .catch((err) => {
+      console.error("Error loading archive challenge:", err);
+
+      const errorData = err.response?.data;
+
+      const errorMessage =
+        typeof errorData === "string"
+          ? errorData
+          : errorData?.message ||
             errorData?.error ||
             err.message ||
             "Failed to load archive challenge.";
 
-        setMessage(errorMessage);
-      });
-  };
+      setMessage(errorMessage);
+    });
+};
+const loadTodayChallenge = () => {
+  if (isDailyAttemptLocked) {
+    setMessage("You cannot reload today's challenge after making an action.");
+    return;
+  }
 
-  const loadTodayChallenge = () => {
-    const isLockedDailyAttempt =
-      !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded;
+  fetchTodayChallenge()
+    .then((data) => {
+      const loadedChallenge = data.challenge;
+      const loadedScenario = data.scenario;
 
-    if (isLockedDailyAttempt) {
-      setMessage("You cannot reload today's challenge after making an action.");
-      return;
-    }
+      loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
+      setSelectedArchiveDate(loadedChallenge.date);
+    })
+    .catch((err) => {
+      console.error("Error loading today challenge:", err);
+      setMessage("Failed to load today's challenge.");
+    });
+};
 
-    fetchTodayChallenge()
-      .then((data) => {
-        const loadedChallenge = data.challenge;
-        const loadedScenario = data.scenario;
+const handleDifficultyChange = (nextDifficulty) => {
+  if (isDailyAttemptLocked) {
+    setMessage("You cannot change difficulty after making an action.");
+    return;
+  }
 
-        loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
-        setSelectedArchiveDate(loadedChallenge.date);
-      })
-      .catch((err) => {
-        console.error("Error loading today challenge:", err);
-        setMessage("Failed to load today's challenge.");
-      });
-  };
+  setDifficultyMode(nextDifficulty);
+};
   const finishDailyChallenge = ({ solved }) => {
     const endTimeMs = Date.now();
     const startedAt = startTimeRef.current || startTimeMs;
@@ -1117,7 +1130,7 @@ const visibility = gameIsFinished
           message={message}
 
           difficultyMode={difficultyMode}
-          setDifficultyMode={setDifficultyMode}
+          setDifficultyMode={handleDifficultyChange}
 
           resetScenario={resetScenario}
           handleConcede={handleConcede}
@@ -1128,12 +1141,8 @@ const visibility = gameIsFinished
           hasConceded={hasConceded}
 
           loadTodayChallenge={loadTodayChallenge}
-          disableDifficultyChange={
-            !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
-          }
-          disableLoadToday={
-            !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded
-          }
+disableDifficultyChange={isDailyAttemptLocked}
+disableLoadToday={isDailyAttemptLocked}
 
           canSkipEffectStep={canSkipCurrentEffectStep}
 onSkipEffectStep={skipCurrentOptionalEffectStep}
