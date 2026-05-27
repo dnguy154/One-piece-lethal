@@ -128,10 +128,10 @@ const loadChallengeFromResponse = (
   const savedProgress =
     archiveMode || savedResult ? null : getSavedDailyProgress(loadedChallenge);
 
-  const shouldRestoreProgress =
-    !!savedProgress &&
-    String(savedProgress.challengeId) === String(loadedChallenge.id) &&
-    !!savedProgress.playState;
+const shouldRestoreProgress =
+  !!savedProgress &&
+  savedProgress.challengeDate === loadedChallenge.date &&
+  !!savedProgress.playState;
 
   setDailyChallenge(loadedChallenge);
   setScenario(loadedScenario);
@@ -341,6 +341,33 @@ const handleDifficultyChange = (nextDifficulty) => {
     setResultModalOpen(true);
     setIsReplayAttempt(!!existingResult);
   };
+
+  const saveCurrentDailyProgress = (nextPlayState, overrides = {}) => {
+  if (isArchiveMode) return;
+  if (!dailyChallenge) return;
+  if (!nextPlayState) return;
+  if (hasWon || hasLost || hasConceded) return;
+
+  const savedResult = getSavedDailyResult(dailyChallenge);
+
+  // If first result is already locked, this is replay/practice.
+  if (savedResult) return;
+
+  saveDailyProgress(dailyChallenge, {
+    playState: nextPlayState,
+    difficultyMode,
+
+    selectedDonIds: overrides.selectedDonIds ?? selectedDonIds,
+    selectedHandCardIndex:
+      overrides.selectedHandCardIndex ?? selectedHandCardIndex,
+    selectedAttackerId: overrides.selectedAttackerId ?? selectedAttackerId,
+    activeEffect: overrides.activeEffect ?? activeEffect,
+    actionMode: overrides.actionMode ?? actionMode,
+
+    hasStartedAction: true,
+    startTimeMs: startTimeRef.current || startTimeMs || Date.now()
+  });
+};
   const markActionStarted = () => {
   if (hasStartedAction || hasWon || hasLost || hasConceded) {
     return startTimeRef.current;
@@ -516,17 +543,27 @@ const canSkipCurrentEffectStep =
   setHandViewer(null);
 
   if (firstStep.targetRules) {
-    setPlayState(paidState);
-
-setActiveEffect({
+    const nextActiveEffect = {
   effect,
   sourceCardName: card.name || card.cardId || card.id,
   stepIndex: 0,
   workingState: paidState
+};
+
+setPlayState(paidState);
+setActiveEffect(nextActiveEffect);
+setActionMode("select_effect_target");
+
+saveCurrentDailyProgress(paidState, {
+  activeEffect: nextActiveEffect,
+  actionMode: "select_effect_target",
+  selectedDonIds: [],
+  selectedHandCardIndex: null,
+  selectedAttackerId: null
 });
-    setActionMode("select_effect_target");
-    setMessage(firstStep.prompt || `Selected ${card.name}. Choose a target.`);
-    return;
+
+setMessage(firstStep.prompt || `Selected ${card.name}. Choose a target.`);
+return;
   }
 
   const { nextState, success, message: resultMessage } = applyEffectStep(
@@ -754,20 +791,26 @@ const handleEffectTargetClick = (card) => {
     }
 
     if (!nextStepHasTarget) {
-      setPlayState(nextState);
+      const nextActiveEffect = {
+  ...activeEffect,
+  stepIndex: nextStepIndex,
+  workingState: nextState
+};
 
-      setActiveEffect({
-        ...activeEffect,
-        stepIndex: nextStepIndex,
-        workingState: nextState
-      });
+setPlayState(nextState);
+setActiveEffect(nextActiveEffect);
 
-      setHandViewer(null);
-      setHoveredCard(null);
-      setMobilePreviewCard(null);
-      setMessage("No valid target for the next effect. You may need to concede.");
+saveCurrentDailyProgress(nextState, {
+  activeEffect: nextActiveEffect,
+  actionMode: "select_effect_target"
+});
 
-      return true;
+setHandViewer(null);
+setHoveredCard(null);
+setMobilePreviewCard(null);
+setMessage(nextStep.prompt || "Choose the next effect target.");
+
+return true;
     }
 
     setPlayState(nextState);
@@ -816,13 +859,22 @@ const handleEffectTargetClick = (card) => {
 
       markActionStarted();
 
-      setPlayState(nextState);
-      setSelectedDonIds([]);
-      setSelectedHandCardIndex(null);
-      setSelectedAttackerId(null);
-      setActionMode("idle");
-      setMessage("DON attached.");
-      return;
+setPlayState(nextState);
+
+saveCurrentDailyProgress(nextState, {
+  selectedDonIds: [],
+  selectedHandCardIndex: null,
+  selectedAttackerId: null,
+  activeEffect: null,
+  actionMode: "idle"
+});
+
+setSelectedDonIds([]);
+setSelectedHandCardIndex(null);
+setSelectedAttackerId(null);
+setActionMode("idle");
+setMessage("DON attached.");
+return;
     }
 
     if (selectedHandCardIndex != null) {
@@ -918,7 +970,15 @@ const handleEffectTargetClick = (card) => {
     const scenarioResult = evaluateScenarioResult(nextState);
 
     setPlayState(nextState);
+    saveCurrentDailyProgress(nextState, {
+  selectedDonIds: [],
+  selectedHandCardIndex: null,
+  selectedAttackerId: null,
+  activeEffect: null,
+  actionMode: "idle"
+});
     clearSelections();
+    
 
 if (scenarioResult.finished) {
   setHasWon(true);
