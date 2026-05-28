@@ -860,7 +860,7 @@ const handleEffectTargetClick = (card) => {
     }
 
     if (!nextStepHasTarget) {
-      nextActiveEffect = {
+      const nextActiveEffect = {
   ...activeEffect,
   stepIndex: nextStepIndex,
   workingState: nextState
