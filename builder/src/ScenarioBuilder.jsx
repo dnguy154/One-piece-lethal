@@ -54,6 +54,7 @@ const EMPTY_SCENARIO = {
   },
 
   effects: {},
+  activateMainAbilities: {},
 
   steps: [
     {
@@ -381,6 +382,30 @@ export default function ScenarioBuilder() {
   const [koMaxPower, setKoMaxPower] = useState(0);
   const [buffPowerAmount, setBuffPowerAmount] = useState(2000);
   const [effectStepOptional, setEffectStepOptional] = useState(false);
+
+  const [eventAdditionalRestDon, setEventAdditionalRestDon] = useState(0);
+
+const [restTargetSide, setRestTargetSide] = useState("opponent");
+const [restTargetZones, setRestTargetZones] = useState({
+  leader: false,
+  board: true,
+  stage: false,
+  don: true
+});
+
+const [activateSourceInstanceId, setActivateSourceInstanceId] =
+  useState("you-leader");
+const [activateAbilityName, setActivateAbilityName] =
+  useState("Rest 1 card to restand DON");
+const [activateOncePerTurn, setActivateOncePerTurn] = useState(true);
+const [activateRestandDonCount, setActivateRestandDonCount] = useState(3);
+const [activateRestCostSide, setActivateRestCostSide] = useState("you");
+const [activateRestCostZones, setActivateRestCostZones] = useState({
+  leader: true,
+  board: true,
+  stage: true,
+  don: true
+});
 
   const updateScenarioMeta = (field, value) => {
     setScenario((prev) => ({
@@ -778,6 +803,97 @@ export default function ScenarioBuilder() {
     });
   };
 
+  const getSelectedZones = (zoneState) => {
+  return Object.entries(zoneState)
+    .filter(([, enabled]) => enabled)
+    .map(([zone]) => zone);
+};
+
+const toggleZone = (setter, zone) => {
+  setter((prev) => ({
+    ...prev,
+    [zone]: !prev[zone]
+  }));
+};
+
+const updateCardByInstanceId = (side, instanceId, patch) => {
+  if (!side || !instanceId) return;
+
+  setScenario((prev) => {
+    const sideData = prev.initialState[side];
+
+    const updateCard = (card) => {
+      if (!card || card.instanceId !== instanceId) return card;
+
+      return {
+        ...card,
+        ...patch
+      };
+    };
+
+    return {
+      ...prev,
+      initialState: {
+        ...prev.initialState,
+        [side]: {
+          ...sideData,
+          leader: updateCard(sideData.leader),
+          stage: updateCard(sideData.stage),
+          board: (sideData.board || []).map(updateCard)
+        }
+      }
+    };
+  });
+};
+
+const renderPassivePowerInput = (side, card) => {
+  if (!card?.instanceId) return null;
+
+  return (
+    <>
+      <label>Passive Power Bonus</label>
+      <input
+        type="number"
+        value={Number(card.passivePowerBonus || 0)}
+        onChange={(event) =>
+          updateCardByInstanceId(side, card.instanceId, {
+            passivePowerBonus: Number(event.target.value) || 0
+          })
+        }
+      />
+    </>
+  );
+};
+
+const setEffectAdditionalRestDonCost = (sourceCardId, amount) => {
+  const parsedAmount = Number(amount);
+
+  if (!sourceCardId) {
+    alert("Enter the event card ID.");
+    return;
+  }
+
+  if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+    alert("Enter a valid additional DON cost.");
+    return;
+  }
+
+  const existingEffect = scenario.effects?.[sourceCardId] || {
+    id: sourceCardId,
+    name: "Scenario Effect",
+    steps: []
+  };
+
+  upsertScenarioEffect(sourceCardId, {
+    ...existingEffect,
+    id: sourceCardId,
+    additionalCost: {
+      ...(existingEffect.additionalCost || {}),
+      restDon: parsedAmount
+    }
+  });
+};
+
   const addEffectStep = (sourceCardId, step) => {
     if (!sourceCardId) {
       alert("Enter the event card ID.");
@@ -841,6 +957,110 @@ export default function ScenarioBuilder() {
       optional: effectStepOptional
     });
   };
+
+  const addRestTargetStep = (sourceCardId) => {
+  if (!sourceCardId) {
+    alert("Enter the event card ID.");
+    return;
+  }
+
+  const zones = getSelectedZones(restTargetZones);
+
+  if (zones.length === 0) {
+    alert("Choose at least one valid target zone.");
+    return;
+  }
+
+  addEffectStep(sourceCardId, {
+    id: `rest_target_${Date.now()}`,
+    type: "rest_target",
+    optional: effectStepOptional,
+    prompt: `Choose ${
+      restTargetSide === "opponent" ? "an opponent" : "your"
+    } ${zones.join(" or ")} to rest${
+      effectStepOptional ? ", or skip this optional effect." : "."
+    }`,
+    targetRules: {
+      sides: [restTargetSide],
+      zones
+    }
+  });
+};
+
+const upsertActivateMainAbility = (sourceInstanceId, abilityData) => {
+  if (!sourceInstanceId) return;
+
+  setScenario((prev) => ({
+    ...prev,
+    activateMainAbilities: {
+      ...(prev.activateMainAbilities || {}),
+      [sourceInstanceId]: abilityData
+    }
+  }));
+};
+
+const removeActivateMainAbility = (sourceInstanceId) => {
+  setScenario((prev) => {
+    const nextAbilities = { ...(prev.activateMainAbilities || {}) };
+    delete nextAbilities[sourceInstanceId];
+
+    return {
+      ...prev,
+      activateMainAbilities: nextAbilities
+    };
+  });
+};
+
+const addRestToRestandDonActivateMain = () => {
+  if (!activateSourceInstanceId.trim()) {
+    alert("Enter a source instance ID.");
+    return;
+  }
+
+  const costZones = getSelectedZones(activateRestCostZones);
+
+  if (costZones.length === 0) {
+    alert("Choose at least one cost target zone.");
+    return;
+  }
+
+  const restandCount = Number(activateRestandDonCount);
+
+  if (!Number.isFinite(restandCount) || restandCount <= 0) {
+    alert("Enter a valid DON restand count.");
+    return;
+  }
+
+  const sourceInstanceId = activateSourceInstanceId.trim();
+
+  upsertActivateMainAbility(sourceInstanceId, {
+    id: `${sourceInstanceId}_activate_main_${Date.now()}`,
+    name: activateAbilityName || "Activate: Main",
+    type: "activate_main",
+    sourceInstanceId,
+    oncePerTurn: activateOncePerTurn,
+    costSteps: [
+      {
+        id: `rest_cost_${Date.now()}`,
+        type: "rest_target",
+        optional: false,
+        prompt: "Choose a card or DON to rest as the cost.",
+        targetRules: {
+          sides: [activateRestCostSide],
+          zones: costZones
+        }
+      }
+    ],
+    steps: [
+      {
+        id: `restand_don_${Date.now()}`,
+        type: "restand_don",
+        player: "you",
+        count: restandCount
+      }
+    ]
+  });
+};
 
   const addBuffPowerStep = (sourceCardId, amount) => {
     const parsedAmount = Number(amount);
@@ -925,23 +1145,25 @@ export default function ScenarioBuilder() {
     const normalizeLeader = (card, side) => {
       if (!card) return null;
 
-      return {
-        cardId: card.cardId || card.id,
-        instanceId: `${side}-leader`,
-        attachedDon: card.attachedDon || [],
-        rested: !!card.rested
-      };
+return {
+  cardId: card.cardId || card.id,
+  instanceId: `${side}-leader`,
+  attachedDon: card.attachedDon || [],
+  rested: !!card.rested,
+  passivePowerBonus: Number(card.passivePowerBonus || 0)
+};
     };
 
     const normalizeStage = (card, side) => {
       if (!card) return null;
 
-      return {
-        cardId: card.cardId || card.id,
-        instanceId: `${side}-stage`,
-        attachedDon: card.attachedDon || [],
-        rested: !!card.rested
-      };
+return {
+  cardId: card.cardId || card.id,
+  instanceId: `${side}-stage`,
+  attachedDon: card.attachedDon || [],
+  rested: !!card.rested,
+  passivePowerBonus: Number(card.passivePowerBonus || 0)
+};
     };
 
     const normalizeHand = (cards) => {
@@ -960,14 +1182,15 @@ export default function ScenarioBuilder() {
     };
 
     const normalizeBoard = (cards, side) => {
-      return cards.map((card, index) => ({
-        cardId: card.cardId || card.id,
-        instanceId: `${side}-board-${index + 1}`,
-        attachedDon: card.attachedDon || [],
-        rested: !!card.rested,
-        isBlocker: !!card.isBlocker,
-        summoningSick: !!card.summoningSick
-      }));
+return cards.map((card, index) => ({
+  cardId: card.cardId || card.id,
+  instanceId: `${side}-board-${index + 1}`,
+  attachedDon: card.attachedDon || [],
+  rested: !!card.rested,
+  isBlocker: !!card.isBlocker,
+  summoningSick: !!card.summoningSick,
+  passivePowerBonus: Number(card.passivePowerBonus || 0)
+}));
     };
 
     const normalizeSide = (sideData, side) => {
@@ -1013,6 +1236,7 @@ export default function ScenarioBuilder() {
       },
 
       effects: scenario.effects || {},
+      activateMainAbilities: scenario.activateMainAbilities || {},
 
       steps: scenario.steps?.length
         ? scenario.steps
@@ -1152,6 +1376,7 @@ module.exports = scenario;
       nextScenario.goal = parsed.goal || EMPTY_SCENARIO.goal;
       nextScenario.opponentAI = parsed.opponentAI || EMPTY_SCENARIO.opponentAI;
       nextScenario.effects = parsed.effects || {};
+      nextScenario.activateMainAbilities = parsed.activateMainAbilities || {};
       nextScenario.steps = parsed.steps || EMPTY_SCENARIO.steps;
 
       const hydrateSide = async (side) => {
@@ -1424,8 +1649,10 @@ module.exports = scenario;
                 <h3>You</h3>
                 <BuilderListCard title={scenario.initialState.you.leader?.name || "No leader set"}>
                   <button onClick={() => clearLeader("you")}>Clear Leader</button>
+{renderPassivePowerInput("you", scenario.initialState.you.leader)}
                 </BuilderListCard>
                 <BuilderListCard title={scenario.initialState.you.stage?.name || "No stage set"}>
+                  {renderPassivePowerInput("you", scenario.initialState.you.stage)}
                   <button onClick={() => clearStage("you")}>Clear Stage</button>
                 </BuilderListCard>
               </div>
@@ -1434,8 +1661,10 @@ module.exports = scenario;
                 <h3>Opponent</h3>
                 <BuilderListCard title={scenario.initialState.opponent.leader?.name || "No leader set"}>
                   <button onClick={() => clearLeader("opponent")}>Clear Leader</button>
+                  {renderPassivePowerInput("opponent", scenario.initialState.opponent.leader)}
                 </BuilderListCard>
                 <BuilderListCard title={scenario.initialState.opponent.stage?.name || "No stage set"}>
+                  {renderPassivePowerInput("opponent", scenario.initialState.opponent.stage)}
                   <button onClick={() => clearStage("opponent")}>Clear Stage</button>
                 </BuilderListCard>
               </div>
@@ -1546,6 +1775,7 @@ module.exports = scenario;
             ) : (
               scenario.initialState.you.life.map((card, index) => (
                 <BuilderListCard key={card.instanceId || `you-life-${index}`} title={card.name || card.cardId}>
+                  {renderPassivePowerInput("you", card)}
                   <button onClick={() => removeFromLife("you", index)}>Remove</button>
                 </BuilderListCard>
               ))
@@ -1559,6 +1789,7 @@ module.exports = scenario;
             ) : (
               scenario.initialState.opponent.life.map((card, index) => (
                 <BuilderListCard key={card.instanceId || `opp-life-${index}`} title={card.name || card.cardId}>
+                  {renderPassivePowerInput("opponent", card)}
                   <button onClick={() => removeFromLife("opponent", index)}>Remove</button>
                 </BuilderListCard>
               ))
@@ -1572,6 +1803,7 @@ module.exports = scenario;
             ) : (
               scenario.initialState.you.board.map((card, index) => (
                 <BuilderListCard key={card.instanceId} title={`${card.name || card.cardId} (${card.instanceId})`}>
+                  {renderPassivePowerInput("you", card)}
                   <button onClick={() => toggleBoardField("you", index, "rested")}>
                     {card.rested ? "Unset Rested" : "Set Rested"}
                   </button>
@@ -1594,6 +1826,7 @@ module.exports = scenario;
             ) : (
               scenario.initialState.opponent.board.map((card, index) => (
                 <BuilderListCard key={card.instanceId} title={`${card.name || card.cardId} (${card.instanceId})`}>
+                  {renderPassivePowerInput("opponent", card)}
                   <button onClick={() => toggleBoardField("opponent", index, "rested")}>
                     {card.rested ? "Unset Rested" : "Set Rested"}
                   </button>
@@ -1626,6 +1859,87 @@ module.exports = scenario;
               />
               Optional Step
             </label>
+
+            <hr style={{ margin: "16px 0" }} />
+
+<h3>Event Additional Cost</h3>
+
+<label>Additional DON to Rest</label>
+<input
+  type="number"
+  value={eventAdditionalRestDon}
+  onChange={(event) =>
+    setEventAdditionalRestDon(Number(event.target.value))
+  }
+/>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button
+    onClick={() =>
+      setEffectAdditionalRestDonCost(
+        effectCardId.trim(),
+        eventAdditionalRestDon
+      )
+    }
+  >
+    Set Additional Rest DON Cost
+  </button>
+</div>
+
+<hr style={{ margin: "16px 0" }} />
+
+<h3>Add Step: Rest Target</h3>
+
+<label>Target Side</label>
+<select
+  value={restTargetSide}
+  onChange={(event) => setRestTargetSide(event.target.value)}
+>
+  <option value="you">You</option>
+  <option value="opponent">Opponent</option>
+</select>
+
+<label>
+  <input
+    type="checkbox"
+    checked={restTargetZones.leader}
+    onChange={() => toggleZone(setRestTargetZones, "leader")}
+  />
+  Leader
+</label>
+
+<label>
+  <input
+    type="checkbox"
+    checked={restTargetZones.board}
+    onChange={() => toggleZone(setRestTargetZones, "board")}
+  />
+  Character / Board
+</label>
+
+<label>
+  <input
+    type="checkbox"
+    checked={restTargetZones.stage}
+    onChange={() => toggleZone(setRestTargetZones, "stage")}
+  />
+  Stage
+</label>
+
+<label>
+  <input
+    type="checkbox"
+    checked={restTargetZones.don}
+    onChange={() => toggleZone(setRestTargetZones, "don")}
+  />
+  DON
+</label>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={() => addRestTargetStep(effectCardId.trim())}>
+    Add Rest Target Step
+  </button>
+</div>
 
             <hr style={{ margin: "16px 0" }} />
 
@@ -1765,6 +2079,119 @@ module.exports = scenario;
               ))
             )}
           </section>
+
+          <section className="panel">
+  <h2>Activate: Main Abilities</h2>
+
+  <label>Source Instance ID</label>
+  <input
+    value={activateSourceInstanceId}
+    onChange={(event) => setActivateSourceInstanceId(event.target.value)}
+    placeholder="you-leader"
+  />
+
+  <label>Ability Name</label>
+  <input
+    value={activateAbilityName}
+    onChange={(event) => setActivateAbilityName(event.target.value)}
+    placeholder="Rest 1 card to restand DON"
+  />
+
+  <label>
+    <input
+      type="checkbox"
+      checked={activateOncePerTurn}
+      onChange={(event) => setActivateOncePerTurn(event.target.checked)}
+    />
+    Once Per Turn
+  </label>
+
+  <label>Cost Target Side</label>
+  <select
+    value={activateRestCostSide}
+    onChange={(event) => setActivateRestCostSide(event.target.value)}
+  >
+    <option value="you">You</option>
+    <option value="opponent">Opponent</option>
+  </select>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={activateRestCostZones.leader}
+      onChange={() => toggleZone(setActivateRestCostZones, "leader")}
+    />
+    Leader
+  </label>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={activateRestCostZones.board}
+      onChange={() => toggleZone(setActivateRestCostZones, "board")}
+    />
+    Character / Board
+  </label>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={activateRestCostZones.stage}
+      onChange={() => toggleZone(setActivateRestCostZones, "stage")}
+    />
+    Stage
+  </label>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={activateRestCostZones.don}
+      onChange={() => toggleZone(setActivateRestCostZones, "don")}
+    />
+    DON
+  </label>
+
+  <label>Restand DON Count</label>
+  <input
+    type="number"
+    value={activateRestandDonCount}
+    onChange={(event) =>
+      setActivateRestandDonCount(Number(event.target.value))
+    }
+  />
+
+  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+    <button onClick={addRestToRestandDonActivateMain}>
+      Add / Update Activate: Main
+    </button>
+  </div>
+
+  <hr style={{ margin: "16px 0" }} />
+
+  <h3>Current Activate: Main Abilities</h3>
+
+  {Object.keys(scenario.activateMainAbilities || {}).length === 0 ? (
+    <p>No Activate: Main abilities.</p>
+  ) : (
+    Object.entries(scenario.activateMainAbilities || {}).map(
+      ([sourceInstanceId, ability]) => (
+        <div key={sourceInstanceId} className="builder-list-card">
+          <div className="builder-list-card-title">
+            {sourceInstanceId}: {ability.name || "Activate: Main"}
+          </div>
+
+          <div className="builder-list-card-actions">
+            <button
+              onClick={() => removeActivateMainAbility(sourceInstanceId)}
+            >
+              Remove Ability
+            </button>
+          </div>
+        </div>
+      )
+    )
+  )}
+</section>
 
           <section className="panel">
             <h2>Export / Import JSON</h2>
