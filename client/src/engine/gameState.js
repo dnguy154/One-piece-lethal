@@ -3,28 +3,41 @@ export function deepClone(value) {
 }
 
 export function findCardByInstanceId(state, instanceId) {
-  if (state.you.leader?.instanceId === instanceId) {
-    return { side: "you", zone: "leader", card: state.you.leader };
-  }
+  const sides = ["you", "opponent"];
 
-  const youBoardCard = state.you.board.find(
-    (card) => card.instanceId === instanceId
-  );
+  for (const side of sides) {
+    const player = state?.[side];
 
-  if (youBoardCard) {
-    return { side: "you", zone: "board", card: youBoardCard };
-  }
+    if (!player) continue;
 
-  if (state.opponent.leader?.instanceId === instanceId) {
-    return { side: "opponent", zone: "leader", card: state.opponent.leader };
-  }
+    if (player.leader?.instanceId === instanceId) {
+      return {
+        side,
+        zone: "leader",
+        card: player.leader
+      };
+    }
 
-  const opponentBoardCard = state.opponent.board.find(
-    (card) => card.instanceId === instanceId
-  );
+    if (player.stage?.instanceId === instanceId) {
+      return {
+        side,
+        zone: "stage",
+        card: player.stage
+      };
+    }
 
-  if (opponentBoardCard) {
-    return { side: "opponent", zone: "board", card: opponentBoardCard };
+    const boardIndex = (player.board || []).findIndex(
+      (card) => card.instanceId === instanceId
+    );
+
+    if (boardIndex !== -1) {
+      return {
+        side,
+        zone: "board",
+        index: boardIndex,
+        card: player.board[boardIndex]
+      };
+    }
   }
 
   return null;

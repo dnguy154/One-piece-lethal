@@ -15,7 +15,8 @@ export default function OpponentBoard({
   onTrashClick,
   onOpenHand,
   onMobilePreview,
-  onMobilePreviewClose
+  onMobilePreviewClose,
+  onDonTargetClick
 }) {
   return (
     <div className="board-area opponent-board">
@@ -40,7 +41,19 @@ export default function OpponentBoard({
         <div className="playmat compact-playmat opponent-flipped">
           <div className="resource-split-row compact-resource-row">
             <Zone title="DON!! Area" className="don-zone compact-zone">
-              <DonArea don={data.don} selectedDonIds={[]} onDonClick={() => {}} />
+              <DonArea
+  don={data.don}
+  selectedDonIds={[]}
+  onDonClick={(donId) => {
+    const clickedDon = data.don.find(
+      (donCard) => Number(donCard.id) === Number(donId)
+    );
+
+    if (!clickedDon) return;
+
+    onDonTargetClick?.(clickedDon);
+  }}
+/>
             </Zone>
 
             <Zone title="Trash" className="trash-zone compact-zone">

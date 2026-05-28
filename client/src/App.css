@@ -1058,6 +1058,52 @@ button:disabled {
   margin: 4px;
 }
 
+.card-tile.rested {
+  transform: rotate(90deg);
+  opacity: 0.75;
+}
+.action-choice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.action-choice-card {
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px;
+  border-radius: 14px;
+  background: #2b1a12;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.action-choice-card h2 {
+  margin: 0 0 8px;
+}
+
+.action-choice-card p {
+  margin: 0 0 16px;
+}
+
+.action-choice-buttons {
+  display: grid;
+  gap: 10px;
+}
+
+.action-choice-buttons button {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .card-tile:not(.no-hover-preview):hover .desktop-card-preview {
     display: flex;

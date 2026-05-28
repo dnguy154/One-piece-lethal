@@ -8,12 +8,24 @@ import {
 
 export const cardEffects = {};
 
-export function getCardEffect(card, scenario = null) {
-  if (!card) return null;
+export function getCardEffect(card, scenario) {
+  if (!card || !scenario?.effects) {
+    return null;
+  }
 
-  const cardId = card.cardId || card.id;
+  const possibleIds = [
+    card.cardId,
+    card.id,
+    card.card_set_id
+  ].filter(Boolean);
 
-  return scenario?.effects?.[cardId] || cardEffects[cardId] || null;
+  for (const id of possibleIds) {
+    if (scenario.effects[id]) {
+      return scenario.effects[id];
+    }
+  }
+
+  return null;
 }
 export function applyOp05020FirstTarget(state, handIndex, buffTargetInstanceId) {
   const nextState = structuredClone(state);

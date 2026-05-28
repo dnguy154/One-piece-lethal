@@ -1,13 +1,19 @@
 export function getDisplayedPower(card, options = {}) {
-  const { includeAttachedDon = true } = options;
+  if (!card) return 0;
 
-  const basePower = Number(card?.power || 0);
-  const donBonus = includeAttachedDon
-    ? (card?.attachedDon?.length || 0) * 1000
-    : 0;
-  const tempPower = Number(card?.tempPower || 0);
+  const includeAttachedDon = options.includeAttachedDon ?? true;
 
-  return basePower + donBonus + tempPower;
+  const basePower = Number(card.power || 0);
+
+  const attachedDonPower =
+    includeAttachedDon ? (card.attachedDon?.length || 0) * 1000 : 0;
+
+  const tempPower = Number(card.tempPower || 0);
+
+  // Use this for passive/static scenario-based power.
+  const passivePowerBonus = Number(card.passivePowerBonus || 0);
+
+  return basePower + attachedDonPower + tempPower + passivePowerBonus;
 }
 
 export function getCardCost(card) {

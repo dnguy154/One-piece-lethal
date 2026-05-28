@@ -19,7 +19,8 @@ export default function PlayerBoard({
   onTrashClick,
   onMobilePreview,
   onMobilePreviewClose,
-  onOpenHand
+  onOpenHand,
+  onStageClick
 }) {
   return (
     <div className="board-area player-board">
@@ -66,13 +67,16 @@ export default function PlayerBoard({
               />
             </Zone>
 
-            <Zone title="Stage" className="stage-zone compact-zone">
-              <CardTile
-                card={data.stage || null}
-                variant="stage"
-                setHoveredCard={setHoveredCard}
-              />
-            </Zone>
+<Zone title="Stage" className="stage-zone compact-zone">
+  <CardTile
+    card={data.stage || null}
+    variant="stage"
+    setHoveredCard={setHoveredCard}
+    onClick={onStageClick}
+    onMobilePreview={onMobilePreview}
+    onMobilePreviewClose={onMobilePreviewClose}
+  />
+</Zone>
 
             <Zone title="Deck" className="deck-zone compact-zone">
               <div className="deck-stack">

@@ -929,7 +929,8 @@ export default function ScenarioBuilder() {
         cardId: card.cardId || card.id,
         instanceId: `${side}-leader`,
         attachedDon: card.attachedDon || [],
-        rested: !!card.rested
+        rested: !!card.rested,
+        passivePowerBonus: Number(card.passivePowerBonus || 0)
       };
     };
 
@@ -966,7 +967,8 @@ export default function ScenarioBuilder() {
         attachedDon: card.attachedDon || [],
         rested: !!card.rested,
         isBlocker: !!card.isBlocker,
-        summoningSick: !!card.summoningSick
+        summoningSick: !!card.summoningSick,
+        passivePowerBonus: Number(card.passivePowerBonus || 0)
       }));
     };
 
