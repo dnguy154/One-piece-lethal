@@ -3,13 +3,15 @@ const scenario2 = require("./scenario-2");
 const scenario3 = require("./scenario-3");
 const scenario4 = require("./scenario-4");
 const scenario5 = require("./scenario-5");
+const scenario6 = require("./scenario-6");
 
 const scenarios = [
   scenario1,
   scenario2,
   scenario3,
   scenario4,
-  scenario5
+  scenario5,
+  scenario6
 
 ];
 
