@@ -48,6 +48,11 @@ const scenario =
             id: 5,
             rested: false,
             attachedTo: null
+          },
+          {
+            id: 6,
+            rested: false,
+            attachedTo: null
           }
         ],
         leader: {
@@ -138,6 +143,11 @@ const scenario =
           },
           {
             id: 6,
+            rested: true,
+            attachedTo: null
+          },
+          {
+            id: 7,
             rested: true,
             attachedTo: null
           }

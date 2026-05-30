@@ -714,11 +714,15 @@ function isDangerousTakeLifeOption(evaluatedOption) {
     return false;
   }
 
+  // If taking life still survives all future leader attacks,
+  // then it is not dangerous. It is usually the correct punish.
+  if (!evaluatedOption.playerStillForcesWin) {
+    return false;
+  }
+
   const lifeAfter = getLifeCount(evaluatedOption.nextState.opponent.life);
   const remainingAttackers = getFutureAttackers(evaluatedOption.nextState).length;
 
-  // Going to 0 life while the player still has attacks is dangerous.
-  // If another safe defense exists, prefer that instead.
   return lifeAfter === 0 && remainingAttackers > 0;
 }
 
