@@ -55,6 +55,8 @@ import {
 } from "./engine/effectRules";
 
 import {
+  ABILITY_TRIGGERS,
+  getTriggeredAbility,
   getActivateMainAbility,
   isActivateMainAbilityUsed,
   markActivateMainAbilityUsed
@@ -143,6 +145,9 @@ const shouldRestoreProgress =
 
   setDailyChallenge(loadedChallenge);
   setScenario(loadedScenario);
+  console.log("Loaded scenario abilities:", loadedScenario.cardAbilities);
+console.log("Loaded old effects:", loadedScenario.effects);
+console.log("Loaded old activateMainAbilities:", loadedScenario.activateMainAbilities);
 
   setPlayState(
     shouldRestoreProgress
@@ -592,7 +597,9 @@ const canSkipCurrentEffectStep =
     }
 
     if (isEventCard(card)) {
-      const effect = getCardEffect(card, scenario);
+      const effect =
+  getTriggeredAbility(card, scenario, ABILITY_TRIGGERS.ON_PLAY) ||
+  getCardEffect(card, scenario);
 
      if (effect?.steps?.length) {
   const firstStep = effect.steps[0];
@@ -720,6 +727,13 @@ return;
       return;
     }
 
+    const playedCardFromHand = playState.you.hand[selectedHandCardIndex];
+const onPlayAbility = getTriggeredAbility(
+  playedCardFromHand,
+  scenario,
+  ABILITY_TRIGGERS.ON_PLAY
+);
+
     const { nextState, success, message: resultMessage } = playHandCardToState(
       playState,
       selectedHandCardIndex
@@ -730,14 +744,20 @@ return;
       return;
     }
 
-    markActionStarted();
+markActionStarted();
 
-    setPlayState(nextState);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setHoveredCard(null);
-    setMessage(resultMessage);
+setPlayState(nextState);
+setSelectedHandCardIndex(null);
+setSelectedAttackerId(null);
+setActionMode("idle");
+setHoveredCard(null);
+
+if (onPlayAbility) {
+  startTriggeredAbility(onPlayAbility, playedCardFromHand, nextState);
+  return;
+}
+
+setMessage(resultMessage);
 
   };
 
@@ -816,6 +836,22 @@ const handleCardActionChoice = (card) => {
       setMessage("That card cannot attack.");
       return;
     }
+    const whenAttackingAbility = getTriggeredAbility(
+  ref.card,
+  scenario,
+  ABILITY_TRIGGERS.WHEN_ATTACKING
+);
+
+if (whenAttackingAbility) {
+  startTriggeredAbility(whenAttackingAbility, ref.card, playState, {
+    pendingAttack: {
+      attackerId: ref.card.instanceId,
+      attackerName: ref.card.name || ref.card.cardId
+    }
+  });
+
+  return;
+}
 
     setSelectedAttackerId(card.instanceId);
     setActionMode("select_attack_target");
@@ -884,14 +920,14 @@ const skipCurrentOptionalEffectStep = () => {
 const finishActiveEffectResolution = (effectState, finalState, finalMessage) => {
   let completedState = finalState;
 
-  if (effectState.kind === "activate_main") {
-    completedState = markActivateMainAbilityUsed(
-      completedState,
-      "you",
-      effectState.effect,
-      effectState.sourceInstanceId
-    );
-  }
+if (effectState.effect?.oncePerTurn) {
+  completedState = markActivateMainAbilityUsed(
+    completedState,
+    "you",
+    effectState.effect,
+    effectState.sourceInstanceId
+  );
+}
 
   setPlayState(completedState);
   setActiveEffect(null);
@@ -910,6 +946,31 @@ const finishActiveEffectResolution = (effectState, finalState, finalMessage) => 
     selectedHandCardIndex: null,
     selectedAttackerId: null
   });
+  if (effectState.pendingAttack?.attackerId) {
+  setPlayState(completedState);
+  setActiveEffect(null);
+  setSelectedHandCardIndex(null);
+  setSelectedDonIds([]);
+  setSelectedAttackerId(effectState.pendingAttack.attackerId);
+  setActionMode("select_attack_target");
+  setHandViewer(null);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+
+  saveCurrentDailyProgress(completedState, {
+    activeEffect: null,
+    actionMode: "select_attack_target",
+    selectedDonIds: [],
+    selectedHandCardIndex: null,
+    selectedAttackerId: effectState.pendingAttack.attackerId
+  });
+
+  setMessage(
+    `${effectState.sourceCardName || "Ability"} resolved. Choose an attack target.`
+  );
+
+  return;
+}
 
   setMessage(
     finalMessage ||
@@ -1030,6 +1091,46 @@ const handleEffectTargetClick = (card) => {
   return true;
 };
 
+const startTriggeredAbility = (
+  ability,
+  sourceCard,
+  workingState,
+  extra = {}
+) => {
+  if (!ability || !sourceCard || !workingState) return false;
+
+  const allSteps = [
+    ...(ability.costSteps || []),
+    ...(ability.steps || [])
+  ];
+
+  if (allSteps.length === 0) {
+    setMessage(`${ability.name || "Ability"} has no steps.`);
+    return true;
+  }
+
+  markActionStarted();
+
+  const abilityEffect = {
+    ...ability,
+    steps: allSteps
+  };
+
+  const abilityState = {
+    kind: ability.trigger,
+    effect: abilityEffect,
+    sourceInstanceId: sourceCard.instanceId,
+    sourceCardName: sourceCard.name || sourceCard.cardId || sourceCard.id,
+    stepIndex: 0,
+    workingState,
+    pendingAttack: extra.pendingAttack || null
+  };
+
+  continueEffectResolution(abilityState, workingState, 0);
+
+  return true;
+};
+
 const startActivateMainAbility = (sourceCard) => {
   if (hasWon || hasLost || hasConceded) return;
   if (!sourceCard || !playState) return;
@@ -1039,7 +1140,11 @@ const startActivateMainAbility = (sourceCard) => {
     return;
   }
 
-  const ability = getActivateMainAbility(sourceCard, scenario);
+  const ability = getTriggeredAbility(
+  sourceCard,
+  scenario,
+  ABILITY_TRIGGERS.ACTIVATE_MAIN
+);
 
   if (!ability) {
     return false;
