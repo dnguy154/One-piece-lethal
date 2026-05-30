@@ -1,7 +1,7 @@
 const scenario =
 {
     id: 7,
-    title: "Find Lethal #7",
+    title: "Shambles #7",
     difficulty: "Medium",
     goal: {
       type: "win_this_turn"
