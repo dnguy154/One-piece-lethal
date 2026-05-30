@@ -385,6 +385,9 @@ export default function ScenarioBuilder() {
   const [abilitySourceKey, setAbilitySourceKey] = useState("");
   const [abilityTrigger, setAbilityTrigger] = useState("on_play");
   const [abilityName, setAbilityName] = useState("Scenario Ability");
+  const [activateRequiredAttachedDon, setActivateRequiredAttachedDon] = useState(0);
+  const [playFromLifeExactCost, setPlayFromLifeExactCost] = useState(5);
+const [playFromLifeTraitsText, setPlayFromLifeTraitsText] = useState("Supernovas");
   const [abilityOncePerTurn, setAbilityOncePerTurn] = useState(false);
   const [abilityStepPlacement, setAbilityStepPlacement] = useState("steps");
   const [abilityRestandDonCount, setAbilityRestandDonCount] = useState(3);
@@ -944,7 +947,11 @@ const createOrUpdateCurrentAbility = () => {
   }
 
   const existingAbility = getCurrentAbility();
-  const additionalRestDon = Number(eventAdditionalRestDon || 0);
+  const additionalRestDon = Math.max(0, Number(eventAdditionalRestDon || 0));
+  const requiredAttachedDon = Math.max(
+    0,
+    Number(activateRequiredAttachedDon || 0)
+  );
 
   const nextAbility = {
     ...(existingAbility || {}),
@@ -958,13 +965,32 @@ const createOrUpdateCurrentAbility = () => {
     nextAbility.sourceInstanceId = sourceKey;
     nextAbility.oncePerTurn = abilityOncePerTurn;
     nextAbility.costSteps = existingAbility?.costSteps || [];
+
+    const nextRequirements = {
+      ...(existingAbility?.requirements || {})
+    };
+
+    if (requiredAttachedDon > 0) {
+      nextRequirements.sourceAttachedDon = requiredAttachedDon;
+    } else {
+      delete nextRequirements.sourceAttachedDon;
+    }
+
+    if (Object.keys(nextRequirements).length > 0) {
+      nextAbility.requirements = nextRequirements;
+    } else {
+      delete nextAbility.requirements;
+    }
   } else if (abilityOncePerTurn) {
     nextAbility.oncePerTurn = true;
+    delete nextAbility.requirements;
   } else {
     delete nextAbility.oncePerTurn;
+    delete nextAbility.requirements;
   }
 
-  if (additionalRestDon > 0) {
+  // Only On Play abilities should use "rest extra DON" as an additional cost.
+  if (abilityTrigger === "on_play" && additionalRestDon > 0) {
     nextAbility.additionalCost = {
       ...(existingAbility?.additionalCost || {}),
       restDon: additionalRestDon
@@ -982,6 +1008,59 @@ const createOrUpdateCurrentAbility = () => {
 
   upsertCardAbility(sourceKey, nextAbility);
   return nextAbility;
+};
+
+const addAbilityReturnTargetToHandStep = () => {
+  const zones = getSelectedZones(restTargetZones);
+
+  if (zones.length === 0) {
+    alert("Choose at least one valid target zone.");
+    return;
+  }
+
+  addAbilityStep(
+    {
+      id: `return_target_to_hand_${Date.now()}`,
+      type: "return_target_to_hand",
+      optional: effectStepOptional,
+      prompt: `Choose ${
+        restTargetSide === "opponent" ? "an opponent" : "your"
+      } ${zones.join(" or ")} to return to hand${
+        effectStepOptional ? ", or skip this optional effect." : "."
+      }`,
+      targetRules: {
+        sides: [restTargetSide],
+        zones
+      }
+    },
+    abilityStepPlacement
+  );
+};
+
+const addAbilityPlayTopLifeIfStep = () => {
+  const exactCost = Number(playFromLifeExactCost);
+
+  if (!Number.isFinite(exactCost) || exactCost < 0) {
+    alert("Enter a valid exact cost.");
+    return;
+  }
+
+  const requiredTraits = playFromLifeTraitsText
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  addAbilityStep({
+    id: `play_top_life_if_${Date.now()}`,
+    type: "play_top_life_if",
+    player: "you",
+    exactCost,
+    requiredCardType: "character",
+    requiredTraits,
+    failMessage: `Top life is not a ${exactCost}-cost ${requiredTraits.join(
+      " / "
+    )} character.`
+  });
 };
 
 const addAbilityStep = (step, placement = "steps") => {
@@ -2199,6 +2278,8 @@ module.exports = scenario;
               placeholder="OP12-037 or you-leader"
             />
 
+
+
             <label>Trigger Tag</label>
             <select
               value={abilityTrigger}
@@ -2218,23 +2299,36 @@ module.exports = scenario;
               placeholder="Rest 2 Opponent Cards"
             />
 
-            <label>
-              <input
-                type="checkbox"
-                checked={abilityOncePerTurn}
-                onChange={(event) => setAbilityOncePerTurn(event.target.checked)}
-              />
-              Once Per Turn
-            </label>
+<label>
+  <input
+    type="checkbox"
+    checked={abilityOncePerTurn}
+    onChange={(event) => setAbilityOncePerTurn(event.target.checked)}
+  />
+  Once Per Turn
+</label>
 
-            <label>Additional DON to Rest on Play</label>
-            <input
-              type="number"
-              value={eventAdditionalRestDon}
-              onChange={(event) =>
-                setEventAdditionalRestDon(Number(event.target.value))
-              }
-            />
+<label>Required Attached DON on Source (Activate: Main only)</label>
+<input
+  type="number"
+  value={activateRequiredAttachedDon}
+  disabled={abilityTrigger !== "activate_main"}
+  onChange={(event) =>
+    setActivateRequiredAttachedDon(Number(event.target.value))
+  }
+  placeholder="0"
+/>
+
+<label>Additional DON to Rest on Play (On Play only)</label>
+<input
+  type="number"
+  value={eventAdditionalRestDon}
+  disabled={abilityTrigger !== "on_play"}
+  onChange={(event) =>
+    setEventAdditionalRestDon(Number(event.target.value))
+  }
+  placeholder="0"
+/>
 
             <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
               <button onClick={createOrUpdateCurrentAbility}>
@@ -2312,6 +2406,47 @@ module.exports = scenario;
               />
               DON
             </label>
+
+            <hr style={{ margin: "16px 0" }} />
+
+<h3>Add Step: Return Target to Hand</h3>
+
+<p>
+  Uses the same Target Side and Zone checkboxes above. For this ability, use:
+  You + Character / Board.
+</p>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityReturnTargetToHandStep}>
+    Add Return Target to Hand Step
+  </button>
+</div>
+
+<hr style={{ margin: "16px 0" }} />
+
+<h3>Add Step: Play Top Life If</h3>
+
+<label>Exact Cost</label>
+<input
+  type="number"
+  value={playFromLifeExactCost}
+  onChange={(event) =>
+    setPlayFromLifeExactCost(Number(event.target.value))
+  }
+/>
+
+<label>Required Traits</label>
+<input
+  value={playFromLifeTraitsText}
+  onChange={(event) => setPlayFromLifeTraitsText(event.target.value)}
+  placeholder="Supernovas"
+/>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityPlayTopLifeIfStep}>
+    Add Play Top Life If Step
+  </button>
+</div>
 
             <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
               <button onClick={addAbilityRestTargetStep}>
@@ -2435,10 +2570,13 @@ module.exports = scenario;
                           )?.label || ability.trigger}
                           {" - "}
                           {ability.name || "Ability"}
-                          {ability.oncePerTurn ? " - Once Per Turn" : ""}
-                          {ability.additionalCost?.restDon
-                            ? ` - Extra DON Cost: ${ability.additionalCost.restDon}`
-                            : ""}
+{ability.oncePerTurn ? " - Once Per Turn" : ""}
+{ability.requirements?.sourceAttachedDon
+  ? ` - DON!! x${ability.requirements.sourceAttachedDon}`
+  : ""}
+{ability.additionalCost?.restDon
+  ? ` - Extra DON Cost: ${ability.additionalCost.restDon}`
+  : ""}
                         </div>
 
                         {(ability.costSteps || []).length > 0 && (

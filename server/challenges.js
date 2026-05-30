@@ -34,6 +34,12 @@ const challenges = [
     date: "2026-05-30",
     scenarioId: 6,
     title: "Seans puzzle #6"
+  },
+  {
+    id: 7,
+    date: "2026-05-31",
+    scenarioId: 7,
+    title: "Find Lethal #7"
   }
 ];
 

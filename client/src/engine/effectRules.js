@@ -1,10 +1,16 @@
-import { getCardCost, getDisplayedPower } from "./cardRules";
+import {
+  getCardCost,
+  getDisplayedPower,
+  isCharacterCard,
+  hasRush
+} from "./cardRules";
 import { canAffordCard, restDonForCost } from "./donRules";
 import {
   addCardToTrash,
   findCardByInstanceId,
   removeCardFromBoard
 } from "./gameState";
+
 
 function findEffectTargetByInstanceId(state, instanceId) {
   const cardRef = findCardByInstanceId(state, instanceId);
@@ -35,6 +41,113 @@ function findEffectTargetByInstanceId(state, instanceId) {
     zone: "don",
     card: donCard
   };
+}
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function flattenTraitSource(value) {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap(flattenTraitSource);
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value).flatMap(flattenTraitSource);
+  }
+
+  return String(value)
+    .split(/[\/,|]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function getCardTraitTexts(card) {
+  return [
+    card?.traits,
+    card?.trait,
+    card?.types,
+    card?.typeNames,
+    card?.family,
+    card?.raw?.card_traits,
+    card?.raw?.traits,
+    card?.raw?.trait,
+    card?.raw?.types,
+    card?.raw?.family
+  ].flatMap(flattenTraitSource);
+}
+
+function cardHasTrait(card, requiredTrait) {
+  const required = normalizeText(requiredTrait);
+
+  if (!required) return true;
+
+  return getCardTraitTexts(card).some((traitText) => {
+    const current = normalizeText(traitText);
+
+    return current.includes(required) || required.includes(current);
+  });
+}
+
+function cardMatchesPlayFromLifeRules(card, step) {
+  if (!card) return false;
+
+  const exactCost =
+    step.exactCost != null ? Number(step.exactCost) : null;
+
+  if (exactCost != null && Number(card.cost ?? card.raw?.card_cost) !== exactCost) {
+    return false;
+  }
+
+  const requiredCardType = normalizeText(step.requiredCardType || "character");
+
+  if (requiredCardType === "character" && !isCharacterCard(card)) {
+    return false;
+  }
+
+  const requiredTraits = step.requiredTraits || [];
+
+  for (const requiredTrait of requiredTraits) {
+    if (!cardHasTrait(card, requiredTrait)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getNextBoardInstanceId(player, side) {
+  const existingNumbers = (player.board || [])
+    .map((card) => {
+      const match = String(card.instanceId || "").match(
+        new RegExp(`^${side}-board-(\\d+)`)
+      );
+
+      return match ? Number(match[1]) : 0;
+    })
+    .filter((number) => Number.isFinite(number));
+
+  const nextNumber = Math.max(0, ...existingNumbers) + 1;
+
+  return `${side}-board-${nextNumber}`;
+}
+
+function clearAttachedDonFromCard(player, card) {
+  const attachedDonIds = Array.isArray(card?.attachedDon)
+    ? card.attachedDon
+    : [];
+
+  for (const donId of attachedDonIds) {
+    const donCard = (player.don || []).find((don) => Number(don.id) === Number(donId));
+
+    if (donCard) {
+      donCard.attachedTo = null;
+      donCard.rested = true;
+    }
+  }
 }
 
 export function getEffectStep(effect, stepIndex) {
@@ -83,6 +196,22 @@ export function validateEffectTarget(state, step, targetInstanceId) {
       };
     }
   }
+
+  if (step.type === "return_target_to_hand") {
+  if (targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "You can only return a character."
+    };
+  }
+
+  if (targetRef.side !== "you") {
+    return {
+      valid: false,
+      message: "You can only return one of your own characters."
+    };
+  }
+}
 
   if (step.type === "ko_power_or_less") {
     const targetPower = getDisplayedPower(targetRef.card, {
@@ -161,6 +290,115 @@ export function applyEffectStep(state, step, targetInstanceId) {
           : `${targetRef.card.name || targetRef.card.cardId} was rested.`
     };
   }
+
+  if (step.type === "return_target_to_hand") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+  const player = nextState[targetRef.side];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  clearAttachedDonFromCard(player, targetRef.card);
+
+  const {
+    instanceId,
+    tempPower,
+    rested,
+    summoningSick,
+    attachedDon,
+    ...returnedCard
+  } = targetRef.card;
+
+  player.hand = player.hand || [];
+  player.hand.push({
+    ...returnedCard,
+    attachedDon: [],
+    rested: false
+  });
+
+  player.board = removeCardFromBoard(player.board || [], targetRef.card.instanceId);
+
+  return {
+    nextState,
+    success: true,
+    message: `${targetRef.card.name || targetRef.card.cardId} returned to hand.`
+  };
+}
+
+if (step.type === "play_top_life_if") {
+  const playerKey = step.player || "you";
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  if (!Array.isArray(player.life) || player.life.length === 0) {
+    return {
+      nextState: state,
+      success: false,
+      message: "There is no top life card to play."
+    };
+  }
+
+  if ((player.board || []).length >= 5) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Your character area is full."
+    };
+  }
+
+  const topLifeCard = player.life[0];
+
+  if (!cardMatchesPlayFromLifeRules(topLifeCard, step)) {
+    return {
+      nextState: state,
+      success: false,
+      message:
+        step.failMessage ||
+        "The top life card does not meet the play requirements."
+    };
+  }
+
+  const [playedCard] = player.life.splice(0, 1);
+
+  const newCharacter = {
+    ...playedCard,
+    instanceId: getNextBoardInstanceId(player, playerKey),
+    attachedDon: [],
+    rested: false,
+    isBlocker: !!playedCard.isBlocker,
+    summoningSick: !hasRush(playedCard)
+  };
+
+  player.board = [...(player.board || []), newCharacter];
+
+  return {
+    nextState,
+    success: true,
+    message: `${newCharacter.name || newCharacter.cardId} was played from life.`
+  };
+}
 
   if (step.type === "restand_don") {
     const playerKey = step.player || "you";
