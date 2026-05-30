@@ -53,16 +53,6 @@ const scenario =
             id: 6,
             rested: false,
             attachedTo: null
-          },
-          {
-            id: 7,
-            rested: false,
-            attachedTo: null
-          },
-          {
-            id: 8,
-            rested: false,
-            attachedTo: null
           }
         ],
         leader: {
@@ -95,7 +85,7 @@ const scenario =
             passivePowerBonus: 0
           },
           {
-            cardId: "EB04-018",
+            cardId: "OP07-026",
             instanceId: "you-board-2",
             attachedDon: [],
             rested: false,
