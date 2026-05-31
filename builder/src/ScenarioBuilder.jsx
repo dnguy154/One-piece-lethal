@@ -414,6 +414,11 @@ export default function ScenarioBuilder() {
   const [buffPowerAmount, setBuffPowerAmount] = useState(2000);
   const [effectStepOptional, setEffectStepOptional] = useState(false);
 
+  const [negateMaxCost, setNegateMaxCost] = useState(5);
+
+  const [reduceCostToValue, setReduceCostToValue] = useState(0);
+const [millDeckCount, setMillDeckCount] = useState(3);
+
   const [eventAdditionalRestDon, setEventAdditionalRestDon] = useState(0);
 
   const [restTargetSide, setRestTargetSide] = useState("opponent");
@@ -1057,6 +1062,99 @@ const normalizeAbilityArray = (entry) => {
     upsertCardAbility(sourceKey, nextAbility);
     return nextAbility;
   };
+  const addAbilityNegateEffectsStep = () => {
+  const maxCost = Number(negateMaxCost);
+
+  if (!Number.isFinite(maxCost) || maxCost < 0) {
+    alert("Enter a valid max cost.");
+    return;
+  }
+
+  addAbilityStep(
+    {
+      id: `negate_effects_${Date.now()}`,
+      type: "negate_effects",
+      maxCost,
+      optional: effectStepOptional,
+      prompt: `Choose an opponent character with cost ${maxCost} or less to negate its effects.`,
+      targetRules: {
+        sides: ["opponent"],
+        zones: ["board"]
+      }
+    },
+    abilityStepPlacement
+  );
+};
+
+  const addAbilityKoTargetStep = () => {
+  const zones = getSelectedZones(restTargetZones);
+
+  if (zones.length === 0) {
+    alert("Choose at least one valid target zone.");
+    return;
+  }
+
+  addAbilityStep(
+    {
+      id: `ko_target_${Date.now()}`,
+      type: "ko_target",
+      optional: effectStepOptional,
+      prompt: `Choose ${
+        restTargetSide === "opponent" ? "an opponent" : "your"
+      } ${zones.join(" or ")} to KO${
+        effectStepOptional ? ", or skip this optional effect." : "."
+      }`,
+      targetRules: {
+        sides: [restTargetSide],
+        zones
+      }
+    },
+    abilityStepPlacement
+  );
+};
+
+const addAbilityReduceCostToStep = () => {
+  const targetCost = Number(reduceCostToValue);
+
+  if (!Number.isFinite(targetCost) || targetCost < 0) {
+    alert("Enter a valid cost value.");
+    return;
+  }
+
+  addAbilityStep(
+    {
+      id: `reduce_cost_to_${Date.now()}`,
+      type: "reduce_cost_to",
+      value: targetCost,
+      optional: effectStepOptional,
+      prompt: `Choose an opponent character to make cost ${targetCost}.`,
+      targetRules: {
+        sides: ["opponent"],
+        zones: ["board"]
+      }
+    },
+    abilityStepPlacement
+  );
+};
+
+const addAbilityMillTopDeckStep = () => {
+  const count = Number(millDeckCount);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    alert("Enter a valid mill count.");
+    return;
+  }
+
+  addAbilityStep(
+    {
+      id: `mill_top_deck_${Date.now()}`,
+      type: "mill_top_deck",
+      player: "you",
+      count
+    },
+    abilityStepPlacement
+  );
+};
 
   const addAbilityReturnTargetToHandStep = () => {
     const zones = getSelectedZones(restTargetZones);
@@ -2315,411 +2413,528 @@ module.exports = scenario;
           </section>
 
           <section className="panel">
-            <h2>Card Abilities</h2>
+  <h2>Card Abilities</h2>
 
-            <p>
-              Build abilities by choosing a source card, trigger tag, and then adding
-              cost/effect steps. Use card IDs for On Play events/cards, and instance IDs
-              like <strong>you-leader</strong> for leaders or board cards.
-            </p>
+  <p>
+    Create card effects using a source card, trigger timing, and reusable effect
+    steps. Use card IDs for events or generic card effects. Use instance IDs like{" "}
+    <strong>you-leader</strong> or <strong>you-board-1</strong> for specific
+    cards already on board.
+  </p>
 
-            <label>Source Card ID / Instance ID</label>
-            <input
-              value={abilitySourceKey}
-              onChange={(event) => setAbilitySourceKey(event.target.value)}
-              placeholder="OP12-037 or you-leader"
-            />
+  <div className="builder-grid-two">
+    <div className="builder-list-card">
+      <div className="builder-list-card-title">1. Ability Setup</div>
 
+      <label>Source Card ID / Instance ID</label>
+      <input
+        value={abilitySourceKey}
+        onChange={(event) => setAbilitySourceKey(event.target.value)}
+        placeholder="OP12-037 or you-leader"
+      />
 
+      <label>Trigger Timing</label>
+      <select
+        value={abilityTrigger}
+        onChange={(event) => setAbilityTrigger(event.target.value)}
+      >
+        {ABILITY_TRIGGER_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
 
-            <label>Trigger Tag</label>
-            <select
-              value={abilityTrigger}
-              onChange={(event) => setAbilityTrigger(event.target.value)}
+      <label>Ability Name</label>
+      <input
+        value={abilityName}
+        onChange={(event) => setAbilityName(event.target.value)}
+        placeholder="Rest 2 Opponent Cards"
+      />
+
+      <label>
+        <input
+          type="checkbox"
+          checked={abilityOncePerTurn}
+          onChange={(event) => setAbilityOncePerTurn(event.target.checked)}
+        />
+        Once Per Turn
+      </label>
+
+      <label>Required Attached DON on Source</label>
+      <input
+        type="number"
+        value={activateRequiredAttachedDon}
+        disabled={abilityTrigger !== "activate_main"}
+        onChange={(event) =>
+          setActivateRequiredAttachedDon(Number(event.target.value))
+        }
+        placeholder="0"
+      />
+      <small>
+        Only for Activate: Main abilities. Example: DON!! x1 means enter 1.
+      </small>
+
+      <label>Additional DON to Rest</label>
+      <input
+        type="number"
+        value={eventAdditionalRestDon}
+        disabled={abilityTrigger !== "on_play"}
+        onChange={(event) =>
+          setEventAdditionalRestDon(Number(event.target.value))
+        }
+        placeholder="0"
+      />
+      <small>
+        Only for On Play event-style costs. Example: rest 2 extra DON.
+      </small>
+
+      <div className="builder-button-wrap" style={{ marginTop: "12px" }}>
+        <button onClick={createOrUpdateCurrentAbility}>
+          Create / Update Ability
+        </button>
+      </div>
+    </div>
+
+    <div className="builder-list-card">
+      <div className="builder-list-card-title">2. Next Step Settings</div>
+
+      <label>Add next step as</label>
+      <select
+        value={abilityStepPlacement}
+        onChange={(event) => setAbilityStepPlacement(event.target.value)}
+      >
+        <option value="steps">Effect Step</option>
+        <option value="costSteps">Activation Cost</option>
+      </select>
+
+      <small>
+        Effect Step = what the card does. Activation Cost = what must be paid
+        before the effect resolves.
+      </small>
+
+      <label>
+        <input
+          type="checkbox"
+          checked={effectStepOptional}
+          onChange={(event) => setEffectStepOptional(event.target.checked)}
+        />
+        This next step can be skipped
+      </label>
+
+      <small>
+        Use this for “you may” or “up to 1” effects. Do not use it for costs.
+      </small>
+    </div>
+  </div>
+
+  <hr style={{ margin: "16px 0" }} />
+
+  <div className="builder-list-card">
+    <div className="builder-list-card-title">3. Target Settings</div>
+
+    <p>
+      These settings are used by target-based steps: Rest Target, Return to Hand,
+      KO Target, and similar effects.
+    </p>
+
+    <label>Target Side</label>
+    <select
+      value={restTargetSide}
+      onChange={(event) => setRestTargetSide(event.target.value)}
+    >
+      <option value="you">You</option>
+      <option value="opponent">Opponent</option>
+    </select>
+
+    <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+      <label>
+        <input
+          type="checkbox"
+          checked={restTargetZones.leader}
+          onChange={() => toggleZone(setRestTargetZones, "leader")}
+        />
+        Leader
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          checked={restTargetZones.board}
+          onChange={() => toggleZone(setRestTargetZones, "board")}
+        />
+        Character / Board
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          checked={restTargetZones.stage}
+          onChange={() => toggleZone(setRestTargetZones, "stage")}
+        />
+        Stage
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          checked={restTargetZones.don}
+          onChange={() => toggleZone(setRestTargetZones, "don")}
+        />
+        DON
+      </label>
+    </div>
+  </div>
+
+  <hr style={{ margin: "16px 0" }} />
+
+  <div className="builder-grid-two">
+    <div className="builder-list-card">
+      <div className="builder-list-card-title">Target-Based Steps</div>
+
+      <p>
+        These use the Target Settings above.
+      </p>
+
+      <div className="builder-button-wrap">
+        <button onClick={addAbilityRestTargetStep}>
+          Add Rest Target
+        </button>
+
+        <button onClick={addAbilityReturnTargetToHandStep}>
+          Add Return Target to Hand
+        </button>
+
+        <button onClick={addAbilityKoTargetStep}>
+          Add KO Target
+        </button>
+      </div>
+
+      <small>
+        Example: For “KO one of your characters as cost”, set Target Side to You,
+        Zone to Character / Board, Add next step as Activation Cost, then click
+        Add KO Target.
+      </small>
+    </div>
+
+    <div className="builder-list-card">
+      <div className="builder-list-card-title">Opponent Character Steps</div>
+
+      <label>Negate Effects Max Cost</label>
+      <input
+        type="number"
+        value={negateMaxCost}
+        onChange={(event) => setNegateMaxCost(Number(event.target.value))}
+        placeholder="5"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityNegateEffectsStep}>
+          Add Negate Effects
+        </button>
+      </div>
+
+      <label>Set Cost To</label>
+      <input
+        type="number"
+        value={reduceCostToValue}
+        onChange={(event) =>
+          setReduceCostToValue(Number(event.target.value))
+        }
+        placeholder="0"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityReduceCostToStep}>
+          Add Reduce Cost To
+        </button>
+      </div>
+
+      <label>Power Reduction Amount</label>
+      <input
+        type="number"
+        value={reducePowerAmount}
+        onChange={(event) => setReducePowerAmount(Number(event.target.value))}
+        placeholder="4000"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityReducePowerStep}>
+          Add Reduce Power
+        </button>
+      </div>
+
+      <label>KO Max Power</label>
+      <input
+        type="number"
+        value={koMaxPower}
+        onChange={(event) => setKoMaxPower(Number(event.target.value))}
+        placeholder="0"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityKoPowerOrLessStep}>
+          Add KO Power or Less
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <hr style={{ margin: "16px 0" }} />
+
+  <div className="builder-grid-two">
+    <div className="builder-list-card">
+      <div className="builder-list-card-title">Resource / Deck Steps</div>
+
+      <label>Restand DON Count</label>
+      <input
+        type="number"
+        value={abilityRestandDonCount}
+        onChange={(event) =>
+          setAbilityRestandDonCount(Number(event.target.value))
+        }
+        placeholder="3"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityRestandDonStep}>
+          Add Restand DON
+        </button>
+      </div>
+
+      <label>Mill Count</label>
+      <input
+        type="number"
+        value={millDeckCount}
+        onChange={(event) =>
+          setMillDeckCount(Number(event.target.value))
+        }
+        placeholder="3"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityMillTopDeckStep}>
+          Add Mill Top Deck
+        </button>
+      </div>
+
+      <label>Draw Specific Card IDs</label>
+      <input
+        value={drawCardIdsText}
+        onChange={(event) => setDrawCardIdsText(event.target.value)}
+        placeholder="OP05-015, OP05-015"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityDrawSpecificStep}>
+          Add Draw Specific Cards
+        </button>
+      </div>
+    </div>
+
+    <div className="builder-list-card">
+      <div className="builder-list-card-title">Life / Power Steps</div>
+
+      <label>Play From Life Exact Cost</label>
+      <input
+        type="number"
+        value={playFromLifeExactCost}
+        onChange={(event) =>
+          setPlayFromLifeExactCost(Number(event.target.value))
+        }
+        placeholder="5"
+      />
+
+      <label>Required Traits</label>
+      <input
+        value={playFromLifeTraitsText}
+        onChange={(event) => setPlayFromLifeTraitsText(event.target.value)}
+        placeholder="Supernovas"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityPlayTopLifeIfStep}>
+          Add Play Top Life If
+        </button>
+      </div>
+
+      <label>Buff Power Amount</label>
+      <input
+        type="number"
+        value={buffPowerAmount}
+        onChange={(event) => setBuffPowerAmount(Number(event.target.value))}
+        placeholder="2000"
+      />
+
+      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+        <button onClick={addAbilityBuffPowerStep}>
+          Add Buff Power
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <hr style={{ margin: "16px 0" }} />
+
+  <div className="builder-list-card">
+    <div className="builder-list-card-title">Quick Build Examples</div>
+
+    <p>
+      <strong>Event: Rest 2 extra DON, negate blocker:</strong>
+      Source = event card ID, Trigger = On Play, Additional DON to Rest = 2,
+      Add Negate Effects.
+    </p>
+
+    <p>
+      <strong>Leader: KO your character, make opponent cost 0, mill 2:</strong>
+      Source = you-leader, Trigger = Activate: Main, Add KO Target as Activation
+      Cost, then Add Reduce Cost To and Mill Top Deck as Effect Steps.
+    </p>
+
+    <p>
+      <strong>Leader: DON!! x1, return character, play top life:</strong>
+      Source = you-leader, Trigger = Activate: Main, Required Attached DON = 1,
+      Add Return Target to Hand as Activation Cost, then Add Play Top Life If as
+      Effect Step.
+    </p>
+  </div>
+
+  <hr style={{ margin: "16px 0" }} />
+
+  <h3>Current Card Abilities</h3>
+
+  {Object.keys(scenario.cardAbilities || {}).length === 0 ? (
+    <p>No card abilities.</p>
+  ) : (
+    Object.entries(scenario.cardAbilities || {}).map(
+      ([sourceKey, abilityEntry]) => (
+        <div key={sourceKey} className="builder-list-card">
+          <div className="builder-list-card-title">
+            Source: {sourceKey}
+          </div>
+
+          {normalizeAbilityArray(abilityEntry).map((ability, abilityIndex) => (
+            <div
+              key={ability.id || `${sourceKey}-ability-${abilityIndex}`}
+              className="builder-list-card"
+              style={{ marginTop: "8px" }}
             >
-              {ABILITY_TRIGGER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <div className="builder-list-card-title">
+                {ABILITY_TRIGGER_OPTIONS.find(
+                  (option) => option.value === ability.trigger
+                )?.label || ability.trigger}
+                {" - "}
+                {ability.name || "Ability"}
+                {ability.oncePerTurn ? " - Once Per Turn" : ""}
+                {ability.requirements?.sourceAttachedDon
+                  ? ` - DON!! x${ability.requirements.sourceAttachedDon}`
+                  : ""}
+                {ability.additionalCost?.restDon
+                  ? ` - Extra DON Cost: ${ability.additionalCost.restDon}`
+                  : ""}
+              </div>
 
-            <label>Ability Name</label>
-            <input
-              value={abilityName}
-              onChange={(event) => setAbilityName(event.target.value)}
-              placeholder="Rest 2 Opponent Cards"
-            />
+              {(ability.costSteps || []).length > 0 ? (
+                <div style={{ marginTop: "8px" }}>
+                  <strong>Activation Costs</strong>
 
-            <label>
-              <input
-                type="checkbox"
-                checked={abilityOncePerTurn}
-                onChange={(event) => setAbilityOncePerTurn(event.target.checked)}
-              />
-              Once Per Turn
-            </label>
-
-            <label>Required Attached DON on Source (Activate: Main only)</label>
-            <input
-              type="number"
-              value={activateRequiredAttachedDon}
-              disabled={abilityTrigger !== "activate_main"}
-              onChange={(event) =>
-                setActivateRequiredAttachedDon(Number(event.target.value))
-              }
-              placeholder="0"
-            />
-
-            <label>Additional DON to Rest on Play (On Play only)</label>
-            <input
-              type="number"
-              value={eventAdditionalRestDon}
-              disabled={abilityTrigger !== "on_play"}
-              onChange={(event) =>
-                setEventAdditionalRestDon(Number(event.target.value))
-              }
-              placeholder="0"
-            />
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={createOrUpdateCurrentAbility}>
-                Create / Update Ability
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Step Settings</h3>
-
-            <label>
-              <input
-                type="checkbox"
-                checked={effectStepOptional}
-                onChange={(event) => setEffectStepOptional(event.target.checked)}
-              />
-              Optional Step
-            </label>
-
-            <label>Step Placement</label>
-            <select
-              value={abilityStepPlacement}
-              onChange={(event) => setAbilityStepPlacement(event.target.value)}
-            >
-              <option value="steps">Ability Step</option>
-              <option value="costSteps">Cost Step</option>
-            </select>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: Rest Target</h3>
-
-            <label>Target Side</label>
-            <select
-              value={restTargetSide}
-              onChange={(event) => setRestTargetSide(event.target.value)}
-            >
-              <option value="you">You</option>
-              <option value="opponent">Opponent</option>
-            </select>
-
-            <label>
-              <input
-                type="checkbox"
-                checked={restTargetZones.leader}
-                onChange={() => toggleZone(setRestTargetZones, "leader")}
-              />
-              Leader
-            </label>
-
-            <label>
-              <input
-                type="checkbox"
-                checked={restTargetZones.board}
-                onChange={() => toggleZone(setRestTargetZones, "board")}
-              />
-              Character / Board
-            </label>
-
-            <label>
-              <input
-                type="checkbox"
-                checked={restTargetZones.stage}
-                onChange={() => toggleZone(setRestTargetZones, "stage")}
-              />
-              Stage
-            </label>
-
-            <label>
-              <input
-                type="checkbox"
-                checked={restTargetZones.don}
-                onChange={() => toggleZone(setRestTargetZones, "don")}
-              />
-              DON
-            </label>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: Return Target to Hand</h3>
-
-            <p>
-              Uses the same Target Side and Zone checkboxes above. For this ability, use:
-              You + Character / Board.
-            </p>
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityReturnTargetToHandStep}>
-                Add Return Target to Hand Step
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: Play Top Life If</h3>
-
-            <label>Exact Cost</label>
-            <input
-              type="number"
-              value={playFromLifeExactCost}
-              onChange={(event) =>
-                setPlayFromLifeExactCost(Number(event.target.value))
-              }
-            />
-
-            <label>Required Traits</label>
-            <input
-              value={playFromLifeTraitsText}
-              onChange={(event) => setPlayFromLifeTraitsText(event.target.value)}
-              placeholder="Supernovas"
-            />
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityPlayTopLifeIfStep}>
-                Add Play Top Life If Step
-              </button>
-            </div>
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityRestTargetStep}>
-                Add Rest Target Step
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: Restand DON</h3>
-
-            <label>DON Count</label>
-            <input
-              type="number"
-              value={abilityRestandDonCount}
-              onChange={(event) =>
-                setAbilityRestandDonCount(Number(event.target.value))
-              }
-            />
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityRestandDonStep}>
-                Add Restand DON Step
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: Draw Specific Cards</h3>
-
-            <label>Draw Card IDs</label>
-            <input
-              value={drawCardIdsText}
-              onChange={(event) => setDrawCardIdsText(event.target.value)}
-              placeholder="OP05-015, OP05-015"
-            />
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityDrawSpecificStep}>
-                Add Draw Specific Step
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: Buff Power</h3>
-
-            <label>Buff Amount</label>
-            <input
-              type="number"
-              value={buffPowerAmount}
-              onChange={(event) => setBuffPowerAmount(Number(event.target.value))}
-              placeholder="2000"
-            />
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityBuffPowerStep}>
-                Add Buff Power Step
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: Reduce Power</h3>
-
-            <label>Power Reduction Amount</label>
-            <input
-              type="number"
-              value={reducePowerAmount}
-              onChange={(event) => setReducePowerAmount(Number(event.target.value))}
-              placeholder="4000"
-            />
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityReducePowerStep}>
-                Add Reduce Power Step
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Add Step: KO Power or Less</h3>
-
-            <label>KO Max Power</label>
-            <input
-              type="number"
-              value={koMaxPower}
-              onChange={(event) => setKoMaxPower(Number(event.target.value))}
-              placeholder="0"
-            />
-
-            <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-              <button onClick={addAbilityKoPowerOrLessStep}>
-                Add KO Power or Less Step
-              </button>
-            </div>
-
-            <hr style={{ margin: "16px 0" }} />
-
-            <h3>Current Card Abilities</h3>
-
-            {Object.keys(scenario.cardAbilities || {}).length === 0 ? (
-              <p>No card abilities.</p>
-            ) : (
-              Object.entries(scenario.cardAbilities || {}).map(
-                ([sourceKey, abilityEntry]) => (
-                  <div key={sourceKey} className="builder-list-card">
-                    <div className="builder-list-card-title">
-                      Source: {sourceKey}
-                    </div>
-
-{normalizeAbilityArray(abilityEntry).map((ability, abilityIndex) => (
-  <div
-    key={ability.id || `${sourceKey}-ability-${abilityIndex}`}
-                        className="builder-list-card"
-                        style={{ marginTop: "8px" }}
-                      >
-                        <div className="builder-list-card-title">
-                          {ABILITY_TRIGGER_OPTIONS.find(
-                            (option) => option.value === ability.trigger
-                          )?.label || ability.trigger}
-                          {" - "}
-                          {ability.name || "Ability"}
-                          {ability.oncePerTurn ? " - Once Per Turn" : ""}
-                          {ability.requirements?.sourceAttachedDon
-                            ? ` - DON!! x${ability.requirements.sourceAttachedDon}`
-                            : ""}
-                          {ability.additionalCost?.restDon
-                            ? ` - Extra DON Cost: ${ability.additionalCost.restDon}`
-                            : ""}
-                        </div>
-
-                        {(ability.costSteps || []).length > 0 && (
-                          <div style={{ marginTop: "8px" }}>
-                            <strong>Cost Steps</strong>
-                            {(ability.costSteps || []).map((step, index) => (
-                              <div
-                                key={step.id || `${ability.id}-cost-${index}`}
-                                className="builder-list-card"
-                                style={{ marginTop: "8px" }}
-                              >
-                                <div className="builder-list-card-title">
-                                  Cost {index + 1}. {step.type}
-                                  {step.optional ? " - Optional" : " - Required"}
-                                </div>
-                                <div className="builder-list-card-actions">
-                                  <button
-                                    onClick={() =>
-                                      removeAbilityStep(
-                                        sourceKey,
-                                        ability.id,
-                                        "costSteps",
-                                        index
-                                      )
-                                    }
-                                  >
-                                    Remove Cost Step
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div style={{ marginTop: "8px" }}>
-                          <strong>Ability Steps</strong>
-                          {(ability.steps || []).length === 0 ? (
-                            <p>No ability steps.</p>
-                          ) : (
-                            (ability.steps || []).map((step, index) => (
-                              <div
-                                key={step.id || `${ability.id}-step-${index}`}
-                                className="builder-list-card"
-                                style={{ marginTop: "8px" }}
-                              >
-                                <div className="builder-list-card-title">
-                                  Step {index + 1}. {step.type}
-                                  {step.amount != null ? ` (${step.amount})` : ""}
-                                  {step.count != null ? ` (${step.count})` : ""}
-                                  {step.maxPower != null
-                                    ? ` (max ${step.maxPower})`
-                                    : ""}
-                                  {step.cardIds
-                                    ? ` (${step.cardIds.join(", ")})`
-                                    : ""}
-                                  {step.optional ? " - Optional" : " - Required"}
-                                </div>
-                                <div className="builder-list-card-actions">
-                                  <button
-                                    onClick={() =>
-                                      removeAbilityStep(
-                                        sourceKey,
-                                        ability.id,
-                                        "steps",
-                                        index
-                                      )
-                                    }
-                                  >
-                                    Remove Step
-                                  </button>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-
-                        <div
-                          className="builder-list-card-actions"
-                          style={{ marginTop: "8px" }}
-                        >
-                          <button onClick={() => removeCardAbility(sourceKey, ability.id)}>
-                            Remove Ability
-                          </button>
-                        </div>
+                  {(ability.costSteps || []).map((step, index) => (
+                    <div
+                      key={step.id || `${ability.id}-cost-${index}`}
+                      className="builder-list-card"
+                      style={{ marginTop: "8px" }}
+                    >
+                      <div className="builder-list-card-title">
+                        Cost {index + 1}. {step.type}
+                        {step.amount != null ? ` (${step.amount})` : ""}
+                        {step.value != null ? ` (to ${step.value})` : ""}
+                        {step.count != null ? ` (${step.count})` : ""}
+                        {step.maxCost != null
+                          ? ` (cost ${step.maxCost} or less)`
+                          : ""}
+                        {step.maxPower != null ? ` (max ${step.maxPower})` : ""}
+                        {step.cardIds ? ` (${step.cardIds.join(", ")})` : ""}
+                        {step.optional ? " - Optional" : " - Required"}
                       </div>
-                    ))}
-                  </div>
-                )
-              )
-            )}
-          </section>
+
+                      <div className="builder-list-card-actions">
+                        <button
+                          onClick={() =>
+                            removeAbilityStep(
+                              sourceKey,
+                              ability.id,
+                              "costSteps",
+                              index
+                            )
+                          }
+                        >
+                          Remove Cost
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div style={{ marginTop: "8px" }}>
+                <strong>Effect Steps</strong>
+
+                {(ability.steps || []).length === 0 ? (
+                  <p>No effect steps.</p>
+                ) : (
+                  (ability.steps || []).map((step, index) => (
+                    <div
+                      key={step.id || `${ability.id}-step-${index}`}
+                      className="builder-list-card"
+                      style={{ marginTop: "8px" }}
+                    >
+                      <div className="builder-list-card-title">
+                        Step {index + 1}. {step.type}
+                        {step.amount != null ? ` (${step.amount})` : ""}
+                        {step.value != null ? ` (to ${step.value})` : ""}
+                        {step.count != null ? ` (${step.count})` : ""}
+                        {step.maxCost != null
+                          ? ` (cost ${step.maxCost} or less)`
+                          : ""}
+                        {step.maxPower != null ? ` (max ${step.maxPower})` : ""}
+                        {step.cardIds ? ` (${step.cardIds.join(", ")})` : ""}
+                        {step.optional ? " - Optional" : " - Required"}
+                      </div>
+
+                      <div className="builder-list-card-actions">
+                        <button
+                          onClick={() =>
+                            removeAbilityStep(
+                              sourceKey,
+                              ability.id,
+                              "steps",
+                              index
+                            )
+                          }
+                        >
+                          Remove Step
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div
+                className="builder-list-card-actions"
+                style={{ marginTop: "8px" }}
+              >
+                <button onClick={() => removeCardAbility(sourceKey, ability.id)}>
+                  Remove Ability
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    )
+  )}
+</section>
 
           <section className="panel">
             <h2>Export / Import JSON</h2>

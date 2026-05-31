@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { shouldUseHoverPreview } from "../utils/device";
 
+
 export default function CardTile({
   card,
   hidden = false,
@@ -9,6 +10,7 @@ export default function CardTile({
   onClick,
   onMobilePreview,
   powerValue,
+  costValue,
   attachedDonCount = 0,
   disableHoverPreview = false
 }) {
@@ -127,10 +129,16 @@ export default function CardTile({
       )}
 
       {powerValue ? <div className="power-badge">{powerValue}</div> : null}
+      {costValue != null ? <div className="cost-badge">Cost {costValue}</div> : null}
+      {card?.effectsNegated ? (
+  <div className="negated-effects-badge">Negated</div>
+) : null}
 
       {attachedDonCount > 0 ? (
         <div className="attached-don-badge">+{attachedDonCount} DON</div>
       ) : null}
     </div>
   );
+
+  
 }

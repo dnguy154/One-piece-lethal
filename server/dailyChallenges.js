@@ -40,7 +40,13 @@ const dailyChallenges = [
     date: "2026-05-31",
     scenarioId: 7,
     title: "OP Lethal #7"
-    }
+    },
+  {
+    challengeNumber: 8,
+    date: "2026-06-01",
+    scenarioId: 8,
+    title: "OP Lethal #8"
+  }
 ];
 
 module.exports = dailyChallenges;

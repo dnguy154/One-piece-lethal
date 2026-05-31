@@ -15,9 +15,22 @@ export function getDisplayedPower(card, options = {}) {
 
   return basePower + attachedDonPower + tempPower + passivePowerBonus;
 }
+export function hasNegatedEffects(card) {
+  return !!card?.effectsNegated;
+}
 
 export function getCardCost(card) {
-  return Number(card?.cost || 0);
+  if (!card) return 0;
+
+  const baseCost = Number(card.cost ?? card.raw?.card_cost ?? 0);
+
+  if (card.tempCostOverride != null) {
+    return Math.max(0, Number(card.tempCostOverride || 0));
+  }
+
+  const tempCostDelta = Number(card.tempCostDelta || 0);
+
+  return Math.max(0, baseCost + tempCostDelta);
 }
 
 export function isEventCard(card) {
@@ -30,10 +43,11 @@ export function isCharacterCard(card) {
 }
 
 export function hasRush(card) {
-  const effectText = String(card?.effect || "").toLowerCase();
-  const rawText = String(card?.raw?.card_text || "").toLowerCase();
+  if (!card || hasNegatedEffects(card)) return false;
 
-  return effectText.includes("rush") || rawText.includes("rush");
+  const text = String(card.effect || card.raw?.card_text || "").toLowerCase();
+
+  return text.includes("rush");
 }
 
 export function canAttack(card) {
@@ -59,9 +73,12 @@ export function getCounterValue(card) {
 }
 
 export function canUseBlocker(card) {
-  return !!card?.isBlocker && !card?.rested;
+  if (!card) return false;
+  if (hasNegatedEffects(card)) return false;
+
+  return !!card.isBlocker;
 }
 
 export function getAvailableBlockers(board = []) {
-  return board.filter((card) => canUseBlocker(card));
+  return board.filter((card) => canUseBlocker(card) && !card.rested);
 }

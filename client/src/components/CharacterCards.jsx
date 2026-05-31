@@ -1,5 +1,6 @@
 import CardTile from "./CardTile";
-import { getDisplayedPower } from "../engine/cardRules";
+import { getDisplayedPower, getCardCost } from "../engine/cardRules";
+
 
 export default function CharacterCards({
   cards = [],
@@ -25,21 +26,28 @@ export default function CharacterCards({
             }
           }}
         >
-          <CardTile
-            card={card}
-            variant="board"
-            setHoveredCard={setHoveredCard}
-            onClick={card ? onCardClick : undefined}
-            onMobilePreview={onMobilePreview}
-            onMobilePreviewClose={onMobilePreviewClose}
-powerValue={
-  card
-    ? getDisplayedPower(card, { includeAttachedDon: includeAttachedDonPower })
-    : undefined
-}
-            attachedDonCount={card?.attachedDon?.length || 0}
-            disableHoverPreview={disableHoverPreview}
-          />
+<CardTile
+  card={card}
+  variant="board"
+  setHoveredCard={setHoveredCard}
+  onClick={card ? onCardClick : undefined}
+  onMobilePreview={onMobilePreview}
+  onMobilePreviewClose={onMobilePreviewClose}
+  powerValue={
+    card
+      ? getDisplayedPower(card, {
+          includeAttachedDon: includeAttachedDonPower
+        })
+      : undefined
+  }
+  costValue={
+    card?.tempCostOverride != null || card?.tempCostDelta
+      ? getCardCost(card)
+      : undefined
+  }
+  attachedDonCount={card?.attachedDon?.length || 0}
+  disableHoverPreview={disableHoverPreview}
+/>
         </div>
       ))}
     </div>

@@ -180,6 +180,24 @@ export function validateEffectTarget(state, step, targetInstanceId) {
       message: "Invalid target for this effect."
     };
   }
+  if (step.type === "negate_effects") {
+  if (targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "You can only negate a character's effects."
+    };
+  }
+
+  const maxCost = Number(step.maxCost ?? Infinity);
+  const targetCost = getCardCost(targetRef.card);
+
+  if (targetCost > maxCost) {
+    return {
+      valid: false,
+      message: `${targetRef.card.name || targetRef.card.cardId} costs more than ${maxCost}.`
+    };
+  }
+}
 
   if (step.type === "rest_target") {
     if (targetRef.card.rested) {
@@ -196,6 +214,15 @@ export function validateEffectTarget(state, step, targetInstanceId) {
       };
     }
   }
+
+  if (step.type === "reduce_cost_to") {
+  if (targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "You can only change the cost of a character."
+    };
+  }
+}
 
   if (step.type === "return_target_to_hand") {
   if (targetRef.zone !== "board") {
@@ -487,6 +514,142 @@ if (step.type === "play_top_life_if") {
         .join(", ")}.`
     };
   }
+  if (step.type === "ko_target") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+  const player = nextState[targetRef.side];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  addCardToTrash(player, targetRef.card);
+
+  player.board = removeCardFromBoard(
+    player.board || [],
+    targetRef.card.instanceId
+  );
+
+  return {
+    nextState,
+    success: true,
+    message: `${targetRef.card.name || targetRef.card.cardId} was KO'd.`
+  };
+}
+
+if (step.type === "reduce_cost_to") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+  const targetCost = Math.max(0, Number(step.value ?? 0));
+
+  targetRef.card.tempCostOverride = targetCost;
+
+  return {
+    nextState,
+    success: true,
+    message: `${targetRef.card.name || targetRef.card.cardId} cost became ${targetCost}.`
+  };
+}
+
+if (step.type === "negate_effects") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+
+  targetRef.card.effectsNegated = true;
+
+  return {
+    nextState,
+    success: true,
+    message: `${targetRef.card.name || targetRef.card.cardId}'s effects were negated.`
+  };
+}
+
+if (step.type === "mill_top_deck") {
+  const playerKey = step.player || "you";
+  const count = Number(step.count || 0);
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  player.deck = player.deck || [];
+  player.trash = player.trash || [];
+
+  if (count <= 0) {
+    return {
+      nextState,
+      success: true,
+      message: "No cards milled."
+    };
+  }
+
+  if (player.deck.length < count) {
+    return {
+      nextState: state,
+      success: false,
+      message: `Not enough scripted deck cards to mill ${count}.`
+    };
+  }
+
+  const milledCards = player.deck.splice(0, count);
+
+  for (const milledCard of milledCards) {
+    addCardToTrash(player, milledCard);
+  }
+
+  player.deckCount = Math.max(
+    0,
+    Number(player.deckCount || 0) - milledCards.length
+  );
+
+  player.trashCount = player.trash.length;
+
+  return {
+    nextState,
+    success: true,
+    message: `Milled ${milledCards
+      .map((card) => card.name || card.cardId || card.id)
+      .join(", ")}.`
+  };
+}
+
+
 
   const validation = validateEffectTarget(nextState, step, targetInstanceId);
 
@@ -545,6 +708,7 @@ if (step.type === "play_top_life_if") {
         message: `${targetRef.card.name} was KO'd.`
       };
     }
+    
 
     default:
       return {
