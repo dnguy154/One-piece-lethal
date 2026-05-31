@@ -2474,6 +2474,7 @@ module.exports = scenario;
       <small>
         Only for Activate: Main abilities. Example: DON!! x1 means enter 1.
       </small>
+      <br></br>
 
       <label>Additional DON to Rest</label>
       <input
