@@ -19,14 +19,28 @@ export default function GameSidebar({
   disableDifficultyChange,
 
   canSkipEffectStep,
-onSkipEffectStep,
+  onSkipEffectStep,
 
   selectedArchiveDate,
   loadArchiveChallenge,
   challengeList
 }) {
   return (
+    
     <aside className="sidebar">
+
+            {message && (
+        <section className="panel">
+          <h2>Feedback</h2>
+          <p>{message}</p>
+          {canSkipEffectStep && (
+            <button type="button" onClick={onSkipEffectStep}>
+              Skip Optional Effect
+            </button>
+          )}
+        </section>
+      )}
+      
       <section className="panel">
         <h1>
           {scenario.title}
@@ -34,53 +48,41 @@ onSkipEffectStep,
         </h1>
       </section>
 
-      {message && (
-        <section className="panel">
-          <h2>Feedback</h2>
-          <p>{message}</p>
-          {canSkipEffectStep && (
-  <button type="button" onClick={onSkipEffectStep}>
-    Skip Optional Effect
-  </button>
-)}
-        </section>
-      )}
-
       <section className="panel">
         <h2>Difficulty</h2>
 
         <div className="difficulty-buttons">
-<button
-  type="button"
-  className={difficultyMode === "easy" ? "active-difficulty" : ""}
-  onClick={() => setDifficultyMode("easy")}
-  disabled={disableDifficultyChange}
->
-  Easy
-</button>
+          <button
+            type="button"
+            className={difficultyMode === "easy" ? "active-difficulty" : ""}
+            onClick={() => setDifficultyMode("easy")}
+            disabled={disableDifficultyChange}
+          >
+            Easy
+          </button>
 
-<button
-  type="button"
-  className={difficultyMode === "medium" ? "active-difficulty" : ""}
-  onClick={() => setDifficultyMode("medium")}
-  disabled={disableDifficultyChange}
->
-  Medium
-</button>
+          <button
+            type="button"
+            className={difficultyMode === "medium" ? "active-difficulty" : ""}
+            onClick={() => setDifficultyMode("medium")}
+            disabled={disableDifficultyChange}
+          >
+            Medium
+          </button>
 
-<button
-  type="button"
-  className={difficultyMode === "hard" ? "active-difficulty" : ""}
-  onClick={() => setDifficultyMode("hard")}
-  disabled={disableDifficultyChange}
->
-  Hard
-</button>
-{disableDifficultyChange && (
-  <p>
-    Difficulty is locked after your first action.
-  </p>
-)}
+          <button
+            type="button"
+            className={difficultyMode === "hard" ? "active-difficulty" : ""}
+            onClick={() => setDifficultyMode("hard")}
+            disabled={disableDifficultyChange}
+          >
+            Hard
+          </button>
+          {disableDifficultyChange && (
+            <p>
+              Difficulty is locked after your first action.
+            </p>
+          )}
         </div>
 
         <p>
@@ -107,13 +109,13 @@ onSkipEffectStep,
       <section className="panel">
         <h2>{isArchiveMode ? "Archive Practice" : "Daily Challenge"}</h2>
 
-<button
-  type="button"
-  onClick={loadTodayChallenge}
-  disabled={disableLoadToday}
->
-  Load Today
-</button>
+        <button
+          type="button"
+          onClick={loadTodayChallenge}
+          disabled={disableLoadToday}
+        >
+          Load Today
+        </button>
 
         <div style={{ marginTop: "8px" }}>
           <label>Previous Scenarios</label>
