@@ -3,17 +3,16 @@ export function getDisplayedPower(card, options = {}) {
 
   const includeAttachedDon = options.includeAttachedDon ?? true;
 
-  const basePower = Number(card.power || 0);
-
-  const attachedDonPower =
-    includeAttachedDon ? (card.attachedDon?.length || 0) * 1000 : 0;
+  const basePower =
+    card.tempPowerOverride != null
+      ? Number(card.tempPowerOverride || 0)
+      : Number(card.power || card.raw?.card_power || 0) +
+        Number(card.passivePowerBonus || 0) +
+        (includeAttachedDon ? (card.attachedDon?.length || 0) * 1000 : 0);
 
   const tempPower = Number(card.tempPower || 0);
 
-  // Use this for passive/static scenario-based power.
-  const passivePowerBonus = Number(card.passivePowerBonus || 0);
-
-  return basePower + attachedDonPower + tempPower + passivePowerBonus;
+  return Math.max(0, basePower + tempPower);
 }
 export function hasNegatedEffects(card) {
   return !!card?.effectsNegated;

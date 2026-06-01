@@ -8,6 +8,15 @@ const API_BASE_URL =
 const DON_IMAGE =
   "https://www.optcgapi.com/media/static/Card_Images/DON_Card__Green_Compass_-_Starter_Deck_1_Straw_Hat_Crew_ST-01_img.jpg";
 
+  const DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK = {
+  enabled: false,
+  sourceInstanceId: "opponent-leader",
+  requiredAttachedDon: 1,
+  targetPower: 7000,
+  oncePerTurn: true,
+  discardStrategy: "lowest_counter"
+};
+
 const EMPTY_SCENARIO = {
   id: 1,
   title: "Find Lethal #",
@@ -15,17 +24,18 @@ const EMPTY_SCENARIO = {
   goal: {
     type: "win_this_turn"
   },
-  opponentAI: {
-    counterFromHand: {
-      enabled: true,
-      allowedZones: ["leader", "board"],
-      strategy: "minimum_to_survive"
-    },
-    blocker: {
-      enabled: true,
-      onlyWhenLethal: true
-    }
+opponentAI: {
+  counterFromHand: {
+    enabled: true,
+    allowedZones: ["leader", "board"],
+    strategy: "minimum_to_survive"
   },
+  blocker: {
+    enabled: true,
+    onlyWhenLethal: true
+  },
+  leaderTrashBoostOnAttack: DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK
+},
   initialState: {
     you: {
       life: [],
@@ -77,6 +87,7 @@ const EMPTY_SCENARIO = {
     }
   ]
 };
+
 
 function CardTile({
   card,
@@ -413,6 +424,10 @@ export default function ScenarioBuilder() {
   const [koMaxPower, setKoMaxPower] = useState(0);
   const [buffPowerAmount, setBuffPowerAmount] = useState(2000);
   const [effectStepOptional, setEffectStepOptional] = useState(false);
+  const [buffPowerTargetZones, setBuffPowerTargetZones] = useState({
+  leader: true,
+  board: true
+});
 
   const [negateMaxCost, setNegateMaxCost] = useState(5);
 
@@ -1497,32 +1512,44 @@ const addAbilityMillTopDeckStep = () => {
     });
   };
 
-  const addBuffPowerStep = (sourceCardId, amount) => {
-    const parsedAmount = Number(amount);
+const addBuffPowerStep = (sourceCardId, amount) => {
+  const parsedAmount = Number(amount);
+  const zones = getSelectedZones(buffPowerTargetZones);
 
-    if (!sourceCardId) {
-      alert("Enter the event card ID.");
-      return;
+  if (!sourceCardId) {
+    alert("Enter the event card ID.");
+    return;
+  }
+
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    alert("Enter a valid buff amount.");
+    return;
+  }
+
+  if (zones.length === 0) {
+    alert("Choose Leader, Character / Board, or both for the buff target.");
+    return;
+  }
+
+  const targetLabel =
+    zones.includes("leader") && zones.includes("board")
+      ? "your leader or character"
+      : zones.includes("leader")
+        ? "your leader"
+        : "your character";
+
+  addEffectStep(sourceCardId, {
+    id: `buff_power_${Date.now()}`,
+    type: "buff_power",
+    amount: parsedAmount,
+    optional: effectStepOptional,
+    prompt: `Choose ${targetLabel} to give +${parsedAmount} power.`,
+    targetRules: {
+      sides: ["you"],
+      zones
     }
-
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      alert("Enter a valid buff amount.");
-      return;
-    }
-
-    addEffectStep(sourceCardId, {
-      id: `buff_power_${Date.now()}`,
-      type: "buff_power",
-      amount: parsedAmount,
-      optional: effectStepOptional,
-      prompt: `Choose your leader or character to give +${parsedAmount} power.`,
-      targetRules: {
-        sides: ["you"],
-        zones: ["leader", "board"]
-      }
-    });
-  };
-
+  });
+};
   const addReducePowerStep = (sourceCardId, amount) => {
     const parsedAmount = Number(amount);
 
@@ -1620,27 +1647,42 @@ const addAbilityMillTopDeckStep = () => {
     );
   };
 
-  const addAbilityBuffPowerStep = () => {
-    const parsedAmount = Number(buffPowerAmount);
+ const addAbilityBuffPowerStep = () => {
+  const parsedAmount = Number(buffPowerAmount);
+  const zones = getSelectedZones(buffPowerTargetZones);
 
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      alert("Enter a valid buff amount.");
-      return;
-    }
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    alert("Enter a valid buff amount.");
+    return;
+  }
 
-    addAbilityStep({
+  if (zones.length === 0) {
+    alert("Choose Leader, Character / Board, or both for the buff target.");
+    return;
+  }
+
+  const targetLabel =
+    zones.includes("leader") && zones.includes("board")
+      ? "your leader or character"
+      : zones.includes("leader")
+        ? "your leader"
+        : "your character";
+
+  addAbilityStep(
+    {
       id: `buff_power_${Date.now()}`,
       type: "buff_power",
       amount: parsedAmount,
       optional: effectStepOptional,
-      prompt: `Choose your leader or character to give +${parsedAmount} power.`,
+      prompt: `Choose ${targetLabel} to give +${parsedAmount} power.`,
       targetRules: {
         sides: ["you"],
-        zones: ["leader", "board"]
+        zones
       }
-    });
-  };
-
+    },
+    abilityStepPlacement
+  );
+};
   const addAbilityReducePowerStep = () => {
     const parsedAmount = Number(reducePowerAmount);
 
@@ -2015,6 +2057,29 @@ module.exports = scenario;
 
     URL.revokeObjectURL(url);
   };
+
+  const getLeaderTrashBoostConfig = () => {
+  return {
+    ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK,
+    ...(scenario.opponentAI?.leaderTrashBoostOnAttack || {})
+  };
+};
+
+const updateLeaderTrashBoostConfig = (patch) => {
+  setScenario((prev) => ({
+    ...prev,
+    opponentAI: {
+      ...(prev.opponentAI || {}),
+      leaderTrashBoostOnAttack: {
+        ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK,
+        ...(prev.opponentAI?.leaderTrashBoostOnAttack || {}),
+        ...patch
+      }
+    }
+  }));
+};
+
+const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
   const renderDonPresetPanel = (side, label) => {
     const sideData = scenario.initialState[side];
 
@@ -2205,6 +2270,100 @@ module.exports = scenario;
           </section>
           {renderDonPresetPanel("you", "Your")}
           {renderDonPresetPanel("opponent", "Opponent")}
+
+          <section className="panel">
+  <h2>Opponent AI Defensive Effects</h2>
+
+  <div className="builder-list-card">
+    <div className="builder-list-card-title">
+      Leader Trash Boost When Attacked
+    </div>
+
+    <p>
+      Use this for effects like: DON!! x1, trash 1 card from hand, make leader
+      7000 power for the attack. The AI will trash the lowest counter card first.
+    </p>
+
+    <label>
+      <input
+        type="checkbox"
+        checked={!!leaderTrashBoostConfig.enabled}
+        onChange={(event) =>
+          updateLeaderTrashBoostConfig({
+            enabled: event.target.checked
+          })
+        }
+      />
+      Enable this opponent defensive effect
+    </label>
+
+    <label>Source Instance ID</label>
+    <input
+      value={leaderTrashBoostConfig.sourceInstanceId}
+      onChange={(event) =>
+        updateLeaderTrashBoostConfig({
+          sourceInstanceId: event.target.value
+        })
+      }
+      placeholder="opponent-leader"
+    />
+
+    <label>Required Attached DON</label>
+    <input
+      type="number"
+      value={leaderTrashBoostConfig.requiredAttachedDon}
+      onChange={(event) =>
+        updateLeaderTrashBoostConfig({
+          requiredAttachedDon: Number(event.target.value)
+        })
+      }
+      placeholder="1"
+    />
+
+    <label>Leader Power During Attack</label>
+    <input
+      type="number"
+      value={leaderTrashBoostConfig.targetPower}
+      onChange={(event) =>
+        updateLeaderTrashBoostConfig({
+          targetPower: Number(event.target.value)
+        })
+      }
+      placeholder="7000"
+    />
+
+    <label>
+      <input
+        type="checkbox"
+        checked={leaderTrashBoostConfig.oncePerTurn !== false}
+        onChange={(event) =>
+          updateLeaderTrashBoostConfig({
+            oncePerTurn: event.target.checked
+          })
+        }
+      />
+      Once Per Turn
+    </label>
+
+    <label>Trash Strategy</label>
+    <select
+      value={leaderTrashBoostConfig.discardStrategy || "lowest_counter"}
+      onChange={(event) =>
+        updateLeaderTrashBoostConfig({
+          discardStrategy: event.target.value
+        })
+      }
+    >
+      <option value="lowest_counter">Lowest Counter First</option>
+    </select>
+
+    <small>
+      Important: the opponent leader must actually have attached DON in the board
+      state. Use the Opponent DON Preset section to attach DON to
+      opponent-leader.
+    </small>
+  </div>
+</section>
 
           <section className="panel">
             <h2>Leaders / Stage</h2>
@@ -2759,19 +2918,40 @@ module.exports = scenario;
         </button>
       </div>
 
-      <label>Buff Power Amount</label>
-      <input
-        type="number"
-        value={buffPowerAmount}
-        onChange={(event) => setBuffPowerAmount(Number(event.target.value))}
-        placeholder="2000"
-      />
+<label>Buff Power Amount</label>
+<input
+  type="number"
+  value={buffPowerAmount}
+  onChange={(event) => setBuffPowerAmount(Number(event.target.value))}
+  placeholder="2000"
+/>
 
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityBuffPowerStep}>
-          Add Buff Power
-        </button>
-      </div>
+<label>Buff Target</label>
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <label>
+    <input
+      type="checkbox"
+      checked={buffPowerTargetZones.leader}
+      onChange={() => toggleZone(setBuffPowerTargetZones, "leader")}
+    />
+    Leader
+  </label>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={buffPowerTargetZones.board}
+      onChange={() => toggleZone(setBuffPowerTargetZones, "board")}
+    />
+    Character / Board
+  </label>
+</div>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityBuffPowerStep}>
+    Add Buff Power
+  </button>
+</div>
     </div>
   </div>
 
