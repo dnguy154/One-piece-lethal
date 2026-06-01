@@ -61,9 +61,11 @@ import {
   isActivateMainAbilityUsed,
   markActivateMainAbilityUsed
 } from "./cardAbilities";
+import { CURRENT_APP_VERSION } from "./generated/appVersion";
 
 
 function App() {
+  
   const [hoveredCard, setHoveredCard] = useState(null);
   const [scenario, setScenario] = useState(null);
   const [playState, setPlayState] = useState(null);
@@ -100,6 +102,43 @@ function App() {
   const [resultModalOpen, setResultModalOpen] = useState(false);
   const [isReplayAttempt, setIsReplayAttempt] = useState(false);
   const [dailyStats, setDailyStats] = useState(calculateDailyStats());
+
+  useEffect(() => {
+  const checkForNewAppVersion = async () => {
+    try {
+      const response = await fetch(`/app-version.json?ts=${Date.now()}`, {
+        cache: "no-store"
+      });
+
+      const data = await response.json();
+
+      if (data?.version && data.version !== CURRENT_APP_VERSION) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.warn("Could not check app version:", error);
+    }
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      checkForNewAppVersion();
+    }
+  };
+
+  window.addEventListener("focus", checkForNewAppVersion);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  const intervalId = window.setInterval(checkForNewAppVersion, 5 * 60 * 1000);
+
+  checkForNewAppVersion();
+
+  return () => {
+    window.removeEventListener("focus", checkForNewAppVersion);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.clearInterval(intervalId);
+  };
+}, []);
 
   useEffect(() => {
     const clearPreviewWhenNotOverCard = (event) => {
