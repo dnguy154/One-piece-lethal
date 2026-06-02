@@ -2,7 +2,8 @@ import {
   getCardCost,
   getDisplayedPower,
   isCharacterCard,
-  hasRush
+  hasRush,
+  canAttack
 } from "./cardRules";
 import { canAffordCard, restDonForCost } from "./donRules";
 import {
@@ -199,6 +200,32 @@ export function validateEffectTarget(state, step, targetInstanceId) {
   }
 }
 
+if (step.type === "cannot_attack") {
+  if (targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "You can only choose a character."
+    };
+  }
+
+  if (step.maxCost != null) {
+    const targetCost = getCardCost(targetRef.card);
+
+    if (targetCost > Number(step.maxCost)) {
+      return {
+        valid: false,
+        message: `That character costs more than ${step.maxCost}.`
+      };
+    }
+  }
+
+  if (step.requireCanAttack && !canAttack(targetRef.card)) {
+    return {
+      valid: false,
+      message: "That character already cannot attack."
+    };
+  }
+}
   if (step.type === "rest_target") {
     if (targetRef.card.rested) {
       return {
@@ -592,6 +619,28 @@ if (step.type === "negate_effects") {
     nextState,
     success: true,
     message: `${targetRef.card.name || targetRef.card.cardId}'s effects were negated.`
+  };
+}
+
+if (step.type === "cannot_attack") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+
+  targetRef.card.cannotAttack = true;
+
+  return {
+    nextState,
+    success: true,
+    message: `${targetRef.card.name || targetRef.card.cardId} cannot attack this turn.`
   };
 }
 

@@ -114,6 +114,9 @@ export default function CardTile({
       onContextMenu={(event) => event.preventDefault()}
       onClick={handleClick}
     >
+      {card?.cannotAttack ? (
+  <div className="cannot-attack-badge">No Attack</div>
+) : null}
       {card.image ? (
         <img
           src={card.image}

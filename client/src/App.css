@@ -1129,6 +1129,21 @@ button:disabled {
   font-weight: 700;
 }
 
+.cannot-attack-badge {
+  position: absolute;
+  left: 4px;
+  top: 48px;
+  z-index: 14;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(90, 0, 120, 0.9);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .card-tile:not(.no-hover-preview):hover .desktop-card-preview {
     display: flex;

@@ -362,53 +362,71 @@ const handleOpponentDonTargetClick = (donId) => {
 
     setDifficultyMode(nextDifficulty);
   };
-  const finishDailyChallenge = ({ solved }) => {
-    const endTimeMs = Date.now();
-    const startedAt = startTimeRef.current || startTimeMs;
+ const finishDailyChallenge = ({ solved }) => {
+  const endTimeMs = Date.now();
+  const startedAt = startTimeRef.current || startTimeMs;
 
-    const totalSeconds = startedAt
-      ? Math.max(1, Math.floor((endTimeMs - startedAt) / 1000))
-      : 0;
+  const totalSeconds = startedAt
+    ? Math.max(1, Math.floor((endTimeMs - startedAt) / 1000))
+    : 0;
 
-    const points = solved ? getDifficultyPoints(difficultyMode) : 0;
+  const points = solved ? getDifficultyPoints(difficultyMode) : 0;
 
-    const result = {
-      solved,
-      difficulty: difficultyMode,
-      points: isArchiveMode ? 0 : points,
-      timeSeconds: totalSeconds,
-      timeText: formatTime(totalSeconds)
-    };
+  const result = {
+    solved,
+    difficulty: difficultyMode,
+    points: isArchiveMode ? 0 : points,
+    timeSeconds: totalSeconds,
+    timeText: formatTime(totalSeconds)
+  };
 
-    if (isArchiveMode) {
-      const archiveResult = {
-        challengeId: dailyChallenge?.id,
-        challengeTitle: dailyChallenge?.title,
-        challengeDate: dailyChallenge?.date,
-        ...result,
-        savedAt: new Date().toISOString()
-      };
+  const attemptResult = {
+    challengeId: dailyChallenge?.id,
+    challengeTitle: dailyChallenge?.title,
+    challengeDate: dailyChallenge?.date,
+    ...result,
+    savedAt: new Date().toISOString()
+  };
 
-      setDailyResult(archiveResult);
-      setFinishedTimeSeconds(totalSeconds);
-      setResultModalOpen(true);
-      setIsReplayAttempt(true);
+  if (isArchiveMode) {
+    setDailyResult(attemptResult);
+    setFinishedTimeSeconds(totalSeconds);
+    setResultModalOpen(true);
+    setIsReplayAttempt(true);
+    return;
+  }
 
-      return;
-    }
+  const existingResult = getSavedDailyResult(dailyChallenge);
+  const isReplay = !!existingResult;
 
-    const existingResult = getSavedDailyResult(dailyChallenge);
-    const lockedResult = saveFirstDailyResult(dailyChallenge, result);
+  if (isReplay) {
     clearDailyProgress(dailyChallenge);
+
     const latestStats = calculateDailyStats();
 
-    setDailyResult(lockedResult || result);
+    // Important:
+    // Show the CURRENT replay result in the modal,
+    // but do not update daily score/streak/points.
+    setDailyResult(attemptResult);
     setDailyStats(latestStats);
     setFinishedTimeSeconds(totalSeconds);
     setResultModalOpen(true);
-    setIsReplayAttempt(!!existingResult);
-  };
+    setIsReplayAttempt(true);
 
+    return;
+  }
+
+  const lockedResult = saveFirstDailyResult(dailyChallenge, result);
+  clearDailyProgress(dailyChallenge);
+
+  const latestStats = calculateDailyStats();
+
+  setDailyResult(lockedResult || attemptResult);
+  setDailyStats(latestStats);
+  setFinishedTimeSeconds(totalSeconds);
+  setResultModalOpen(true);
+  setIsReplayAttempt(false);
+};
   const cleanCardForProgress = (card) => {
     if (!card) return card;
 

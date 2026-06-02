@@ -2,7 +2,8 @@ export const ABILITY_TRIGGERS = {
   ON_PLAY: "on_play",
   WHEN_ATTACKING: "when_attacking",
   ACTIVATE_MAIN: "activate_main",
-  ON_KO: "on_ko"
+  ON_KO: "on_ko",
+  LIFE_TRIGGER: "life_trigger"
 };
 
 function normalizeAbility(ability, fallbackTrigger = null) {

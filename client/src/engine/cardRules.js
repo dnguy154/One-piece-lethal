@@ -51,6 +51,11 @@ export function hasRush(card) {
 
 export function canAttack(card) {
   if (!card) return false;
+
+   if (card.cannotAttack) {
+    return false;
+  }
+
   if (card.rested) return false;
 
   if (card.summoningSick && !hasRush(card)) {

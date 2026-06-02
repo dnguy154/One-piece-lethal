@@ -428,6 +428,13 @@ export default function ScenarioBuilder() {
   leader: true,
   board: true
 });
+const [cannotAttackMaxCost, setCannotAttackMaxCost] = useState(6);
+const [cannotAttackTargetMode, setCannotAttackTargetMode] = useState("priority_ids");
+
+const [playFromTrashCardIdsText, setPlayFromTrashCardIdsText] = useState("");
+const [playFromTrashMaxCost, setPlayFromTrashMaxCost] = useState("");
+const [playFromTrashTraitsText, setPlayFromTrashTraitsText] = useState("");
+const [playFromTrashPlayer, setPlayFromTrashPlayer] = useState("opponent");
 
   const [negateMaxCost, setNegateMaxCost] = useState(5);
 
@@ -435,6 +442,7 @@ export default function ScenarioBuilder() {
 const [millDeckCount, setMillDeckCount] = useState(3);
 
   const [eventAdditionalRestDon, setEventAdditionalRestDon] = useState(0);
+  const [playFromTrashEnterRested, setPlayFromTrashEnterRested] = useState(false);
 
   const [restTargetSide, setRestTargetSide] = useState("opponent");
   const [restTargetZones, setRestTargetZones] = useState({
@@ -443,6 +451,8 @@ const [millDeckCount, setMillDeckCount] = useState(3);
     stage: false,
     don: true
   });
+
+  const [cannotAttackPriorityIdsText, setCannotAttackPriorityIdsText] = useState("");
 
   const [activateSourceInstanceId, setActivateSourceInstanceId] =
     useState("you-leader");
@@ -578,6 +588,23 @@ const [millDeckCount, setMillDeckCount] = useState(3);
       };
     });
   };
+
+  const getSideFromPriorityId = (priorityId) => {
+  const value = String(priorityId || "");
+
+  if (value.startsWith("you-")) return "you";
+  if (value.startsWith("opponent-")) return "opponent";
+
+  return null;
+};
+
+const inferTargetSidesFromPriorityIds = (priorityIds, fallbackSide) => {
+  const inferredSides = [
+    ...new Set(priorityIds.map(getSideFromPriorityId).filter(Boolean))
+  ];
+
+  return inferredSides.length > 0 ? inferredSides : [fallbackSide];
+};
 
   const removeFromTrash = (side, index) => {
     setScenario((prev) => {
@@ -949,7 +976,8 @@ const setStage = (side) => {
     { value: "on_play", label: "On Play" },
     { value: "when_attacking", label: "When Attacking" },
     { value: "activate_main", label: "Activate: Main" },
-    { value: "on_ko", label: "On KO" }
+    { value: "on_ko", label: "On KO" },
+    { value: "life_trigger", label: "Life Trigger" }
   ];
 
 const normalizeAbilityArray = (entry) => {
@@ -1077,6 +1105,47 @@ const normalizeAbilityArray = (entry) => {
     upsertCardAbility(sourceKey, nextAbility);
     return nextAbility;
   };
+
+  const addAbilityCannotAttackStep = () => {
+  const zones = getSelectedZones(restTargetZones);
+
+  if (zones.length === 0) {
+    alert("Choose at least one target zone.");
+    return;
+  }
+
+  if (!zones.includes("board")) {
+    alert("Cannot Attack should target Character / Board.");
+    return;
+  }
+
+  const targetPriorityIds = cannotAttackPriorityIdsText
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  addAbilityStep(
+    {
+      id: `cannot_attack_${Date.now()}`,
+      type: "cannot_attack",
+      optional: effectStepOptional,
+      requireCanAttack: true,
+      maxCost: Number(cannotAttackMaxCost),
+      targetPriorityMode: cannotAttackTargetMode,
+      prompt: `Choose ${
+        restTargetSide === "opponent" ? "an opponent" : "your"
+      } character. It cannot attack this turn.`,
+      targetRules: {
+        sides: [restTargetSide],
+        zones: ["board"]
+      },
+      targetPriorityIds
+    },
+    abilityStepPlacement
+  );
+};
+
+  
   const addAbilityNegateEffectsStep = () => {
   const maxCost = Number(negateMaxCost);
 
@@ -1221,6 +1290,40 @@ const addAbilityMillTopDeckStep = () => {
       )} character.`
     });
   };
+
+
+  const addAbilityPlayFromTrashStep = () => {
+  const cardIds = playFromTrashCardIdsText
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const requiredTraits = playFromTrashTraitsText
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+const step = {
+  id: `play_from_trash_${Date.now()}`,
+  type: "play_from_trash",
+  player: playFromTrashPlayer,
+  requiredCardType: "character",
+  enterRested: playFromTrashEnterRested
+};
+  if (cardIds.length > 0) {
+    step.cardIds = cardIds;
+  }
+
+  if (playFromTrashMaxCost !== "") {
+    step.maxCost = Number(playFromTrashMaxCost);
+  }
+
+  if (requiredTraits.length > 0) {
+    step.requiredTraits = requiredTraits;
+  }
+
+  addAbilityStep(step, abilityStepPlacement);
+};
 
   const addAbilityStep = (step, placement = "steps") => {
     const sourceKey = abilitySourceKey.trim();
@@ -2690,6 +2793,44 @@ const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
 
   <hr style={{ margin: "16px 0" }} />
 
+  <label>Max Cost</label>
+<input
+  type="number"
+  value={cannotAttackMaxCost}
+  onChange={(event) => setCannotAttackMaxCost(Number(event.target.value))}
+  placeholder="6"
+/>
+
+  <div className="builder-list-card">
+  <div className="builder-list-card-title">Cannot Attack Step</div>
+
+  <p>
+    Uses Target Side. This should usually target Character / Board. Priority IDs
+    are checked in order and skipped if that character already attacked/rested.
+  </p>
+
+  <label>Priority Target IDs</label>
+  <input
+    value={cannotAttackPriorityIdsText}
+    onChange={(event) => setCannotAttackPriorityIdsText(event.target.value)}
+    placeholder="you-board-1, you-board-2, you-board-3"
+  />
+  <label>Cannot Attack Target Mode</label>
+<select
+  value={cannotAttackTargetMode}
+  onChange={(event) => setCannotAttackTargetMode(event.target.value)}
+>
+  <option value="priority_ids">Priority IDs</option>
+  <option value="highest_power">Highest Power</option>
+</select>
+
+  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+    <button onClick={addAbilityCannotAttackStep}>
+      Add Cannot Attack Step
+    </button>
+  </div>
+</div>
+
   <div className="builder-list-card">
     <div className="builder-list-card-title">3. Target Settings</div>
 
@@ -2845,7 +2986,53 @@ const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
   <div className="builder-grid-two">
     <div className="builder-list-card">
       <div className="builder-list-card-title">Resource / Deck Steps</div>
+        <div className="builder-list-card">
+  <div className="builder-list-card-title">Trash / Trigger Steps</div>
 
+  <label>Play From Trash Player</label>
+  <select
+    value={playFromTrashPlayer}
+    onChange={(event) => setPlayFromTrashPlayer(event.target.value)}
+  >
+    <option value="you">You</option>
+    <option value="opponent">Opponent</option>
+  </select>
+  <label>
+  <input
+    type="checkbox"
+    checked={playFromTrashEnterRested}
+    onChange={(event) => setPlayFromTrashEnterRested(event.target.checked)}
+  />
+  Play card rested
+</label>
+
+  <label>Playable Card IDs</label>
+  <input
+    value={playFromTrashCardIdsText}
+    onChange={(event) => setPlayFromTrashCardIdsText(event.target.value)}
+    placeholder="OP15-046, OP15-047"
+  />
+
+  <label>Max Cost</label>
+  <input
+    value={playFromTrashMaxCost}
+    onChange={(event) => setPlayFromTrashMaxCost(event.target.value)}
+    placeholder="Leave blank if none"
+  />
+
+  <label>Required Traits</label>
+  <input
+    value={playFromTrashTraitsText}
+    onChange={(event) => setPlayFromTrashTraitsText(event.target.value)}
+    placeholder="Supernovas"
+  />
+
+  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+    <button onClick={addAbilityPlayFromTrashStep}>
+      Add Play From Trash
+    </button>
+  </div>
+</div>
       <label>Restand DON Count</label>
       <input
         type="number"
@@ -3035,6 +3222,14 @@ const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
                           : ""}
                         {step.maxPower != null ? ` (max ${step.maxPower})` : ""}
                         {step.cardIds ? ` (${step.cardIds.join(", ")})` : ""}
+                        {step.type === "cannot_attack" && step.maxCost != null
+  ? ` - Cost ${step.maxCost} or less`
+  : ""}
+                        {step.type === "play_from_trash"
+  ? step.enterRested
+    ? " - Enters Rested"
+    : " - Enters Active"
+  : ""}
                         {step.optional ? " - Optional" : " - Required"}
                       </div>
 
@@ -3079,6 +3274,9 @@ const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
                           : ""}
                         {step.maxPower != null ? ` (max ${step.maxPower})` : ""}
                         {step.cardIds ? ` (${step.cardIds.join(", ")})` : ""}
+                        {step.targetPriorityIds?.length
+  ? ` Priority: ${step.targetPriorityIds.join(" > ")}`
+  : ""}
                         {step.optional ? " - Optional" : " - Required"}
                       </div>
 

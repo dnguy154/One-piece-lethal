@@ -69,6 +69,8 @@ async function hydrateCardArray(cardRefs = []) {
 async function hydrateScenario(scenario) {
   const hydrated = structuredClone(scenario);
 
+  
+
   hydrated.initialState.you.hand = await hydrateCardArray(scenario.initialState.you.hand);
   hydrated.initialState.you.board = await hydrateCardArray(scenario.initialState.you.board);
 
@@ -116,6 +118,8 @@ if (Array.isArray(scenario.initialState.opponent.trash)) {
     hydrated.initialState.you.life = scenario.initialState.you.life;
   }
 
+
+
   hydrated.initialState.opponent.hand = await hydrateCardArray(scenario.initialState.opponent.hand);
   hydrated.initialState.opponent.board = await hydrateCardArray(scenario.initialState.opponent.board);
 
@@ -140,6 +144,32 @@ if (Array.isArray(scenario.initialState.opponent.trash)) {
   if (scenario.initialState.opponent.stage) {
     hydrated.initialState.opponent.stage = await hydrateCardRef(scenario.initialState.opponent.stage);
   }
+
+  hydrated.initialState.you.deck = await hydrateCardArray(
+  scenario.initialState.you.deck || []
+);
+
+hydrated.initialState.you.trash = await hydrateCardArray(
+  scenario.initialState.you.trash || []
+);
+
+hydrated.initialState.opponent.deck = await hydrateCardArray(
+  scenario.initialState.opponent.deck || []
+);
+
+hydrated.initialState.opponent.trash = await hydrateCardArray(
+  scenario.initialState.opponent.trash || []
+);
+
+hydrated.initialState.you.trashCount =
+  hydrated.initialState.you.trash.length ||
+  scenario.initialState.you.trashCount ||
+  0;
+
+hydrated.initialState.opponent.trashCount =
+  hydrated.initialState.opponent.trash.length ||
+  scenario.initialState.opponent.trashCount ||
+  0;
 
   return hydrated;
 }
