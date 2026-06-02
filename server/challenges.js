@@ -57,7 +57,7 @@ const challenges = [
     id: 10,
     date: "2026-06-03",
     scenarioId: 10,
-    title: "Find Lethal #10"
+    title: "TRIGGER#10"
   }
 ];
 
