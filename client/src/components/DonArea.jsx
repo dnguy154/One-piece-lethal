@@ -8,7 +8,7 @@ function DonCard({ rested = false, small = true }) {
   );
 }
 
-export default function DonArea({ don, selectedDonIds, onDonClick }) {
+export default function DonArea({ don, selectedDonIds = [], onDonClick }) {
   const donCards = Array.isArray(don)
     ? don.filter((donCard) => donCard.attachedTo === null)
     : Array.from({ length: Number(don) || 0 }, (_, index) => ({

@@ -337,17 +337,22 @@ function App() {
       });
   };
 
-  const handleOpponentDonTargetClick = (donCardOrId) => {
-    const donId =
-      typeof donCardOrId === "object" ? donCardOrId.id : donCardOrId;
+const handleOpponentDonTargetClick = (donId) => {
+  if (!activeEffect) return;
 
-    if (!donId) return;
+  const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
 
-    handleEffectTargetClick({
-      instanceId: `opponent-don-${donId}`,
-      name: `Opponent DON ${donId}`
-    });
-  };
+  const canTargetDon =
+    currentStep?.targetRules?.zones?.includes("don") &&
+    currentStep?.targetRules?.sides?.includes("opponent");
+
+  if (!canTargetDon) return;
+
+  handleEffectTargetClick({
+    instanceId: `opponent-don-${donId}`,
+    id: donId
+  });
+};
 
   const handleDifficultyChange = (nextDifficulty) => {
     if (isDailyAttemptLocked) {
@@ -1444,6 +1449,21 @@ const handleAttackTargetClick = (card) => {
 };
 
   const handleDonClick = (donId) => {
+      if (activeEffect) {
+    const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+    const canTargetDon =
+      currentStep?.targetRules?.zones?.includes("don") &&
+      currentStep?.targetRules?.sides?.includes("you");
+
+    if (canTargetDon) {
+      handleEffectTargetClick({
+        instanceId: `you-don-${donId}`,
+        id: donId
+      });
+      return;
+    }
+  }
     if (hasWon || hasLost || hasConceded) return;
 
     if (isResolvingEffect) {
