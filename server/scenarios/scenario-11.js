@@ -277,7 +277,7 @@ const scenario =
                 name: "croc leader",
                 steps: [],
                 sourceInstanceId: "you-leader",
-                oncePerTurn: false,
+                oncePerTurn: true,
                 costSteps: [
                     {
                         id: "ko_target_1780454111358",
