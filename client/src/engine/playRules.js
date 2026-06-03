@@ -95,20 +95,22 @@ export function playHandCardToState(state, handIndex, replaceTargetInstanceId = 
 
       player.board[replaceIndex] = newCharacter;
 
-      return {
-        nextState,
-        success: true,
-        message: `${newCharacter.name} replaced ${replacedCard.name}. Attached DON returned rested.`
-      };
+return {
+  nextState,
+  success: true,
+  message: `${newCharacter.name} replaced ${replacedCard.name}. Attached DON returned rested.`,
+  playedCard: newCharacter
+};
     }
 
     player.board.push(newCharacter);
 
-    return {
-      nextState,
-      success: true,
-      message: `${card.name} was played to the character area.`
-    };
+return {
+  nextState,
+  success: true,
+  message: `${card.name} was played to the character area.`,
+  playedCard: newCharacter
+};
   }
 
   if (isEventCard(card)) {

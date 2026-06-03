@@ -794,10 +794,15 @@ const handleOpponentDonTargetClick = (donId) => {
       ABILITY_TRIGGERS.ON_PLAY
     );
 
-    const { nextState, success, message: resultMessage } = playHandCardToState(
-      playState,
-      selectedHandCardIndex
-    );
+const {
+  nextState,
+  success,
+  message: resultMessage,
+  playedCard
+} = playHandCardToState(
+  playState,
+  selectedHandCardIndex
+);
 
     if (!success) {
       setMessage(resultMessage);
@@ -813,7 +818,7 @@ const handleOpponentDonTargetClick = (donId) => {
     setHoveredCard(null);
 
     if (onPlayAbility) {
-      startTriggeredAbility(onPlayAbility, playedCardFromHand, nextState);
+startTriggeredAbility(onPlayAbility, playedCard || playedCardFromHand, nextState);
       return;
     }
 
@@ -1313,26 +1318,50 @@ if (!hasRequiredAttachedDonForAbility(sourceCard, ability)) {
         return;
       }
 
-      const { nextState, success, message: resultMessage } = playHandCardToState(
-        playState,
-        selectedHandCardIndex,
-        card.instanceId
-      );
+const playedCardFromHand = playState.you.hand[selectedHandCardIndex];
 
-      if (!success) {
-        setMessage(resultMessage);
-        return;
-      }
+const onPlayAbility = getTriggeredAbility(
+  playedCardFromHand,
+  scenario,
+  ABILITY_TRIGGERS.ON_PLAY
+);
 
-      markActionStarted();
+const {
+  nextState,
+  success,
+  message: resultMessage,
+  playedCard
+} = playHandCardToState(
+  playState,
+  selectedHandCardIndex,
+  card.instanceId
+);
 
-      setPlayState(nextState);
-      setSelectedHandCardIndex(null);
-      setSelectedAttackerId(null);
-      setActionMode("idle");
-      setHoveredCard(null);
-      setMessage(resultMessage);
-      return;
+if (!success) {
+  setMessage(resultMessage);
+  return;
+}
+
+markActionStarted();
+
+setPlayState(nextState);
+setSelectedHandCardIndex(null);
+setSelectedAttackerId(null);
+setActionMode("idle");
+setHoveredCard(null);
+setMobilePreviewCard(null);
+
+if (onPlayAbility) {
+  startTriggeredAbility(
+    onPlayAbility,
+    playedCard || playedCardFromHand,
+    nextState
+  );
+  return;
+}
+
+setMessage(resultMessage);
+return;
     }
 
     if (handleCardActionChoice(card)) {

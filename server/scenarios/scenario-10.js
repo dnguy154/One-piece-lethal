@@ -352,7 +352,7 @@ const scenario =
             {
               id: "rest_target_1780281783311",
               type: "rest_target",
-              optional: false,
+              optional: true,
               prompt: "Choose an opponent board or don to rest.",
               targetRules: {
                 sides: [
