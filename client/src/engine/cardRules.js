@@ -41,12 +41,42 @@ export function isCharacterCard(card) {
   return type.includes("character");
 }
 
-export function hasRush(card) {
-  if (!card || hasNegatedEffects(card)) return false;
+export function getRushType(card) {
+  if (!card || hasNegatedEffects(card)) return null;
 
+  // Scenario/effect-granted Rush.
+  if (card.gainedRushType === "character") {
+    return "character";
+  }
+
+  if (card.gainedRushType === "normal" || card.gainedRush) {
+    return "normal";
+  }
+
+  // Printed Rush from card text is normal Rush.
   const text = String(card.effect || card.raw?.card_text || "").toLowerCase();
 
-  return text.includes("rush");
+  if (text.includes("rush")) {
+    return "normal";
+  }
+
+  return null;
+}
+
+export function hasRush(card) {
+  return !!getRushType(card);
+}
+
+export function canAttackLeaderTarget(attacker) {
+  if (!attacker) return false;
+
+  // If it is not summoning sick, normal attack rules allow leader.
+  if (!attacker.summoningSick) {
+    return true;
+  }
+
+  // If it is summoning sick, only normal Rush can attack leader.
+  return getRushType(attacker) === "normal";
 }
 
 export function canAttack(card) {

@@ -74,17 +74,37 @@ export function takeTopLifeToHand(playerState) {
   return { placeholder: true };
 }
 
-export function addCardToTrash(playerState, card) {
-  if (!playerState || !card) return;
+export function addCardToTrash(player, card) {
+  if (!player || !card) return player;
 
-  playerState.trash = playerState.trash || [];
+  player.trash = player.trash || [];
 
-  playerState.trash.push({
-    ...card,
-    attachedDon: []
+  const {
+    attachedDon,
+    rested,
+    summoningSick,
+    tempPower,
+    tempPowerOverride,
+    tempCostOverride,
+    tempCostDelta,
+    cannotAttack,
+    gainedRush,
+    gainedRushType,
+    effectsNegated,
+    canAttackActiveCharacters,
+    ...trashCard
+  } = card;
+
+  player.trash.push({
+    ...trashCard,
+    attachedDon: [],
+    rested: false,
+    summoningSick: false
   });
 
-  playerState.trashCount = playerState.trash.length;
+  player.trashCount = player.trash.length;
+
+  return player;
 }
 
 export function addCardsToTrash(playerState, cards = []) {

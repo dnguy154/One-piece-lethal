@@ -13,6 +13,45 @@ import {
 } from "./gameState";
 
 
+
+function matchesPlayFromTrashRules(card, step) {
+  if (!card) return false;
+
+  const cardId = card.cardId || card.id;
+
+  if (Array.isArray(step.cardIds) && step.cardIds.length > 0) {
+    if (!step.cardIds.includes(cardId)) return false;
+  }
+
+  if (step.exactCost != null && getCardCost(card) !== Number(step.exactCost)) {
+    return false;
+  }
+
+  if (step.maxCost != null && getCardCost(card) > Number(step.maxCost)) {
+    return false;
+  }
+
+if (step.requiredCardType === "character" && !isCharacterCard(card)) {
+  return false;
+}
+
+const requiredTraits = step.requiredTraits || [];
+
+for (const requiredTrait of requiredTraits) {
+  if (!cardHasTrait(card, requiredTrait)) {
+    return false;
+  }
+}
+
+return true;
+}
+
+function chooseCardFromTrash(player, step) {
+  return (player.trash || []).findIndex((card) =>
+    matchesPlayFromTrashRules(card, step)
+  );
+}
+
 function findEffectTargetByInstanceId(state, instanceId) {
   const cardRef = findCardByInstanceId(state, instanceId);
 
@@ -182,90 +221,110 @@ export function validateEffectTarget(state, step, targetInstanceId) {
     };
   }
   if (step.type === "negate_effects") {
+    if (targetRef.zone !== "board") {
+      return {
+        valid: false,
+        message: "You can only negate a character's effects."
+      };
+    }
+
+    const maxCost = Number(step.maxCost ?? Infinity);
+    const targetCost = getCardCost(targetRef.card);
+
+    if (targetCost > maxCost) {
+      return {
+        valid: false,
+        message: `${targetRef.card.name || targetRef.card.cardId} costs more than ${maxCost}.`
+      };
+    }
+  }
+
+  if (step.type === "cannot_attack") {
+    if (targetRef.zone !== "board") {
+      return {
+        valid: false,
+        message: "You can only choose a character."
+      };
+    }
+
+    if (step.maxCost != null) {
+      const targetCost = getCardCost(targetRef.card);
+
+      if (targetCost > Number(step.maxCost)) {
+        return {
+          valid: false,
+          message: `That character costs more than ${step.maxCost}.`
+        };
+      }
+    }
+
+    if (step.requireCanAttack && !canAttack(targetRef.card)) {
+      return {
+        valid: false,
+        message: "That character already cannot attack."
+      };
+    }
+  }
+
+  if (step.type === "grant_rush") {
   if (targetRef.zone !== "board") {
     return {
       valid: false,
-      message: "You can only negate a character's effects."
-    };
-  }
-
-  const maxCost = Number(step.maxCost ?? Infinity);
-  const targetCost = getCardCost(targetRef.card);
-
-  if (targetCost > maxCost) {
-    return {
-      valid: false,
-      message: `${targetRef.card.name || targetRef.card.cardId} costs more than ${maxCost}.`
+      message: "You can only give Rush to a character."
     };
   }
 }
-
-if (step.type === "cannot_attack") {
-  if (targetRef.zone !== "board") {
+if (step.type === "rest_target") {
+  if (targetRef.card.rested) {
     return {
       valid: false,
-      message: "You can only choose a character."
+      message: "That target is already rested."
     };
   }
 
-  if (step.maxCost != null) {
+  if (targetRef.zone === "don" && targetRef.card.attachedTo != null) {
+    return {
+      valid: false,
+      message: "You cannot rest attached DON."
+    };
+  }
+
+  if (targetRef.zone === "board" && step.maxCost != null) {
     const targetCost = getCardCost(targetRef.card);
 
     if (targetCost > Number(step.maxCost)) {
       return {
         valid: false,
-        message: `That character costs more than ${step.maxCost}.`
+        message: `${targetRef.card.name || targetRef.card.cardId} costs more than ${step.maxCost}.`
       };
     }
-  }
-
-  if (step.requireCanAttack && !canAttack(targetRef.card)) {
-    return {
-      valid: false,
-      message: "That character already cannot attack."
-    };
   }
 }
-  if (step.type === "rest_target") {
-    if (targetRef.card.rested) {
-      return {
-        valid: false,
-        message: "That target is already rested."
-      };
-    }
-
-    if (targetRef.zone === "don" && targetRef.card.attachedTo != null) {
-      return {
-        valid: false,
-        message: "You cannot rest attached DON."
-      };
-    }
-  }
 
   if (step.type === "reduce_cost_to") {
-  if (targetRef.zone !== "board") {
-    return {
-      valid: false,
-      message: "You can only change the cost of a character."
-    };
+    if (targetRef.zone !== "board") {
+      return {
+        valid: false,
+        message: "You can only change the cost of a character."
+      };
+    }
   }
-}
 
   if (step.type === "return_target_to_hand") {
-  if (targetRef.zone !== "board") {
-    return {
-      valid: false,
-      message: "You can only return a character."
-    };
-  }
+    if (targetRef.zone !== "board") {
+      return {
+        valid: false,
+        message: "You can only return a character."
+      };
+    }
 
-  if (targetRef.side !== "you") {
-    return {
-      valid: false,
-      message: "You can only return one of your own characters."
-    };
+    if (targetRef.side !== "you") {
+      return {
+        valid: false,
+        message: "You can only return one of your own characters."
+      };
+    }
   }
-}
 
   if (step.type === "ko_power_or_less") {
     const targetPower = getDisplayedPower(targetRef.card, {
@@ -320,6 +379,261 @@ export function hasValidEffectTarget(state, step) {
 export function applyEffectStep(state, step, targetInstanceId) {
   const nextState = structuredClone(state);
 
+  if (step.type === "play_from_trash") {
+  const nextState = structuredClone(state);
+  const trashTarget = parseTrashTarget(targetInstanceId);
+
+  return playCardFromTrashToBoard(
+    nextState,
+    step,
+    trashTarget,
+    trashTarget?.replaceTargetInstanceId || null
+  );
+}
+if (step.type === "trash_to_hand") {
+  const trashTarget = parseTrashTarget(targetInstanceId);
+  const playerKey = step.player || "you";
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  const trash = player.trash || [];
+  let trashIndex = trashTarget?.trashIndex;
+
+  if (trashIndex == null) {
+    if (step.manualSelect === false) {
+      trashIndex = chooseCardFromTrash(player, step);
+    } else {
+      return {
+        nextState: state,
+        success: false,
+        message: "Choose a card from trash."
+      };
+    }
+  }
+
+  if (trashIndex < 0 || trashIndex >= trash.length) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Invalid trash target."
+    };
+  }
+
+  const selectedTrashCard = trash[trashIndex];
+
+  if (!matchesPlayFromTrashRules(selectedTrashCard, step)) {
+    return {
+      nextState: state,
+      success: false,
+      message: "That card is not a valid choice for this effect."
+    };
+  }
+
+  const [pickedCard] = player.trash.splice(trashIndex, 1);
+
+  player.trashCount = player.trash.length;
+  player.hand = player.hand || [];
+
+  const {
+    instanceId,
+    attachedDon,
+    rested,
+    summoningSick,
+    tempPower,
+    tempPowerOverride,
+    tempCostOverride,
+    tempCostDelta,
+    cannotAttack,
+    gainedRush,
+    gainedRushType,
+    effectsNegated,
+    canAttackActiveCharacters,
+    ...handCard
+  } = pickedCard;
+
+  player.hand.push({
+    ...handCard,
+    attachedDon: [],
+    rested: false,
+    summoningSick: false
+  });
+
+  return {
+    nextState,
+    success: true,
+    message: `${pickedCard.name || pickedCard.cardId} was added from trash to hand.`
+  };
+}
+
+  function parseTrashTarget(targetInstanceId) {
+  if (!targetInstanceId) return null;
+
+  if (typeof targetInstanceId === "object") {
+    return targetInstanceId;
+  }
+
+  const match = String(targetInstanceId).match(/^(you|opponent)-trash-(\d+)$/);
+
+  if (!match) return null;
+
+  return {
+    side: match[1],
+    trashIndex: Number(match[2])
+  };
+}
+
+function playCardFromTrashToBoard(
+  nextState,
+  step,
+  trashTarget,
+  replaceTargetInstanceId = null
+) {
+  const playerKey = step.player || "you";
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState,
+      success: false,
+      message: "Player not found."
+    };
+  }
+
+  const trash = player.trash || [];
+
+  let trashIndex = trashTarget?.trashIndex;
+
+  // Opponent auto mode.
+  if (trashIndex == null) {
+    trashIndex = chooseCardFromTrash(player, step);
+  }
+
+  if (trashIndex < 0 || trashIndex >= trash.length) {
+    return {
+      nextState,
+      success: false,
+      message: "Invalid trash target."
+    };
+  }
+
+  const selectedTrashCard = trash[trashIndex];
+
+  if (!matchesPlayFromTrashRules(selectedTrashCard, step)) {
+    return {
+      nextState,
+      success: false,
+      message: "That card is not a valid choice for this effect."
+    };
+  }
+
+  const boardCount = player.board?.length || 0;
+  const boardIsFull = boardCount >= 5;
+
+  if (boardIsFull && !step.allowReplace) {
+    return {
+      nextState,
+      success: false,
+      message: "Character area is full."
+    };
+  }
+
+  if (boardIsFull && !replaceTargetInstanceId) {
+    return {
+      nextState,
+      success: false,
+      requiresReplacement: true,
+      message: "Character area is full. Choose one of your characters to replace."
+    };
+  }
+
+  let replaceIndex = -1;
+
+  if (replaceTargetInstanceId) {
+    replaceIndex = (player.board || []).findIndex(
+      (card) => card.instanceId === replaceTargetInstanceId
+    );
+
+    if (replaceIndex === -1) {
+      return {
+        nextState,
+        success: false,
+        message: "Invalid replacement target."
+      };
+    }
+  }
+
+  const [playedCard] = player.trash.splice(trashIndex, 1);
+  player.trashCount = player.trash.length;
+
+  const entersRested = !!step.enterRested;
+
+  const newCharacter = {
+    ...playedCard,
+    instanceId: getNextBoardInstanceId(player, playerKey),
+    attachedDon: [],
+    rested: entersRested,
+    isBlocker: !!playedCard.isBlocker,
+    summoningSick: !hasRush(playedCard)
+  };
+
+  if (replaceIndex !== -1) {
+    const replacedCard = player.board[replaceIndex];
+
+    const attachedDonIds = Array.isArray(replacedCard?.attachedDon)
+      ? replacedCard.attachedDon
+      : [];
+
+    attachedDonIds.forEach((donId) => {
+      const donCard = player.don.find((don) => don.id === donId);
+
+      if (donCard) {
+        donCard.attachedTo = null;
+        donCard.rested = true;
+      }
+    });
+
+    addCardToTrash(player, replacedCard);
+
+    player.board[replaceIndex] = newCharacter;
+
+return {
+  nextState,
+  success: true,
+  message: `${newCharacter.name || newCharacter.cardId} was played from trash ${
+    entersRested ? "rested" : "active"
+  }, replacing ${replacedCard.name || replacedCard.cardId}.`,
+  playedCards: [
+    {
+      side: playerKey,
+      card: newCharacter
+    }
+  ]
+};
+  }
+
+  player.board = [...(player.board || []), newCharacter];
+
+return {
+  nextState,
+  success: true,
+  message: `${newCharacter.name || newCharacter.cardId} was played from trash ${
+    entersRested ? "rested" : "active"
+  }.`,
+  playedCards: [
+    {
+      side: playerKey,
+      card: newCharacter
+    }
+  ]
+};
+}
   if (step.type === "rest_target") {
     const validation = validateEffectTarget(nextState, step, targetInstanceId);
 
@@ -346,113 +660,113 @@ export function applyEffectStep(state, step, targetInstanceId) {
   }
 
   if (step.type === "return_target_to_hand") {
-  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+    const validation = validateEffectTarget(nextState, step, targetInstanceId);
 
-  if (!validation.valid) {
+    if (!validation.valid) {
+      return {
+        nextState: state,
+        success: false,
+        message: validation.message
+      };
+    }
+
+    const targetRef = validation.targetRef;
+    const player = nextState[targetRef.side];
+
+    if (!player) {
+      return {
+        nextState: state,
+        success: false,
+        message: "Player state not found."
+      };
+    }
+
+    clearAttachedDonFromCard(player, targetRef.card);
+
+    const {
+      instanceId,
+      tempPower,
+      rested,
+      summoningSick,
+      attachedDon,
+      ...returnedCard
+    } = targetRef.card;
+
+    player.hand = player.hand || [];
+    player.hand.push({
+      ...returnedCard,
+      attachedDon: [],
+      rested: false
+    });
+
+    player.board = removeCardFromBoard(player.board || [], targetRef.card.instanceId);
+
     return {
-      nextState: state,
-      success: false,
-      message: validation.message
+      nextState,
+      success: true,
+      message: `${targetRef.card.name || targetRef.card.cardId} returned to hand.`
     };
   }
 
-  const targetRef = validation.targetRef;
-  const player = nextState[targetRef.side];
+  if (step.type === "play_top_life_if") {
+    const playerKey = step.player || "you";
+    const player = nextState[playerKey];
 
-  if (!player) {
+    if (!player) {
+      return {
+        nextState: state,
+        success: false,
+        message: "Player state not found."
+      };
+    }
+
+    if (!Array.isArray(player.life) || player.life.length === 0) {
+      return {
+        nextState: state,
+        success: false,
+        message: "There is no top life card to play."
+      };
+    }
+
+    if ((player.board || []).length >= 5) {
+      return {
+        nextState: state,
+        success: false,
+        message: "Your character area is full."
+      };
+    }
+
+    const topLifeCard = player.life[0];
+
+    if (!cardMatchesPlayFromLifeRules(topLifeCard, step)) {
+      return {
+        nextState: state,
+        success: false,
+        message:
+          step.failMessage ||
+          "The top life card does not meet the play requirements."
+      };
+    }
+
+    const [playedCard] = player.life.splice(0, 1);
+
+    const newCharacter = {
+      ...playedCard,
+      instanceId: getNextBoardInstanceId(player, playerKey),
+      attachedDon: [],
+      rested: false,
+      isBlocker: !!playedCard.isBlocker,
+      summoningSick: !hasRush(playedCard)
+    };
+
+    player.board = [...(player.board || []), newCharacter];
+
     return {
-      nextState: state,
-      success: false,
-      message: "Player state not found."
+      nextState,
+      success: true,
+      message: `${newCharacter.name || newCharacter.cardId} was played from life.`
     };
   }
-
-  clearAttachedDonFromCard(player, targetRef.card);
-
-  const {
-    instanceId,
-    tempPower,
-    rested,
-    summoningSick,
-    attachedDon,
-    ...returnedCard
-  } = targetRef.card;
-
-  player.hand = player.hand || [];
-  player.hand.push({
-    ...returnedCard,
-    attachedDon: [],
-    rested: false
-  });
-
-  player.board = removeCardFromBoard(player.board || [], targetRef.card.instanceId);
-
-  return {
-    nextState,
-    success: true,
-    message: `${targetRef.card.name || targetRef.card.cardId} returned to hand.`
-  };
-}
-
-if (step.type === "play_top_life_if") {
-  const playerKey = step.player || "you";
-  const player = nextState[playerKey];
-
-  if (!player) {
-    return {
-      nextState: state,
-      success: false,
-      message: "Player state not found."
-    };
-  }
-
-  if (!Array.isArray(player.life) || player.life.length === 0) {
-    return {
-      nextState: state,
-      success: false,
-      message: "There is no top life card to play."
-    };
-  }
-
-  if ((player.board || []).length >= 5) {
-    return {
-      nextState: state,
-      success: false,
-      message: "Your character area is full."
-    };
-  }
-
-  const topLifeCard = player.life[0];
-
-  if (!cardMatchesPlayFromLifeRules(topLifeCard, step)) {
-    return {
-      nextState: state,
-      success: false,
-      message:
-        step.failMessage ||
-        "The top life card does not meet the play requirements."
-    };
-  }
-
-  const [playedCard] = player.life.splice(0, 1);
-
-  const newCharacter = {
-    ...playedCard,
-    instanceId: getNextBoardInstanceId(player, playerKey),
-    attachedDon: [],
-    rested: false,
-    isBlocker: !!playedCard.isBlocker,
-    summoningSick: !hasRush(playedCard)
-  };
-
-  player.board = [...(player.board || []), newCharacter];
-
-  return {
-    nextState,
-    success: true,
-    message: `${newCharacter.name || newCharacter.cardId} was played from life.`
-  };
-}
 
   if (step.type === "restand_don") {
     const playerKey = step.player || "you";
@@ -563,6 +877,10 @@ if (step.type === "play_top_life_if") {
     };
   }
 
+  const koCard = {
+    ...targetRef.card
+  };
+
   addCardToTrash(player, targetRef.card);
 
   player.board = removeCardFromBoard(
@@ -573,130 +891,162 @@ if (step.type === "play_top_life_if") {
   return {
     nextState,
     success: true,
-    message: `${targetRef.card.name || targetRef.card.cardId} was KO'd.`
+    message: `${targetRef.card.name || targetRef.card.cardId} was KO'd.`,
+    koCards: [
+      {
+        side: targetRef.side,
+        card: koCard
+      }
+    ]
   };
 }
+  if (step.type === "reduce_cost_to") {
+    const validation = validateEffectTarget(nextState, step, targetInstanceId);
 
-if (step.type === "reduce_cost_to") {
-  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+    if (!validation.valid) {
+      return {
+        nextState: state,
+        success: false,
+        message: validation.message
+      };
+    }
 
-  if (!validation.valid) {
-    return {
-      nextState: state,
-      success: false,
-      message: validation.message
-    };
-  }
+    const targetRef = validation.targetRef;
+    const targetCost = Math.max(0, Number(step.value ?? 0));
 
-  const targetRef = validation.targetRef;
-  const targetCost = Math.max(0, Number(step.value ?? 0));
+    targetRef.card.tempCostOverride = targetCost;
 
-  targetRef.card.tempCostOverride = targetCost;
-
-  return {
-    nextState,
-    success: true,
-    message: `${targetRef.card.name || targetRef.card.cardId} cost became ${targetCost}.`
-  };
-}
-
-if (step.type === "negate_effects") {
-  const validation = validateEffectTarget(nextState, step, targetInstanceId);
-
-  if (!validation.valid) {
-    return {
-      nextState: state,
-      success: false,
-      message: validation.message
-    };
-  }
-
-  const targetRef = validation.targetRef;
-
-  targetRef.card.effectsNegated = true;
-
-  return {
-    nextState,
-    success: true,
-    message: `${targetRef.card.name || targetRef.card.cardId}'s effects were negated.`
-  };
-}
-
-if (step.type === "cannot_attack") {
-  const validation = validateEffectTarget(nextState, step, targetInstanceId);
-
-  if (!validation.valid) {
-    return {
-      nextState: state,
-      success: false,
-      message: validation.message
-    };
-  }
-
-  const targetRef = validation.targetRef;
-
-  targetRef.card.cannotAttack = true;
-
-  return {
-    nextState,
-    success: true,
-    message: `${targetRef.card.name || targetRef.card.cardId} cannot attack this turn.`
-  };
-}
-
-if (step.type === "mill_top_deck") {
-  const playerKey = step.player || "you";
-  const count = Number(step.count || 0);
-  const player = nextState[playerKey];
-
-  if (!player) {
-    return {
-      nextState: state,
-      success: false,
-      message: "Player state not found."
-    };
-  }
-
-  player.deck = player.deck || [];
-  player.trash = player.trash || [];
-
-  if (count <= 0) {
     return {
       nextState,
       success: true,
-      message: "No cards milled."
+      message: `${targetRef.card.name || targetRef.card.cardId} cost became ${targetCost}.`
     };
   }
 
-  if (player.deck.length < count) {
+  if (step.type === "negate_effects") {
+    const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+    if (!validation.valid) {
+      return {
+        nextState: state,
+        success: false,
+        message: validation.message
+      };
+    }
+
+    const targetRef = validation.targetRef;
+
+    targetRef.card.effectsNegated = true;
+
+    return {
+      nextState,
+      success: true,
+      message: `${targetRef.card.name || targetRef.card.cardId}'s effects were negated.`
+    };
+  }
+
+  if (step.type === "cannot_attack") {
+    const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+    if (!validation.valid) {
+      return {
+        nextState: state,
+        success: false,
+        message: validation.message
+      };
+    }
+
+    const targetRef = validation.targetRef;
+
+    targetRef.card.cannotAttack = true;
+
+    return {
+      nextState,
+      success: true,
+      message: `${targetRef.card.name || targetRef.card.cardId} cannot attack this turn.`
+    };
+  }
+
+if (step.type === "grant_rush") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
     return {
       nextState: state,
       success: false,
-      message: `Not enough scripted deck cards to mill ${count}.`
+      message: validation.message
     };
   }
 
-  const milledCards = player.deck.splice(0, count);
+  const targetRef = validation.targetRef;
+  const rushType = step.rushType === "character" ? "character" : "normal";
 
-  for (const milledCard of milledCards) {
-    addCardToTrash(player, milledCard);
-  }
-
-  player.deckCount = Math.max(
-    0,
-    Number(player.deckCount || 0) - milledCards.length
-  );
-
-  player.trashCount = player.trash.length;
+  targetRef.card.gainedRush = true;
+  targetRef.card.gainedRushType = rushType;
 
   return {
     nextState,
     success: true,
-    message: `Milled ${milledCards
-      .map((card) => card.name || card.cardId || card.id)
-      .join(", ")}.`
+    message:
+      rushType === "character"
+        ? `${targetRef.card.name || targetRef.card.cardId} gained Character Rush.`
+        : `${targetRef.card.name || targetRef.card.cardId} gained Rush.`
   };
 }
+
+  if (step.type === "mill_top_deck") {
+    const playerKey = step.player || "you";
+    const count = Number(step.count || 0);
+    const player = nextState[playerKey];
+
+    if (!player) {
+      return {
+        nextState: state,
+        success: false,
+        message: "Player state not found."
+      };
+    }
+
+    player.deck = player.deck || [];
+    player.trash = player.trash || [];
+
+    if (count <= 0) {
+      return {
+        nextState,
+        success: true,
+        message: "No cards milled."
+      };
+    }
+
+    if (player.deck.length < count) {
+      return {
+        nextState: state,
+        success: false,
+        message: `Not enough scripted deck cards to mill ${count}.`
+      };
+    }
+
+    const milledCards = player.deck.splice(0, count);
+
+    for (const milledCard of milledCards) {
+      addCardToTrash(player, milledCard);
+    }
+
+    player.deckCount = Math.max(
+      0,
+      Number(player.deckCount || 0) - milledCards.length
+    );
+
+    player.trashCount = player.trash.length;
+
+    return {
+      nextState,
+      success: true,
+      message: `Milled ${milledCards
+        .map((card) => card.name || card.cardId || card.id)
+        .join(", ")}.`
+    };
+  }
 
 
 
@@ -735,29 +1085,39 @@ if (step.type === "mill_top_deck") {
       };
     }
 
-    case "ko_power_or_less": {
-      if (targetRef.zone !== "board") {
-        return {
-          nextState: state,
-          success: false,
-          message: "You can only KO a character."
-        };
+   case "ko_power_or_less": {
+  if (targetRef.zone !== "board") {
+    return {
+      nextState: state,
+      success: false,
+      message: "You can only KO a character."
+    };
+  }
+
+  const koCard = {
+    ...targetRef.card
+  };
+
+  addCardToTrash(nextState[targetRef.side], targetRef.card);
+
+  nextState[targetRef.side].board = removeCardFromBoard(
+    nextState[targetRef.side].board,
+    targetRef.card.instanceId
+  );
+
+  return {
+    nextState,
+    success: true,
+    message: `${targetRef.card.name} was KO'd.`,
+    koCards: [
+      {
+        side: targetRef.side,
+        card: koCard
       }
+    ]
+  };
+}
 
-      addCardToTrash(nextState[targetRef.side], targetRef.card);
-
-      nextState[targetRef.side].board = removeCardFromBoard(
-        nextState[targetRef.side].board,
-        targetRef.card.instanceId
-      );
-
-      return {
-        nextState,
-        success: true,
-        message: `${targetRef.card.name} was KO'd.`
-      };
-    }
-    
 
     default:
       return {
@@ -831,9 +1191,9 @@ export function payAndTrashEvent(state, handIndex, effect = null) {
     nextState.you.don = nextState.you.don.map((don) =>
       extraDonIdsToRest.includes(don.id)
         ? {
-            ...don,
-            rested: true
-          }
+          ...don,
+          rested: true
+        }
         : don
     );
   }

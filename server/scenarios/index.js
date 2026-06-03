@@ -8,6 +8,7 @@ const scenario7 = require("./scenario-7");
 const scenario8 = require("./scenario-8");
 const scenario9 = require("./scenario-9");
 const scenario10 = require("./scenario-10");
+const scenario11 = require("./scenario-11");
 
 const scenarios = [
   scenario1,
@@ -19,7 +20,8 @@ const scenarios = [
   scenario7,
   scenario8,
   scenario9,
-  scenario10
+  scenario10,
+  scenario11
   
 
 ];

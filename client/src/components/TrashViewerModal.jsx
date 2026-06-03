@@ -2,10 +2,12 @@ import CardTile from "./CardTile";
 
 export default function TrashViewerModal({
   title,
-  cards = [],
+  cards,
   onClose,
   setHoveredCard,
-  onMobilePreview
+  onMobilePreview,
+  onCardClick,
+  side
 }) {
   return (
     <div className="trash-modal-overlay" onClick={onClose}>
@@ -29,6 +31,7 @@ export default function TrashViewerModal({
                 variant="hand"
                 setHoveredCard={setHoveredCard}
                 onMobilePreview={onMobilePreview}
+                onClick={() => onCardClick?.(card, index, side)}
               />
             ))}
           </div>

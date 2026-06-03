@@ -2,6 +2,7 @@ import {
   getDisplayedPower,
   canAttack,
   canAttackCharacterTarget,
+  canAttackLeaderTarget,
   getCounterValue,
   canUseBlocker,
   getAvailableBlockers,
@@ -225,14 +226,17 @@ function generatePossibleAttacks(state) {
         continue;
       }
 
-      if (attackState.opponent.leader?.instanceId) {
-        attacks.push({
-          stateBeforeAttack: attackState,
-          attackerId: simulatedAttackerRef.card.instanceId,
-          targetId: attackState.opponent.leader.instanceId,
-          attachedDonCount: donToAttach
-        });
-      }
+if (
+  attackState.opponent.leader?.instanceId &&
+  canAttackLeaderTarget(simulatedAttackerRef.card)
+) {
+  attacks.push({
+    stateBeforeAttack: attackState,
+    attackerId: simulatedAttackerRef.card.instanceId,
+    targetId: attackState.opponent.leader.instanceId,
+    attachedDonCount: donToAttach
+  });
+}
 
       for (const target of attackState.opponent.board || []) {
         if (target.rested || simulatedAttackerRef.card.canAttackActiveCharacters) {
@@ -1957,15 +1961,22 @@ export function resolveAttack(state, attackerId, targetId, scenario) {
   }
 
   if (!canAttack(attacker)) {
-    return { nextState, resultMessage: "That card cannot attack." };
-  }
+  return { nextState, resultMessage: "That card cannot attack." };
+}
 
-  if (targetRef.zone === "board" && !canAttackCharacterTarget(attacker, target)) {
-    return {
-      nextState,
-      resultMessage: `${attacker.name} cannot attack an active character.`
-    };
-  }
+if (targetRef.zone === "leader" && !canAttackLeaderTarget(attacker)) {
+  return {
+    nextState,
+    resultMessage: `${attacker.name || attacker.cardId} can only attack characters this turn.`
+  };
+}
+
+if (targetRef.zone === "board" && !canAttackCharacterTarget(attacker, target)) {
+  return {
+    nextState,
+    resultMessage: `${attacker.name || attacker.cardId} cannot attack an active character.`
+  };
+}
 
   const defenseResult = chooseBestOpponentDefense(
     nextState,

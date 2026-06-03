@@ -8,7 +8,7 @@ const API_BASE_URL =
 const DON_IMAGE =
   "https://www.optcgapi.com/media/static/Card_Images/DON_Card__Green_Compass_-_Starter_Deck_1_Straw_Hat_Crew_ST-01_img.jpg";
 
-  const DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK = {
+const DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK = {
   enabled: false,
   sourceInstanceId: "opponent-leader",
   requiredAttachedDon: 1,
@@ -24,18 +24,20 @@ const EMPTY_SCENARIO = {
   goal: {
     type: "win_this_turn"
   },
-opponentAI: {
-  counterFromHand: {
-    enabled: true,
-    allowedZones: ["leader", "board"],
-    strategy: "minimum_to_survive"
+  opponentAI: {
+    counterFromHand: {
+      enabled: true,
+      allowedZones: ["leader", "board"],
+      strategy: "minimum_to_survive"
+    },
+    blocker: {
+      enabled: true,
+      onlyWhenLethal: true
+    },
+    leaderTrashBoostOnAttack: {
+      ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK
+    }
   },
-  blocker: {
-    enabled: true,
-    onlyWhenLethal: true
-  },
-  leaderTrashBoostOnAttack: DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK
-},
   initialState: {
     you: {
       life: [],
@@ -425,25 +427,29 @@ export default function ScenarioBuilder() {
   const [buffPowerAmount, setBuffPowerAmount] = useState(2000);
   const [effectStepOptional, setEffectStepOptional] = useState(false);
   const [buffPowerTargetZones, setBuffPowerTargetZones] = useState({
-  leader: true,
-  board: true
-});
-const [cannotAttackMaxCost, setCannotAttackMaxCost] = useState(6);
-const [cannotAttackTargetMode, setCannotAttackTargetMode] = useState("priority_ids");
+    leader: true,
+    board: true
+  });
+  const [cannotAttackMaxCost, setCannotAttackMaxCost] = useState(6);
+  const [cannotAttackTargetMode, setCannotAttackTargetMode] = useState("priority_ids");
+  const [grantRushType, setGrantRushType] = useState("normal");
+  const [playFromTrashExactCost, setPlayFromTrashExactCost] = useState("");
+  const [playFromTrashManualSelect, setPlayFromTrashManualSelect] = useState(true);
+  const [playFromTrashAllowReplace, setPlayFromTrashAllowReplace] = useState(true);
 
-const [playFromTrashCardIdsText, setPlayFromTrashCardIdsText] = useState("");
-const [playFromTrashMaxCost, setPlayFromTrashMaxCost] = useState("");
-const [playFromTrashTraitsText, setPlayFromTrashTraitsText] = useState("");
-const [playFromTrashPlayer, setPlayFromTrashPlayer] = useState("opponent");
+  const [playFromTrashCardIdsText, setPlayFromTrashCardIdsText] = useState("");
+  const [playFromTrashMaxCost, setPlayFromTrashMaxCost] = useState("");
+  const [playFromTrashTraitsText, setPlayFromTrashTraitsText] = useState("");
+  const [playFromTrashPlayer, setPlayFromTrashPlayer] = useState("opponent");
 
   const [negateMaxCost, setNegateMaxCost] = useState(5);
 
   const [reduceCostToValue, setReduceCostToValue] = useState(0);
-const [millDeckCount, setMillDeckCount] = useState(3);
+  const [millDeckCount, setMillDeckCount] = useState(3);
 
   const [eventAdditionalRestDon, setEventAdditionalRestDon] = useState(0);
   const [playFromTrashEnterRested, setPlayFromTrashEnterRested] = useState(false);
-
+  const [restTargetMaxCost, setRestTargetMaxCost] = useState("");
   const [restTargetSide, setRestTargetSide] = useState("opponent");
   const [restTargetZones, setRestTargetZones] = useState({
     leader: false,
@@ -590,21 +596,21 @@ const [millDeckCount, setMillDeckCount] = useState(3);
   };
 
   const getSideFromPriorityId = (priorityId) => {
-  const value = String(priorityId || "");
+    const value = String(priorityId || "");
 
-  if (value.startsWith("you-")) return "you";
-  if (value.startsWith("opponent-")) return "opponent";
+    if (value.startsWith("you-")) return "you";
+    if (value.startsWith("opponent-")) return "opponent";
 
-  return null;
-};
+    return null;
+  };
 
-const inferTargetSidesFromPriorityIds = (priorityIds, fallbackSide) => {
-  const inferredSides = [
-    ...new Set(priorityIds.map(getSideFromPriorityId).filter(Boolean))
-  ];
+  const inferTargetSidesFromPriorityIds = (priorityIds, fallbackSide) => {
+    const inferredSides = [
+      ...new Set(priorityIds.map(getSideFromPriorityId).filter(Boolean))
+    ];
 
-  return inferredSides.length > 0 ? inferredSides : [fallbackSide];
-};
+    return inferredSides.length > 0 ? inferredSides : [fallbackSide];
+  };
 
   const removeFromTrash = (side, index) => {
     setScenario((prev) => {
@@ -813,25 +819,25 @@ const inferTargetSidesFromPriorityIds = (priorityIds, fallbackSide) => {
     }));
   };
 
-const clearStage = (side) => {
-  updatePlayerField(side, "stage", null);
-};
-
-const setStage = (side) => {
-  if (!cardResult) return;
-
-  const stageRef = {
-    ...cardResult,
-    cardId: cardResult.id,
-    instanceId: `${side}-stage`,
-    attachedDon: [],
-    rested: false,
-    passivePowerBonus: 0,
-    traits: normalizeTraits(cardResult.traits || cardResult.raw?.card_traits)
+  const clearStage = (side) => {
+    updatePlayerField(side, "stage", null);
   };
 
-  updatePlayerField(side, "stage", stageRef);
-};
+  const setStage = (side) => {
+    if (!cardResult) return;
+
+    const stageRef = {
+      ...cardResult,
+      cardId: cardResult.id,
+      instanceId: `${side}-stage`,
+      attachedDon: [],
+      rested: false,
+      passivePowerBonus: 0,
+      traits: normalizeTraits(cardResult.traits || cardResult.raw?.card_traits)
+    };
+
+    updatePlayerField(side, "stage", stageRef);
+  };
 
   const setGoalType = (value) => {
     setScenario((prev) => ({
@@ -980,13 +986,13 @@ const setStage = (side) => {
     { value: "life_trigger", label: "Life Trigger" }
   ];
 
-const normalizeAbilityArray = (entry) => {
-  if (!entry) return [];
+  const normalizeAbilityArray = (entry) => {
+    if (!entry) return [];
 
-  const array = Array.isArray(entry) ? entry : [entry];
+    const array = Array.isArray(entry) ? entry : [entry];
 
-  return array.filter((ability) => ability && typeof ability === "object");
-};
+    return array.filter((ability) => ability && typeof ability === "object");
+  };
 
   const makeAbilityId = (sourceKey, trigger) => {
     const safeSource = String(sourceKey || "card")
@@ -1106,139 +1112,263 @@ const normalizeAbilityArray = (entry) => {
     return nextAbility;
   };
 
+  const addAbilityPlayFromTrashStep = () => {
+    const cardIds = playFromTrashCardIdsText
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const requiredTraits = playFromTrashTraitsText
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const step = {
+      id: `play_from_trash_${Date.now()}`,
+      type: "play_from_trash",
+      player: playFromTrashPlayer,
+      requiredCardType: "character",
+      enterRested: playFromTrashEnterRested,
+      manualSelect: playFromTrashManualSelect,
+      allowReplace: playFromTrashAllowReplace,
+      optional: effectStepOptional,
+      prompt:
+        playFromTrashManualSelect && playFromTrashPlayer === "you"
+          ? "Choose a valid character from your trash to play."
+          : "Play a valid character from trash."
+    };
+
+    if (cardIds.length > 0) {
+      step.cardIds = cardIds;
+    }
+
+    if (playFromTrashMaxCost !== "") {
+      const maxCost = Number(playFromTrashMaxCost);
+
+      if (!Number.isFinite(maxCost) || maxCost < 0) {
+        alert("Enter a valid max cost.");
+        return;
+      }
+
+      step.maxCost = maxCost;
+    }
+
+    if (playFromTrashExactCost !== "") {
+      const exactCost = Number(playFromTrashExactCost);
+
+      if (!Number.isFinite(exactCost) || exactCost < 0) {
+        alert("Enter a valid exact cost.");
+        return;
+      }
+
+      step.exactCost = exactCost;
+    }
+
+    if (requiredTraits.length > 0) {
+      step.requiredTraits = requiredTraits;
+    }
+
+    addAbilityStep(step, abilityStepPlacement);
+  };
+
   const addAbilityCannotAttackStep = () => {
-  const zones = getSelectedZones(restTargetZones);
+    const maxCost = Number(cannotAttackMaxCost);
 
-  if (zones.length === 0) {
-    alert("Choose at least one target zone.");
-    return;
-  }
+    if (!Number.isFinite(maxCost) || maxCost < 0) {
+      alert("Enter a valid max cost.");
+      return;
+    }
 
-  if (!zones.includes("board")) {
-    alert("Cannot Attack should target Character / Board.");
-    return;
-  }
+    const targetPriorityIds = cannotAttackPriorityIdsText
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
 
-  const targetPriorityIds = cannotAttackPriorityIdsText
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
+    const targetSides = inferTargetSidesFromPriorityIds(
+      targetPriorityIds,
+      restTargetSide
+    );
 
-  addAbilityStep(
-    {
+    const step = {
       id: `cannot_attack_${Date.now()}`,
       type: "cannot_attack",
       optional: effectStepOptional,
       requireCanAttack: true,
-      maxCost: Number(cannotAttackMaxCost),
+      maxCost,
       targetPriorityMode: cannotAttackTargetMode,
-      prompt: `Choose ${
-        restTargetSide === "opponent" ? "an opponent" : "your"
-      } character. It cannot attack this turn.`,
+      prompt:
+        cannotAttackTargetMode === "highest_power"
+          ? `Choose the highest-power character with cost ${maxCost} or less. It cannot attack this turn.`
+          : `Choose a character with cost ${maxCost} or less. It cannot attack this turn.`,
       targetRules: {
-        sides: [restTargetSide],
+        sides: targetSides,
         zones: ["board"]
       },
       targetPriorityIds
-    },
-    abilityStepPlacement
-  );
-};
+    };
 
-  
-  const addAbilityNegateEffectsStep = () => {
-  const maxCost = Number(negateMaxCost);
+    addAbilityStep(step, abilityStepPlacement);
+  };
 
-  if (!Number.isFinite(maxCost) || maxCost < 0) {
-    alert("Enter a valid max cost.");
-    return;
-  }
+  const addAbilityTrashToHandStep = () => {
+    const cardIds = playFromTrashCardIdsText
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
 
-  addAbilityStep(
-    {
-      id: `negate_effects_${Date.now()}`,
-      type: "negate_effects",
-      maxCost,
+    const requiredTraits = playFromTrashTraitsText
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const step = {
+      id: `trash_to_hand_${Date.now()}`,
+      type: "trash_to_hand",
+      player: playFromTrashPlayer,
+      requiredCardType: "character",
+      manualSelect: true,
       optional: effectStepOptional,
-      prompt: `Choose an opponent character with cost ${maxCost} or less to negate its effects.`,
-      targetRules: {
-        sides: ["opponent"],
-        zones: ["board"]
+      prompt: "Choose a valid character from your trash to add to hand."
+    };
+
+    if (cardIds.length > 0) {
+      step.cardIds = cardIds;
+    }
+
+    if (playFromTrashMaxCost !== "") {
+      const maxCost = Number(playFromTrashMaxCost);
+
+      if (!Number.isFinite(maxCost) || maxCost < 0) {
+        alert("Enter a valid max cost.");
+        return;
       }
-    },
-    abilityStepPlacement
-  );
-};
+
+      step.maxCost = maxCost;
+    }
+
+    if (playFromTrashExactCost !== "") {
+      const exactCost = Number(playFromTrashExactCost);
+
+      if (!Number.isFinite(exactCost) || exactCost < 0) {
+        alert("Enter a valid exact cost.");
+        return;
+      }
+
+      step.exactCost = exactCost;
+    }
+
+    if (requiredTraits.length > 0) {
+      step.requiredTraits = requiredTraits;
+    }
+
+    addAbilityStep(step, abilityStepPlacement);
+  };
+
+  const addAbilityGrantRushStep = () => {
+    addAbilityStep(
+      {
+        id: `grant_rush_${Date.now()}`,
+        type: "grant_rush",
+        targetSelf: true,
+        rushType: grantRushType,
+        optional: effectStepOptional
+      },
+      abilityStepPlacement
+    );
+  };
+
+
+  const addAbilityNegateEffectsStep = () => {
+    const maxCost = Number(negateMaxCost);
+
+    if (!Number.isFinite(maxCost) || maxCost < 0) {
+      alert("Enter a valid max cost.");
+      return;
+    }
+
+    addAbilityStep(
+      {
+        id: `negate_effects_${Date.now()}`,
+        type: "negate_effects",
+        maxCost,
+        optional: effectStepOptional,
+        prompt: `Choose an opponent character with cost ${maxCost} or less to negate its effects.`,
+        targetRules: {
+          sides: ["opponent"],
+          zones: ["board"]
+        }
+      },
+      abilityStepPlacement
+    );
+  };
 
   const addAbilityKoTargetStep = () => {
-  const zones = getSelectedZones(restTargetZones);
+    const zones = getSelectedZones(restTargetZones);
 
-  if (zones.length === 0) {
-    alert("Choose at least one valid target zone.");
-    return;
-  }
+    if (zones.length === 0) {
+      alert("Choose at least one valid target zone.");
+      return;
+    }
 
-  addAbilityStep(
-    {
-      id: `ko_target_${Date.now()}`,
-      type: "ko_target",
-      optional: effectStepOptional,
-      prompt: `Choose ${
-        restTargetSide === "opponent" ? "an opponent" : "your"
-      } ${zones.join(" or ")} to KO${
-        effectStepOptional ? ", or skip this optional effect." : "."
-      }`,
-      targetRules: {
-        sides: [restTargetSide],
-        zones
-      }
-    },
-    abilityStepPlacement
-  );
-};
+    addAbilityStep(
+      {
+        id: `ko_target_${Date.now()}`,
+        type: "ko_target",
+        optional: effectStepOptional,
+        prompt: `Choose ${restTargetSide === "opponent" ? "an opponent" : "your"
+          } ${zones.join(" or ")} to KO${effectStepOptional ? ", or skip this optional effect." : "."
+          }`,
+        targetRules: {
+          sides: [restTargetSide],
+          zones
+        }
+      },
+      abilityStepPlacement
+    );
+  };
 
-const addAbilityReduceCostToStep = () => {
-  const targetCost = Number(reduceCostToValue);
+  const addAbilityReduceCostToStep = () => {
+    const targetCost = Number(reduceCostToValue);
 
-  if (!Number.isFinite(targetCost) || targetCost < 0) {
-    alert("Enter a valid cost value.");
-    return;
-  }
+    if (!Number.isFinite(targetCost) || targetCost < 0) {
+      alert("Enter a valid cost value.");
+      return;
+    }
 
-  addAbilityStep(
-    {
-      id: `reduce_cost_to_${Date.now()}`,
-      type: "reduce_cost_to",
-      value: targetCost,
-      optional: effectStepOptional,
-      prompt: `Choose an opponent character to make cost ${targetCost}.`,
-      targetRules: {
-        sides: ["opponent"],
-        zones: ["board"]
-      }
-    },
-    abilityStepPlacement
-  );
-};
+    addAbilityStep(
+      {
+        id: `reduce_cost_to_${Date.now()}`,
+        type: "reduce_cost_to",
+        value: targetCost,
+        optional: effectStepOptional,
+        prompt: `Choose an opponent character to make cost ${targetCost}.`,
+        targetRules: {
+          sides: ["opponent"],
+          zones: ["board"]
+        }
+      },
+      abilityStepPlacement
+    );
+  };
 
-const addAbilityMillTopDeckStep = () => {
-  const count = Number(millDeckCount);
+  const addAbilityMillTopDeckStep = () => {
+    const count = Number(millDeckCount);
 
-  if (!Number.isFinite(count) || count <= 0) {
-    alert("Enter a valid mill count.");
-    return;
-  }
+    if (!Number.isFinite(count) || count <= 0) {
+      alert("Enter a valid mill count.");
+      return;
+    }
 
-  addAbilityStep(
-    {
-      id: `mill_top_deck_${Date.now()}`,
-      type: "mill_top_deck",
-      player: "you",
-      count
-    },
-    abilityStepPlacement
-  );
-};
+    addAbilityStep(
+      {
+        id: `mill_top_deck_${Date.now()}`,
+        type: "mill_top_deck",
+        player: "you",
+        count
+      },
+      abilityStepPlacement
+    );
+  };
 
   const addAbilityReturnTargetToHandStep = () => {
     const zones = getSelectedZones(restTargetZones);
@@ -1278,52 +1408,22 @@ const addAbilityMillTopDeckStep = () => {
       .map((value) => value.trim())
       .filter(Boolean);
 
-    addAbilityStep({
-      id: `play_top_life_if_${Date.now()}`,
-      type: "play_top_life_if",
-      player: "you",
-      exactCost,
-      requiredCardType: "character",
-      requiredTraits,
-      failMessage: `Top life is not a ${exactCost}-cost ${requiredTraits.join(
-        " / "
-      )} character.`
-    });
+    addAbilityStep(
+      {
+        id: `play_top_life_if_${Date.now()}`,
+        type: "play_top_life_if",
+        player: "you",
+        exactCost,
+        requiredCardType: "character",
+        requiredTraits,
+        failMessage: `Top life is not a ${exactCost}-cost ${requiredTraits.join(
+          " / "
+        )} character.`
+      },
+      abilityStepPlacement
+    );
   };
 
-
-  const addAbilityPlayFromTrashStep = () => {
-  const cardIds = playFromTrashCardIdsText
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  const requiredTraits = playFromTrashTraitsText
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-const step = {
-  id: `play_from_trash_${Date.now()}`,
-  type: "play_from_trash",
-  player: playFromTrashPlayer,
-  requiredCardType: "character",
-  enterRested: playFromTrashEnterRested
-};
-  if (cardIds.length > 0) {
-    step.cardIds = cardIds;
-  }
-
-  if (playFromTrashMaxCost !== "") {
-    step.maxCost = Number(playFromTrashMaxCost);
-  }
-
-  if (requiredTraits.length > 0) {
-    step.requiredTraits = requiredTraits;
-  }
-
-  addAbilityStep(step, abilityStepPlacement);
-};
 
   const addAbilityStep = (step, placement = "steps") => {
     const sourceKey = abilitySourceKey.trim();
@@ -1526,7 +1626,7 @@ const step = {
       return;
     }
 
-    addEffectStep(sourceCardId, {
+    const step = {
       id: `rest_target_${Date.now()}`,
       type: "rest_target",
       optional: effectStepOptional,
@@ -1537,7 +1637,21 @@ const step = {
         sides: [restTargetSide],
         zones
       }
-    });
+    };
+
+    if (restTargetMaxCost !== "" && zones.includes("board")) {
+      const maxCost = Number(restTargetMaxCost);
+
+      if (!Number.isFinite(maxCost) || maxCost < 0) {
+        alert("Enter a valid rest target max cost.");
+        return;
+      }
+
+      step.maxCost = maxCost;
+      step.prompt = `Choose ${restTargetSide === "opponent" ? "an opponent" : "your"} character with cost ${maxCost} or less to rest${effectStepOptional ? ", or skip this optional effect." : "."}`;
+    }
+
+    addEffectStep(sourceCardId, step);
   };
 
   const upsertActivateMainAbility = (sourceInstanceId, abilityData) => {
@@ -1615,44 +1729,44 @@ const step = {
     });
   };
 
-const addBuffPowerStep = (sourceCardId, amount) => {
-  const parsedAmount = Number(amount);
-  const zones = getSelectedZones(buffPowerTargetZones);
+  const addBuffPowerStep = (sourceCardId, amount) => {
+    const parsedAmount = Number(amount);
+    const zones = getSelectedZones(buffPowerTargetZones);
 
-  if (!sourceCardId) {
-    alert("Enter the event card ID.");
-    return;
-  }
-
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-    alert("Enter a valid buff amount.");
-    return;
-  }
-
-  if (zones.length === 0) {
-    alert("Choose Leader, Character / Board, or both for the buff target.");
-    return;
-  }
-
-  const targetLabel =
-    zones.includes("leader") && zones.includes("board")
-      ? "your leader or character"
-      : zones.includes("leader")
-        ? "your leader"
-        : "your character";
-
-  addEffectStep(sourceCardId, {
-    id: `buff_power_${Date.now()}`,
-    type: "buff_power",
-    amount: parsedAmount,
-    optional: effectStepOptional,
-    prompt: `Choose ${targetLabel} to give +${parsedAmount} power.`,
-    targetRules: {
-      sides: ["you"],
-      zones
+    if (!sourceCardId) {
+      alert("Enter the event card ID.");
+      return;
     }
-  });
-};
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      alert("Enter a valid buff amount.");
+      return;
+    }
+
+    if (zones.length === 0) {
+      alert("Choose Leader, Character / Board, or both for the buff target.");
+      return;
+    }
+
+    const targetLabel =
+      zones.includes("leader") && zones.includes("board")
+        ? "your leader or character"
+        : zones.includes("leader")
+          ? "your leader"
+          : "your character";
+
+    addEffectStep(sourceCardId, {
+      id: `buff_power_${Date.now()}`,
+      type: "buff_power",
+      amount: parsedAmount,
+      optional: effectStepOptional,
+      prompt: `Choose ${targetLabel} to give +${parsedAmount} power.`,
+      targetRules: {
+        sides: ["you"],
+        zones
+      }
+    });
+  };
   const addReducePowerStep = (sourceCardId, amount) => {
     const parsedAmount = Number(amount);
 
@@ -1733,59 +1847,69 @@ const addBuffPowerStep = (sourceCardId, amount) => {
       return;
     }
 
+    const step = {
+      id: `rest_target_${Date.now()}`,
+      type: "rest_target",
+      optional: effectStepOptional,
+      prompt: `Choose ${restTargetSide === "opponent" ? "an opponent" : "your"
+        } ${zones.join(" or ")} to rest${effectStepOptional ? ", or skip this optional effect." : "."
+        }`,
+      targetRules: {
+        sides: [restTargetSide],
+        zones
+      }
+    };
+
+    if (restTargetMaxCost !== "" && zones.includes("board")) {
+      const maxCost = Number(restTargetMaxCost);
+
+      if (!Number.isFinite(maxCost) || maxCost < 0) {
+        alert("Enter a valid rest target max cost.");
+        return;
+      }
+
+      step.maxCost = maxCost;
+      step.prompt = `Choose ${restTargetSide === "opponent" ? "an opponent" : "your"} character with cost ${maxCost} or less to rest${effectStepOptional ? ", or skip this optional effect." : "."}`;
+    }
+
+    addAbilityStep(step, abilityStepPlacement);
+  };
+  const addAbilityBuffPowerStep = () => {
+    const parsedAmount = Number(buffPowerAmount);
+    const zones = getSelectedZones(buffPowerTargetZones);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      alert("Enter a valid buff amount.");
+      return;
+    }
+
+    if (zones.length === 0) {
+      alert("Choose Leader, Character / Board, or both for the buff target.");
+      return;
+    }
+
+    const targetLabel =
+      zones.includes("leader") && zones.includes("board")
+        ? "your leader or character"
+        : zones.includes("leader")
+          ? "your leader"
+          : "your character";
+
     addAbilityStep(
       {
-        id: `rest_target_${Date.now()}`,
-        type: "rest_target",
+        id: `buff_power_${Date.now()}`,
+        type: "buff_power",
+        amount: parsedAmount,
         optional: effectStepOptional,
-        prompt: `Choose ${restTargetSide === "opponent" ? "an opponent" : "your"
-          } ${zones.join(" or ")} to rest${effectStepOptional ? ", or skip this optional effect." : "."
-          }`,
+        prompt: `Choose ${targetLabel} to give +${parsedAmount} power.`,
         targetRules: {
-          sides: [restTargetSide],
+          sides: ["you"],
           zones
         }
       },
       abilityStepPlacement
     );
   };
-
- const addAbilityBuffPowerStep = () => {
-  const parsedAmount = Number(buffPowerAmount);
-  const zones = getSelectedZones(buffPowerTargetZones);
-
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-    alert("Enter a valid buff amount.");
-    return;
-  }
-
-  if (zones.length === 0) {
-    alert("Choose Leader, Character / Board, or both for the buff target.");
-    return;
-  }
-
-  const targetLabel =
-    zones.includes("leader") && zones.includes("board")
-      ? "your leader or character"
-      : zones.includes("leader")
-        ? "your leader"
-        : "your character";
-
-  addAbilityStep(
-    {
-      id: `buff_power_${Date.now()}`,
-      type: "buff_power",
-      amount: parsedAmount,
-      optional: effectStepOptional,
-      prompt: `Choose ${targetLabel} to give +${parsedAmount} power.`,
-      targetRules: {
-        sides: ["you"],
-        zones
-      }
-    },
-    abilityStepPlacement
-  );
-};
   const addAbilityReducePowerStep = () => {
     const parsedAmount = Number(reducePowerAmount);
 
@@ -2162,27 +2286,79 @@ module.exports = scenario;
   };
 
   const getLeaderTrashBoostConfig = () => {
-  return {
-    ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK,
-    ...(scenario.opponentAI?.leaderTrashBoostOnAttack || {})
+    return {
+      ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK,
+      ...(scenario.opponentAI?.leaderTrashBoostOnAttack || {})
+    };
   };
-};
 
-const updateLeaderTrashBoostConfig = (patch) => {
-  setScenario((prev) => ({
-    ...prev,
-    opponentAI: {
-      ...(prev.opponentAI || {}),
-      leaderTrashBoostOnAttack: {
-        ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK,
-        ...(prev.opponentAI?.leaderTrashBoostOnAttack || {}),
-        ...patch
+  const updateLeaderTrashBoostConfig = (patch) => {
+    setScenario((prev) => ({
+      ...prev,
+      opponentAI: {
+        ...(prev.opponentAI || {}),
+        leaderTrashBoostOnAttack: {
+          ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK,
+          ...(prev.opponentAI?.leaderTrashBoostOnAttack || {}),
+          ...patch
+        }
       }
-    }
-  }));
-};
+    }));
+  };
 
-const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
+  const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
+  const renderStepSummary = (step, label) => {
+    return (
+      <>
+        {label}. {step.type}
+        {step.amount != null ? ` (${step.amount})` : ""}
+        {step.value != null ? ` (to ${step.value})` : ""}
+        {step.count != null ? ` (${step.count})` : ""}
+        {step.maxCost != null ? ` - Cost ${step.maxCost} or less` : ""}
+        {step.exactCost != null ? ` - Exact Cost ${step.exactCost}` : ""}
+        {step.maxPower != null ? ` - Max Power ${step.maxPower}` : ""}
+        {step.cardIds?.length ? ` - IDs: ${step.cardIds.join(", ")}` : ""}
+        {step.type === "play_from_trash" ? (
+          <>
+            {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+            {step.enterRested ? " - Enters Rested" : " - Enters Active"}
+            {step.manualSelect ? " - Manual Select" : " - Auto Select"}
+            {step.allowReplace ? " - Can Replace" : ""}
+            {step.requiredTraits?.length
+              ? ` - Traits: ${step.requiredTraits.join(", ")}`
+              : ""}
+          </>
+        ) : null}
+        {step.type === "trash_to_hand" ? (
+  <>
+    {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+    {step.manualSelect ? " - Manual Select" : " - Auto Select"}
+    {step.maxCost != null ? ` - Cost ${step.maxCost} or less` : ""}
+    {step.exactCost != null ? ` - Exact Cost ${step.exactCost}` : ""}
+    {step.cardIds?.length ? ` - IDs: ${step.cardIds.join(", ")}` : ""}
+    {step.requiredTraits?.length
+      ? ` - Traits: ${step.requiredTraits.join(", ")}`
+      : ""}
+  </>
+) : null}
+        {step.type === "cannot_attack" ? (
+          <>
+            {step.targetPriorityMode ? ` - Mode: ${step.targetPriorityMode}` : ""}
+            {step.targetPriorityIds?.length
+              ? ` - Priority: ${step.targetPriorityIds.join(" > ")}`
+              : ""}
+          </>
+        ) : null}
+        {step.type === "grant_rush" ? " - Grants Rush" : ""}
+        {step.type === "grant_rush" && step.targetSelf ? " - Targets Self" : ""}
+        {step.type === "grant_rush"
+          ? ` - ${step.rushType === "character" ? "Character Rush" : "Rush"}`
+          : ""}
+        {step.type === "grant_rush" && step.targetSelf ? " - Targets Self" : ""}
+        {step.optional ? " - Optional" : " - Required"}
+      </>
+    );
+  };
   const renderDonPresetPanel = (side, label) => {
     const sideData = scenario.initialState[side];
 
@@ -2375,98 +2551,98 @@ const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
           {renderDonPresetPanel("opponent", "Opponent")}
 
           <section className="panel">
-  <h2>Opponent AI Defensive Effects</h2>
+            <h2>Opponent AI Defensive Effects</h2>
 
-  <div className="builder-list-card">
-    <div className="builder-list-card-title">
-      Leader Trash Boost When Attacked
-    </div>
+            <div className="builder-list-card">
+              <div className="builder-list-card-title">
+                Leader Trash Boost When Attacked
+              </div>
 
-    <p>
-      Use this for effects like: DON!! x1, trash 1 card from hand, make leader
-      7000 power for the attack. The AI will trash the lowest counter card first.
-    </p>
+              <p>
+                Use this for effects like: DON!! x1, trash 1 card from hand, make leader
+                7000 power for the attack. The AI will trash the lowest counter card first.
+              </p>
 
-    <label>
-      <input
-        type="checkbox"
-        checked={!!leaderTrashBoostConfig.enabled}
-        onChange={(event) =>
-          updateLeaderTrashBoostConfig({
-            enabled: event.target.checked
-          })
-        }
-      />
-      Enable this opponent defensive effect
-    </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!leaderTrashBoostConfig.enabled}
+                  onChange={(event) =>
+                    updateLeaderTrashBoostConfig({
+                      enabled: event.target.checked
+                    })
+                  }
+                />
+                Enable this opponent defensive effect
+              </label>
 
-    <label>Source Instance ID</label>
-    <input
-      value={leaderTrashBoostConfig.sourceInstanceId}
-      onChange={(event) =>
-        updateLeaderTrashBoostConfig({
-          sourceInstanceId: event.target.value
-        })
-      }
-      placeholder="opponent-leader"
-    />
+              <label>Source Instance ID</label>
+              <input
+                value={leaderTrashBoostConfig.sourceInstanceId}
+                onChange={(event) =>
+                  updateLeaderTrashBoostConfig({
+                    sourceInstanceId: event.target.value
+                  })
+                }
+                placeholder="opponent-leader"
+              />
 
-    <label>Required Attached DON</label>
-    <input
-      type="number"
-      value={leaderTrashBoostConfig.requiredAttachedDon}
-      onChange={(event) =>
-        updateLeaderTrashBoostConfig({
-          requiredAttachedDon: Number(event.target.value)
-        })
-      }
-      placeholder="1"
-    />
+              <label>Required Attached DON</label>
+              <input
+                type="number"
+                value={leaderTrashBoostConfig.requiredAttachedDon}
+                onChange={(event) =>
+                  updateLeaderTrashBoostConfig({
+                    requiredAttachedDon: Number(event.target.value)
+                  })
+                }
+                placeholder="1"
+              />
 
-    <label>Leader Power During Attack</label>
-    <input
-      type="number"
-      value={leaderTrashBoostConfig.targetPower}
-      onChange={(event) =>
-        updateLeaderTrashBoostConfig({
-          targetPower: Number(event.target.value)
-        })
-      }
-      placeholder="7000"
-    />
+              <label>Leader Power During Attack</label>
+              <input
+                type="number"
+                value={leaderTrashBoostConfig.targetPower}
+                onChange={(event) =>
+                  updateLeaderTrashBoostConfig({
+                    targetPower: Number(event.target.value)
+                  })
+                }
+                placeholder="7000"
+              />
 
-    <label>
-      <input
-        type="checkbox"
-        checked={leaderTrashBoostConfig.oncePerTurn !== false}
-        onChange={(event) =>
-          updateLeaderTrashBoostConfig({
-            oncePerTurn: event.target.checked
-          })
-        }
-      />
-      Once Per Turn
-    </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={leaderTrashBoostConfig.oncePerTurn !== false}
+                  onChange={(event) =>
+                    updateLeaderTrashBoostConfig({
+                      oncePerTurn: event.target.checked
+                    })
+                  }
+                />
+                Once Per Turn
+              </label>
 
-    <label>Trash Strategy</label>
-    <select
-      value={leaderTrashBoostConfig.discardStrategy || "lowest_counter"}
-      onChange={(event) =>
-        updateLeaderTrashBoostConfig({
-          discardStrategy: event.target.value
-        })
-      }
-    >
-      <option value="lowest_counter">Lowest Counter First</option>
-    </select>
+              <label>Trash Strategy</label>
+              <select
+                value={leaderTrashBoostConfig.discardStrategy || "lowest_counter"}
+                onChange={(event) =>
+                  updateLeaderTrashBoostConfig({
+                    discardStrategy: event.target.value
+                  })
+                }
+              >
+                <option value="lowest_counter">Lowest Counter First</option>
+              </select>
 
-    <small>
-      Important: the opponent leader must actually have attached DON in the board
-      state. Use the Opponent DON Preset section to attach DON to
-      opponent-leader.
-    </small>
-  </div>
-</section>
+              <small>
+                Important: the opponent leader must actually have attached DON in the board
+                state. Use the Opponent DON Preset section to attach DON to
+                opponent-leader.
+              </small>
+            </div>
+          </section>
 
           <section className="panel">
             <h2>Leaders / Stage</h2>
@@ -2675,645 +2851,677 @@ const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
           </section>
 
           <section className="panel">
-  <h2>Card Abilities</h2>
-
-  <p>
-    Create card effects using a source card, trigger timing, and reusable effect
-    steps. Use card IDs for events or generic card effects. Use instance IDs like{" "}
-    <strong>you-leader</strong> or <strong>you-board-1</strong> for specific
-    cards already on board.
-  </p>
-
-  <div className="builder-grid-two">
-    <div className="builder-list-card">
-      <div className="builder-list-card-title">1. Ability Setup</div>
-
-      <label>Source Card ID / Instance ID</label>
-      <input
-        value={abilitySourceKey}
-        onChange={(event) => setAbilitySourceKey(event.target.value)}
-        placeholder="OP12-037 or you-leader"
-      />
-
-      <label>Trigger Timing</label>
-      <select
-        value={abilityTrigger}
-        onChange={(event) => setAbilityTrigger(event.target.value)}
-      >
-        {ABILITY_TRIGGER_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-
-      <label>Ability Name</label>
-      <input
-        value={abilityName}
-        onChange={(event) => setAbilityName(event.target.value)}
-        placeholder="Rest 2 Opponent Cards"
-      />
-
-      <label>
-        <input
-          type="checkbox"
-          checked={abilityOncePerTurn}
-          onChange={(event) => setAbilityOncePerTurn(event.target.checked)}
-        />
-        Once Per Turn
-      </label>
-
-      <label>Required Attached DON on Source</label>
-      <input
-        type="number"
-        value={activateRequiredAttachedDon}
-        disabled={abilityTrigger !== "activate_main"}
-        onChange={(event) =>
-          setActivateRequiredAttachedDon(Number(event.target.value))
-        }
-        placeholder="0"
-      />
-      <small>
-        Only for Activate: Main abilities. Example: DON!! x1 means enter 1.
-      </small>
-      <br></br>
-
-      <label>Additional DON to Rest</label>
-      <input
-        type="number"
-        value={eventAdditionalRestDon}
-        disabled={abilityTrigger !== "on_play"}
-        onChange={(event) =>
-          setEventAdditionalRestDon(Number(event.target.value))
-        }
-        placeholder="0"
-      />
-      <small>
-        Only for On Play event-style costs. Example: rest 2 extra DON.
-      </small>
-
-      <div className="builder-button-wrap" style={{ marginTop: "12px" }}>
-        <button onClick={createOrUpdateCurrentAbility}>
-          Create / Update Ability
-        </button>
-      </div>
-    </div>
-
-    <div className="builder-list-card">
-      <div className="builder-list-card-title">2. Next Step Settings</div>
-
-      <label>Add next step as</label>
-      <select
-        value={abilityStepPlacement}
-        onChange={(event) => setAbilityStepPlacement(event.target.value)}
-      >
-        <option value="steps">Effect Step</option>
-        <option value="costSteps">Activation Cost</option>
-      </select>
-
-      <small>
-        Effect Step = what the card does. Activation Cost = what must be paid
-        before the effect resolves.
-      </small>
-
-      <label>
-        <input
-          type="checkbox"
-          checked={effectStepOptional}
-          onChange={(event) => setEffectStepOptional(event.target.checked)}
-        />
-        This next step can be skipped
-      </label>
-
-      <small>
-        Use this for “you may” or “up to 1” effects. Do not use it for costs.
-      </small>
-    </div>
-  </div>
-
-  <hr style={{ margin: "16px 0" }} />
-
-  <label>Max Cost</label>
-<input
-  type="number"
-  value={cannotAttackMaxCost}
-  onChange={(event) => setCannotAttackMaxCost(Number(event.target.value))}
-  placeholder="6"
-/>
-
-  <div className="builder-list-card">
-  <div className="builder-list-card-title">Cannot Attack Step</div>
-
-  <p>
-    Uses Target Side. This should usually target Character / Board. Priority IDs
-    are checked in order and skipped if that character already attacked/rested.
-  </p>
-
-  <label>Priority Target IDs</label>
-  <input
-    value={cannotAttackPriorityIdsText}
-    onChange={(event) => setCannotAttackPriorityIdsText(event.target.value)}
-    placeholder="you-board-1, you-board-2, you-board-3"
-  />
-  <label>Cannot Attack Target Mode</label>
-<select
-  value={cannotAttackTargetMode}
-  onChange={(event) => setCannotAttackTargetMode(event.target.value)}
->
-  <option value="priority_ids">Priority IDs</option>
-  <option value="highest_power">Highest Power</option>
-</select>
-
-  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-    <button onClick={addAbilityCannotAttackStep}>
-      Add Cannot Attack Step
-    </button>
-  </div>
-</div>
-
-  <div className="builder-list-card">
-    <div className="builder-list-card-title">3. Target Settings</div>
-
-    <p>
-      These settings are used by target-based steps: Rest Target, Return to Hand,
-      KO Target, and similar effects.
-    </p>
-
-    <label>Target Side</label>
-    <select
-      value={restTargetSide}
-      onChange={(event) => setRestTargetSide(event.target.value)}
-    >
-      <option value="you">You</option>
-      <option value="opponent">Opponent</option>
-    </select>
-
-    <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-      <label>
-        <input
-          type="checkbox"
-          checked={restTargetZones.leader}
-          onChange={() => toggleZone(setRestTargetZones, "leader")}
-        />
-        Leader
-      </label>
-
-      <label>
-        <input
-          type="checkbox"
-          checked={restTargetZones.board}
-          onChange={() => toggleZone(setRestTargetZones, "board")}
-        />
-        Character / Board
-      </label>
-
-      <label>
-        <input
-          type="checkbox"
-          checked={restTargetZones.stage}
-          onChange={() => toggleZone(setRestTargetZones, "stage")}
-        />
-        Stage
-      </label>
-
-      <label>
-        <input
-          type="checkbox"
-          checked={restTargetZones.don}
-          onChange={() => toggleZone(setRestTargetZones, "don")}
-        />
-        DON
-      </label>
-    </div>
-  </div>
-
-  <hr style={{ margin: "16px 0" }} />
-
-  <div className="builder-grid-two">
-    <div className="builder-list-card">
-      <div className="builder-list-card-title">Target-Based Steps</div>
-
-      <p>
-        These use the Target Settings above.
-      </p>
-
-      <div className="builder-button-wrap">
-        <button onClick={addAbilityRestTargetStep}>
-          Add Rest Target
-        </button>
-
-        <button onClick={addAbilityReturnTargetToHandStep}>
-          Add Return Target to Hand
-        </button>
-
-        <button onClick={addAbilityKoTargetStep}>
-          Add KO Target
-        </button>
-      </div>
-
-      <small>
-        Example: For “KO one of your characters as cost”, set Target Side to You,
-        Zone to Character / Board, Add next step as Activation Cost, then click
-        Add KO Target.
-      </small>
-    </div>
-
-    <div className="builder-list-card">
-      <div className="builder-list-card-title">Opponent Character Steps</div>
-
-      <label>Negate Effects Max Cost</label>
-      <input
-        type="number"
-        value={negateMaxCost}
-        onChange={(event) => setNegateMaxCost(Number(event.target.value))}
-        placeholder="5"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityNegateEffectsStep}>
-          Add Negate Effects
-        </button>
-      </div>
-
-      <label>Set Cost To</label>
-      <input
-        type="number"
-        value={reduceCostToValue}
-        onChange={(event) =>
-          setReduceCostToValue(Number(event.target.value))
-        }
-        placeholder="0"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityReduceCostToStep}>
-          Add Reduce Cost To
-        </button>
-      </div>
-
-      <label>Power Reduction Amount</label>
-      <input
-        type="number"
-        value={reducePowerAmount}
-        onChange={(event) => setReducePowerAmount(Number(event.target.value))}
-        placeholder="4000"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityReducePowerStep}>
-          Add Reduce Power
-        </button>
-      </div>
-
-      <label>KO Max Power</label>
-      <input
-        type="number"
-        value={koMaxPower}
-        onChange={(event) => setKoMaxPower(Number(event.target.value))}
-        placeholder="0"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityKoPowerOrLessStep}>
-          Add KO Power or Less
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <hr style={{ margin: "16px 0" }} />
-
-  <div className="builder-grid-two">
-    <div className="builder-list-card">
-      <div className="builder-list-card-title">Resource / Deck Steps</div>
-        <div className="builder-list-card">
-  <div className="builder-list-card-title">Trash / Trigger Steps</div>
-
-  <label>Play From Trash Player</label>
-  <select
-    value={playFromTrashPlayer}
-    onChange={(event) => setPlayFromTrashPlayer(event.target.value)}
-  >
-    <option value="you">You</option>
-    <option value="opponent">Opponent</option>
-  </select>
-  <label>
-  <input
-    type="checkbox"
-    checked={playFromTrashEnterRested}
-    onChange={(event) => setPlayFromTrashEnterRested(event.target.checked)}
-  />
-  Play card rested
-</label>
-
-  <label>Playable Card IDs</label>
-  <input
-    value={playFromTrashCardIdsText}
-    onChange={(event) => setPlayFromTrashCardIdsText(event.target.value)}
-    placeholder="OP15-046, OP15-047"
-  />
-
-  <label>Max Cost</label>
-  <input
-    value={playFromTrashMaxCost}
-    onChange={(event) => setPlayFromTrashMaxCost(event.target.value)}
-    placeholder="Leave blank if none"
-  />
-
-  <label>Required Traits</label>
-  <input
-    value={playFromTrashTraitsText}
-    onChange={(event) => setPlayFromTrashTraitsText(event.target.value)}
-    placeholder="Supernovas"
-  />
-
-  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-    <button onClick={addAbilityPlayFromTrashStep}>
-      Add Play From Trash
-    </button>
-  </div>
-</div>
-      <label>Restand DON Count</label>
-      <input
-        type="number"
-        value={abilityRestandDonCount}
-        onChange={(event) =>
-          setAbilityRestandDonCount(Number(event.target.value))
-        }
-        placeholder="3"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityRestandDonStep}>
-          Add Restand DON
-        </button>
-      </div>
-
-      <label>Mill Count</label>
-      <input
-        type="number"
-        value={millDeckCount}
-        onChange={(event) =>
-          setMillDeckCount(Number(event.target.value))
-        }
-        placeholder="3"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityMillTopDeckStep}>
-          Add Mill Top Deck
-        </button>
-      </div>
-
-      <label>Draw Specific Card IDs</label>
-      <input
-        value={drawCardIdsText}
-        onChange={(event) => setDrawCardIdsText(event.target.value)}
-        placeholder="OP05-015, OP05-015"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityDrawSpecificStep}>
-          Add Draw Specific Cards
-        </button>
-      </div>
-    </div>
-
-    <div className="builder-list-card">
-      <div className="builder-list-card-title">Life / Power Steps</div>
-
-      <label>Play From Life Exact Cost</label>
-      <input
-        type="number"
-        value={playFromLifeExactCost}
-        onChange={(event) =>
-          setPlayFromLifeExactCost(Number(event.target.value))
-        }
-        placeholder="5"
-      />
-
-      <label>Required Traits</label>
-      <input
-        value={playFromLifeTraitsText}
-        onChange={(event) => setPlayFromLifeTraitsText(event.target.value)}
-        placeholder="Supernovas"
-      />
-
-      <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-        <button onClick={addAbilityPlayTopLifeIfStep}>
-          Add Play Top Life If
-        </button>
-      </div>
-
-<label>Buff Power Amount</label>
-<input
-  type="number"
-  value={buffPowerAmount}
-  onChange={(event) => setBuffPowerAmount(Number(event.target.value))}
-  placeholder="2000"
-/>
-
-<label>Buff Target</label>
-<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-  <label>
-    <input
-      type="checkbox"
-      checked={buffPowerTargetZones.leader}
-      onChange={() => toggleZone(setBuffPowerTargetZones, "leader")}
-    />
-    Leader
-  </label>
-
-  <label>
-    <input
-      type="checkbox"
-      checked={buffPowerTargetZones.board}
-      onChange={() => toggleZone(setBuffPowerTargetZones, "board")}
-    />
-    Character / Board
-  </label>
-</div>
-
-<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-  <button onClick={addAbilityBuffPowerStep}>
-    Add Buff Power
-  </button>
-</div>
-    </div>
-  </div>
-
-  <hr style={{ margin: "16px 0" }} />
-
-  <div className="builder-list-card">
-    <div className="builder-list-card-title">Quick Build Examples</div>
-
-    <p>
-      <strong>Event: Rest 2 extra DON, negate blocker:</strong>
-      Source = event card ID, Trigger = On Play, Additional DON to Rest = 2,
-      Add Negate Effects.
-    </p>
-
-    <p>
-      <strong>Leader: KO your character, make opponent cost 0, mill 2:</strong>
-      Source = you-leader, Trigger = Activate: Main, Add KO Target as Activation
-      Cost, then Add Reduce Cost To and Mill Top Deck as Effect Steps.
-    </p>
-
-    <p>
-      <strong>Leader: DON!! x1, return character, play top life:</strong>
-      Source = you-leader, Trigger = Activate: Main, Required Attached DON = 1,
-      Add Return Target to Hand as Activation Cost, then Add Play Top Life If as
-      Effect Step.
-    </p>
-  </div>
-
-  <hr style={{ margin: "16px 0" }} />
-
-  <h3>Current Card Abilities</h3>
-
-  {Object.keys(scenario.cardAbilities || {}).length === 0 ? (
-    <p>No card abilities.</p>
-  ) : (
-    Object.entries(scenario.cardAbilities || {}).map(
-      ([sourceKey, abilityEntry]) => (
-        <div key={sourceKey} className="builder-list-card">
-          <div className="builder-list-card-title">
-            Source: {sourceKey}
-          </div>
-
-          {normalizeAbilityArray(abilityEntry).map((ability, abilityIndex) => (
-            <div
-              key={ability.id || `${sourceKey}-ability-${abilityIndex}`}
-              className="builder-list-card"
-              style={{ marginTop: "8px" }}
-            >
-              <div className="builder-list-card-title">
-                {ABILITY_TRIGGER_OPTIONS.find(
-                  (option) => option.value === ability.trigger
-                )?.label || ability.trigger}
-                {" - "}
-                {ability.name || "Ability"}
-                {ability.oncePerTurn ? " - Once Per Turn" : ""}
-                {ability.requirements?.sourceAttachedDon
-                  ? ` - DON!! x${ability.requirements.sourceAttachedDon}`
-                  : ""}
-                {ability.additionalCost?.restDon
-                  ? ` - Extra DON Cost: ${ability.additionalCost.restDon}`
-                  : ""}
-              </div>
-
-              {(ability.costSteps || []).length > 0 ? (
-                <div style={{ marginTop: "8px" }}>
-                  <strong>Activation Costs</strong>
-
-                  {(ability.costSteps || []).map((step, index) => (
-                    <div
-                      key={step.id || `${ability.id}-cost-${index}`}
-                      className="builder-list-card"
-                      style={{ marginTop: "8px" }}
-                    >
-                      <div className="builder-list-card-title">
-                        Cost {index + 1}. {step.type}
-                        {step.amount != null ? ` (${step.amount})` : ""}
-                        {step.value != null ? ` (to ${step.value})` : ""}
-                        {step.count != null ? ` (${step.count})` : ""}
-                        {step.maxCost != null
-                          ? ` (cost ${step.maxCost} or less)`
-                          : ""}
-                        {step.maxPower != null ? ` (max ${step.maxPower})` : ""}
-                        {step.cardIds ? ` (${step.cardIds.join(", ")})` : ""}
-                        {step.type === "cannot_attack" && step.maxCost != null
-  ? ` - Cost ${step.maxCost} or less`
-  : ""}
-                        {step.type === "play_from_trash"
-  ? step.enterRested
-    ? " - Enters Rested"
-    : " - Enters Active"
-  : ""}
-                        {step.optional ? " - Optional" : " - Required"}
-                      </div>
-
-                      <div className="builder-list-card-actions">
-                        <button
-                          onClick={() =>
-                            removeAbilityStep(
-                              sourceKey,
-                              ability.id,
-                              "costSteps",
-                              index
-                            )
-                          }
-                        >
-                          Remove Cost
-                        </button>
-                      </div>
-                    </div>
+            <h2>Card Abilities</h2>
+
+            <p>
+              Create card effects using a source card, trigger timing, and reusable effect
+              steps. Use card IDs for events or generic card effects. Use instance IDs like{" "}
+              <strong>you-leader</strong> or <strong>you-board-1</strong> for specific
+              cards already on board.
+            </p>
+
+            <div className="builder-grid-two">
+              <div className="builder-list-card">
+                <div className="builder-list-card-title">1. Ability Setup</div>
+
+                <label>Source Card ID / Instance ID</label>
+                <input
+                  value={abilitySourceKey}
+                  onChange={(event) => setAbilitySourceKey(event.target.value)}
+                  placeholder="OP12-037 or you-leader"
+                />
+
+                <label>Trigger Timing</label>
+                <select
+                  value={abilityTrigger}
+                  onChange={(event) => setAbilityTrigger(event.target.value)}
+                >
+                  {ABILITY_TRIGGER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                   ))}
+                </select>
+
+                <label>Ability Name</label>
+                <input
+                  value={abilityName}
+                  onChange={(event) => setAbilityName(event.target.value)}
+                  placeholder="Rest 2 Opponent Cards"
+                />
+
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={abilityOncePerTurn}
+                    onChange={(event) => setAbilityOncePerTurn(event.target.checked)}
+                  />
+                  Once Per Turn
+                </label>
+
+                <label>Required Attached DON on Source</label>
+                <input
+                  type="number"
+                  value={activateRequiredAttachedDon}
+                  disabled={abilityTrigger !== "activate_main"}
+                  onChange={(event) =>
+                    setActivateRequiredAttachedDon(Number(event.target.value))
+                  }
+                  placeholder="0"
+                />
+                <small>
+                  Only for Activate: Main abilities. Example: DON!! x1 means enter 1.
+                </small>
+                <br></br>
+
+                <label>Additional DON to Rest</label>
+                <input
+                  type="number"
+                  value={eventAdditionalRestDon}
+                  disabled={abilityTrigger !== "on_play"}
+                  onChange={(event) =>
+                    setEventAdditionalRestDon(Number(event.target.value))
+                  }
+                  placeholder="0"
+                />
+                <small>
+                  Only for On Play event-style costs. Example: rest 2 extra DON.
+                </small>
+
+                <div className="builder-button-wrap" style={{ marginTop: "12px" }}>
+                  <button onClick={createOrUpdateCurrentAbility}>
+                    Create / Update Ability
+                  </button>
                 </div>
-              ) : null}
-
-              <div style={{ marginTop: "8px" }}>
-                <strong>Effect Steps</strong>
-
-                {(ability.steps || []).length === 0 ? (
-                  <p>No effect steps.</p>
-                ) : (
-                  (ability.steps || []).map((step, index) => (
-                    <div
-                      key={step.id || `${ability.id}-step-${index}`}
-                      className="builder-list-card"
-                      style={{ marginTop: "8px" }}
-                    >
-                      <div className="builder-list-card-title">
-                        Step {index + 1}. {step.type}
-                        {step.amount != null ? ` (${step.amount})` : ""}
-                        {step.value != null ? ` (to ${step.value})` : ""}
-                        {step.count != null ? ` (${step.count})` : ""}
-                        {step.maxCost != null
-                          ? ` (cost ${step.maxCost} or less)`
-                          : ""}
-                        {step.maxPower != null ? ` (max ${step.maxPower})` : ""}
-                        {step.cardIds ? ` (${step.cardIds.join(", ")})` : ""}
-                        {step.targetPriorityIds?.length
-  ? ` Priority: ${step.targetPriorityIds.join(" > ")}`
-  : ""}
-                        {step.optional ? " - Optional" : " - Required"}
-                      </div>
-
-                      <div className="builder-list-card-actions">
-                        <button
-                          onClick={() =>
-                            removeAbilityStep(
-                              sourceKey,
-                              ability.id,
-                              "steps",
-                              index
-                            )
-                          }
-                        >
-                          Remove Step
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
               </div>
 
-              <div
-                className="builder-list-card-actions"
-                style={{ marginTop: "8px" }}
+              <div className="builder-list-card">
+                <div className="builder-list-card-title">2. Next Step Settings</div>
+
+                <label>Add next step as</label>
+                <select
+                  value={abilityStepPlacement}
+                  onChange={(event) => setAbilityStepPlacement(event.target.value)}
+                >
+                  <option value="steps">Effect Step</option>
+                  <option value="costSteps">Activation Cost</option>
+                </select>
+
+                <small>
+                  Effect Step = what the card does. Activation Cost = what must be paid
+                  before the effect resolves.
+                </small>
+
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={effectStepOptional}
+                    onChange={(event) => setEffectStepOptional(event.target.checked)}
+                  />
+                  This next step can be skipped
+                </label>
+
+                <small>
+                  Use this for “you may” or “up to 1” effects. Do not use it for costs.
+                </small>
+              </div>
+            </div>
+
+            <hr style={{ margin: "16px 0" }} />
+
+            <label>Max Cost</label>
+            <input
+              type="number"
+              value={cannotAttackMaxCost}
+              onChange={(event) => setCannotAttackMaxCost(Number(event.target.value))}
+              placeholder="6"
+            />
+
+            <div className="builder-list-card">
+              <div className="builder-list-card-title">Cannot Attack Step</div>
+
+              <p>
+                Uses Target Side. This should usually target Character / Board. Priority IDs
+                are checked in order and skipped if that character already attacked/rested.
+              </p>
+
+              <label>Priority Target IDs</label>
+              <input
+                value={cannotAttackPriorityIdsText}
+                onChange={(event) => setCannotAttackPriorityIdsText(event.target.value)}
+                placeholder="you-board-1, you-board-2, you-board-3"
+              />
+              <label>Cannot Attack Target Mode</label>
+              <select
+                value={cannotAttackTargetMode}
+                onChange={(event) => setCannotAttackTargetMode(event.target.value)}
               >
-                <button onClick={() => removeCardAbility(sourceKey, ability.id)}>
-                  Remove Ability
+                <option value="priority_ids">Priority IDs</option>
+                <option value="highest_power">Highest Power</option>
+              </select>
+
+              <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                <button onClick={addAbilityCannotAttackStep}>
+                  Add Cannot Attack Step
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-      )
-    )
-  )}
-</section>
+
+            <div className="builder-list-card">
+              <div className="builder-list-card-title">3. Target Settings</div>
+
+              <p>
+                These settings are used by target-based steps: Rest Target, Return to Hand,
+                KO Target, and similar effects.
+              </p>
+
+              <label>Target Side</label>
+              <select
+                value={restTargetSide}
+                onChange={(event) => setRestTargetSide(event.target.value)}
+              >
+                <option value="you">You</option>
+                <option value="opponent">Opponent</option>
+              </select>
+              <label>Rest Target Max Cost</label>
+              <input
+                value={restTargetMaxCost}
+                onChange={(event) => setRestTargetMaxCost(event.target.value)}
+                placeholder="Leave blank for no limit, or enter 0"
+              />
+              <small>
+                Only applies when resting Character / Board. Example: enter 0 for OP14-090.
+              </small>
+
+              <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={restTargetZones.leader}
+                    onChange={() => toggleZone(setRestTargetZones, "leader")}
+                  />
+                  Leader
+                </label>
+
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={restTargetZones.board}
+                    onChange={() => toggleZone(setRestTargetZones, "board")}
+                  />
+                  Character / Board
+                </label>
+
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={restTargetZones.stage}
+                    onChange={() => toggleZone(setRestTargetZones, "stage")}
+                  />
+                  Stage
+                </label>
+
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={restTargetZones.don}
+                    onChange={() => toggleZone(setRestTargetZones, "don")}
+                  />
+                  DON
+                </label>
+              </div>
+            </div>
+
+            <hr style={{ margin: "16px 0" }} />
+
+            <div className="builder-grid-two">
+              <div className="builder-list-card">
+                <div className="builder-list-card-title">Target-Based Steps</div>
+
+                <p>
+                  These use the Target Settings above.
+                </p>
+
+                <div className="builder-button-wrap">
+                  <button onClick={addAbilityRestTargetStep}>
+                    Add Rest Target
+                  </button>
+
+                  <button onClick={addAbilityReturnTargetToHandStep}>
+                    Add Return Target to Hand
+                  </button>
+
+                  <button onClick={addAbilityKoTargetStep}>
+                    Add KO Target
+                  </button>
+
+                  <label>Rush Type</label>
+                  <select
+                    value={grantRushType}
+                    onChange={(event) => setGrantRushType(event.target.value)}
+                  >
+                    <option value="normal">Rush - can attack leader</option>
+                    <option value="character">Character Rush - can only attack characters</option>
+                  </select>
+
+                  <button onClick={addAbilityGrantRushStep}>
+                    Add Grant Rush
+                  </button>
+                </div>
+
+                <small>
+                  Example: For “KO one of your characters as cost”, set Target Side to You,
+                  Zone to Character / Board, Add next step as Activation Cost, then click
+                  Add KO Target.
+                </small>
+              </div>
+
+              <div className="builder-list-card">
+                <div className="builder-list-card-title">Opponent Character Steps</div>
+
+                <label>Negate Effects Max Cost</label>
+                <input
+                  type="number"
+                  value={negateMaxCost}
+                  onChange={(event) => setNegateMaxCost(Number(event.target.value))}
+                  placeholder="5"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityNegateEffectsStep}>
+                    Add Negate Effects
+                  </button>
+                </div>
+
+                <label>Set Cost To</label>
+                <input
+                  type="number"
+                  value={reduceCostToValue}
+                  onChange={(event) =>
+                    setReduceCostToValue(Number(event.target.value))
+                  }
+                  placeholder="0"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityReduceCostToStep}>
+                    Add Reduce Cost To
+                  </button>
+                </div>
+
+                <label>Power Reduction Amount</label>
+                <input
+                  type="number"
+                  value={reducePowerAmount}
+                  onChange={(event) => setReducePowerAmount(Number(event.target.value))}
+                  placeholder="4000"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityReducePowerStep}>
+                    Add Reduce Power
+                  </button>
+                </div>
+
+                <label>KO Max Power</label>
+                <input
+                  type="number"
+                  value={koMaxPower}
+                  onChange={(event) => setKoMaxPower(Number(event.target.value))}
+                  placeholder="0"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityKoPowerOrLessStep}>
+                    Add KO Power or Less
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <hr style={{ margin: "16px 0" }} />
+
+            <div className="builder-grid-two">
+              <div className="builder-list-card">
+                <div className="builder-list-card-title">Resource / Deck Steps</div>
+                <div className="builder-list-card">
+                  <div className="builder-list-card-title">Trash / Trigger Steps</div>
+
+                  <label>Play From Trash Player</label>
+                  <select
+                    value={playFromTrashPlayer}
+                    onChange={(event) => {
+                      const nextPlayer = event.target.value;
+
+                      setPlayFromTrashPlayer(nextPlayer);
+
+                      if (nextPlayer === "opponent") {
+                        setPlayFromTrashManualSelect(false);
+                      }
+
+                      if (nextPlayer === "you") {
+                        setPlayFromTrashManualSelect(true);
+                      }
+                    }}
+                  >
+                    <option value="you">You</option>
+                    <option value="opponent">Opponent</option>
+                  </select>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={playFromTrashEnterRested}
+                      onChange={(event) => setPlayFromTrashEnterRested(event.target.checked)}
+                    />
+                    Play card rested
+                  </label>
+
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={playFromTrashManualSelect}
+                      onChange={(event) => setPlayFromTrashManualSelect(event.target.checked)}
+                    />
+                    User manually chooses card from trash
+                  </label>
+
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={playFromTrashAllowReplace}
+                      onChange={(event) => setPlayFromTrashAllowReplace(event.target.checked)}
+                    />
+                    Allow replacing a character if board is full
+                  </label>
+
+                  <label>Playable Card IDs</label>
+                  <input
+                    value={playFromTrashCardIdsText}
+                    onChange={(event) => setPlayFromTrashCardIdsText(event.target.value)}
+                    placeholder="OP15-046, OP15-047"
+                  />
+
+                  <label>Max Cost</label>
+                  <input
+                    value={playFromTrashMaxCost}
+                    onChange={(event) => setPlayFromTrashMaxCost(event.target.value)}
+                    placeholder="Leave blank if none"
+                  />
+                  <label>Exact Cost</label>
+                  <input
+                    value={playFromTrashExactCost}
+                    onChange={(event) => setPlayFromTrashExactCost(event.target.value)}
+                    placeholder="Leave blank if none"
+                  />
+
+                  <label>Required Traits</label>
+                  <input
+                    value={playFromTrashTraitsText}
+                    onChange={(event) => setPlayFromTrashTraitsText(event.target.value)}
+                    placeholder="Supernovas"
+                  />
+
+                  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                    <button onClick={addAbilityPlayFromTrashStep}>
+                      Add Play From Trash
+                    </button>
+                    <button onClick={addAbilityTrashToHandStep}>
+                      Add Trash to Hand
+                    </button>
+                  </div>
+                </div>
+                <label>Restand DON Count</label>
+                <input
+                  type="number"
+                  value={abilityRestandDonCount}
+                  onChange={(event) =>
+                    setAbilityRestandDonCount(Number(event.target.value))
+                  }
+                  placeholder="3"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityRestandDonStep}>
+                    Add Restand DON
+                  </button>
+                </div>
+
+                <label>Mill Count</label>
+                <input
+                  type="number"
+                  value={millDeckCount}
+                  onChange={(event) =>
+                    setMillDeckCount(Number(event.target.value))
+                  }
+                  placeholder="3"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityMillTopDeckStep}>
+                    Add Mill Top Deck
+                  </button>
+                </div>
+
+                <label>Draw Specific Card IDs</label>
+                <input
+                  value={drawCardIdsText}
+                  onChange={(event) => setDrawCardIdsText(event.target.value)}
+                  placeholder="OP05-015, OP05-015"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityDrawSpecificStep}>
+                    Add Draw Specific Cards
+                  </button>
+                </div>
+              </div>
+
+              <div className="builder-list-card">
+                <div className="builder-list-card-title">Life / Power Steps</div>
+
+                <label>Play From Life Exact Cost</label>
+                <input
+                  type="number"
+                  value={playFromLifeExactCost}
+                  onChange={(event) =>
+                    setPlayFromLifeExactCost(Number(event.target.value))
+                  }
+                  placeholder="5"
+                />
+
+                <label>Required Traits</label>
+                <input
+                  value={playFromLifeTraitsText}
+                  onChange={(event) => setPlayFromLifeTraitsText(event.target.value)}
+                  placeholder="Supernovas"
+                />
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityPlayTopLifeIfStep}>
+                    Add Play Top Life If
+                  </button>
+                </div>
+
+                <label>Buff Power Amount</label>
+                <input
+                  type="number"
+                  value={buffPowerAmount}
+                  onChange={(event) => setBuffPowerAmount(Number(event.target.value))}
+                  placeholder="2000"
+                />
+
+                <label>Buff Target</label>
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={buffPowerTargetZones.leader}
+                      onChange={() => toggleZone(setBuffPowerTargetZones, "leader")}
+                    />
+                    Leader
+                  </label>
+
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={buffPowerTargetZones.board}
+                      onChange={() => toggleZone(setBuffPowerTargetZones, "board")}
+                    />
+                    Character / Board
+                  </label>
+                </div>
+
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityBuffPowerStep}>
+                    Add Buff Power
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <hr style={{ margin: "16px 0" }} />
+
+            <div className="builder-list-card">
+              <div className="builder-list-card-title">Quick Build Examples</div>
+
+              <p>
+                <strong>Event: Rest 2 extra DON, negate blocker:</strong>
+                Source = event card ID, Trigger = On Play, Additional DON to Rest = 2,
+                Add Negate Effects.
+              </p>
+
+              <p>
+                <strong>Leader: KO your character, make opponent cost 0, mill 2:</strong>
+                Source = you-leader, Trigger = Activate: Main, Add KO Target as Activation
+                Cost, then Add Reduce Cost To and Mill Top Deck as Effect Steps.
+              </p>
+
+              <p>
+                <strong>Leader: DON!! x1, return character, play top life:</strong>
+                Source = you-leader, Trigger = Activate: Main, Required Attached DON = 1,
+                Add Return Target to Hand as Activation Cost, then Add Play Top Life If as
+                Effect Step.
+              </p>
+            </div>
+
+            <hr style={{ margin: "16px 0" }} />
+
+            <h3>Current Card Abilities</h3>
+
+            {Object.keys(scenario.cardAbilities || {}).length === 0 ? (
+              <p>No card abilities.</p>
+            ) : (
+              Object.entries(scenario.cardAbilities || {}).map(
+                ([sourceKey, abilityEntry]) => (
+                  <div key={sourceKey} className="builder-list-card">
+                    <div className="builder-list-card-title">
+                      Source: {sourceKey}
+                    </div>
+
+                    {normalizeAbilityArray(abilityEntry).map((ability, abilityIndex) => (
+                      <div
+                        key={ability.id || `${sourceKey}-ability-${abilityIndex}`}
+                        className="builder-list-card"
+                        style={{ marginTop: "8px" }}
+                      >
+                        <div className="builder-list-card-title">
+                          {ABILITY_TRIGGER_OPTIONS.find(
+                            (option) => option.value === ability.trigger
+                          )?.label || ability.trigger}
+                          {" - "}
+                          {ability.name || "Ability"}
+                          {ability.oncePerTurn ? " - Once Per Turn" : ""}
+                          {ability.requirements?.sourceAttachedDon
+                            ? ` - DON!! x${ability.requirements.sourceAttachedDon}`
+                            : ""}
+                          {ability.additionalCost?.restDon
+                            ? ` - Extra DON Cost: ${ability.additionalCost.restDon}`
+                            : ""}
+                        </div>
+
+                        {(ability.costSteps || []).length > 0 ? (
+                          <div style={{ marginTop: "8px" }}>
+                            <strong>Activation Costs</strong>
+
+                            {(ability.costSteps || []).map((step, index) => (
+                              <div
+                                key={step.id || `${ability.id}-cost-${index}`}
+                                className="builder-list-card"
+                                style={{ marginTop: "8px" }}
+                              >
+                                <div className="builder-list-card-title">
+                                  {renderStepSummary(step, `Cost ${index + 1}`)}
+                                </div>
+
+                                <div className="builder-list-card-actions">
+                                  <button
+                                    onClick={() =>
+                                      removeAbilityStep(
+                                        sourceKey,
+                                        ability.id,
+                                        "costSteps",
+                                        index
+                                      )
+                                    }
+                                  >
+                                    Remove Cost
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <div style={{ marginTop: "8px" }}>
+                          <strong>Effect Steps</strong>
+
+                          {(ability.steps || []).length === 0 ? (
+                            <p>No effect steps.</p>
+                          ) : (
+                            (ability.steps || []).map((step, index) => (
+                              <div
+                                key={step.id || `${ability.id}-step-${index}`}
+                                className="builder-list-card"
+                                style={{ marginTop: "8px" }}
+                              >
+                                <div className="builder-list-card-title">
+                                  {renderStepSummary(step, `Step ${index + 1}`)}
+                                </div>
+
+                                <div className="builder-list-card-actions">
+                                  <button
+                                    onClick={() =>
+                                      removeAbilityStep(
+                                        sourceKey,
+                                        ability.id,
+                                        "steps",
+                                        index
+                                      )
+                                    }
+                                  >
+                                    Remove Step
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        <div
+                          className="builder-list-card-actions"
+                          style={{ marginTop: "8px" }}
+                        >
+                          <button onClick={() => removeCardAbility(sourceKey, ability.id)}>
+                            Remove Ability
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )
+            )}
+          </section>
 
           <section className="panel">
             <h2>Export / Import JSON</h2>
