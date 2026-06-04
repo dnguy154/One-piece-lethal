@@ -64,7 +64,12 @@ const challenges = [
     date: "2026-06-04",
     scenarioId: 11,
     title: "Edwards 2nd puzzle #11"
-  }
+  },
+  {
+    id: 12,
+    date: "2026-06-05",
+    scenarioId: 12,
+    title: "Seans puzzle n.2 #12"}
 ];
 
 module.exports = challenges;

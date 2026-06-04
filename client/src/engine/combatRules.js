@@ -262,6 +262,7 @@ if (
   return attacks;
 }
 
+
 function createCounterDefenseOption(state, attackerPower, targetRef) {
   const nextState = structuredClone(state);
   const newTargetRef = findCardByInstanceId(nextState, targetRef.card.instanceId);
@@ -270,6 +271,8 @@ function createCounterDefenseOption(state, attackerPower, targetRef) {
 
   const targetPower = getCombatPower(newTargetRef.card, newTargetRef.side);
   const neededCounter = attackerPower - targetPower + 1000;
+
+
 
   if (neededCounter <= 0) {
     return null;
@@ -1439,6 +1442,94 @@ function isDangerousTakeLifeOption(evaluatedOption) {
 function chooseHighestScoringOption(options) {
   return [...options].sort((a, b) => b.score - a.score)[0] || null;
 }
+function chooseMandatoryLeaderCounterDefense(options) {
+  const counterOptions = options.filter(
+    (option) => option.defenseOption.type === "counter"
+  );
+
+  if (counterOptions.length === 0) {
+    return null;
+  }
+
+  const directLoseOptions = options.filter(
+    (option) => option.defenseOption.type === "lose"
+  );
+
+  const takeLastLifeOptions = options.filter((option) => {
+    if (option.defenseOption.type !== "take_life") return false;
+
+    const stateToEvaluate = option.evaluationState || option.nextState;
+    const lifeAfter = getLifeCount(stateToEvaluate.opponent.life);
+
+    return lifeAfter <= 0;
+  });
+
+  // Force counter if taking the hit either loses immediately
+  // OR leaves opponent at 0 life.
+  const mustCounter =
+    directLoseOptions.length > 0 || takeLastLifeOptions.length > 0;
+
+  if (!mustCounter) {
+    return null;
+  }
+
+  return [...counterOptions].sort((a, b) => {
+    const counterA = Number(a.defenseOption.counterUsed || 0);
+    const counterB = Number(b.defenseOption.counterUsed || 0);
+
+    if (counterA !== counterB) {
+      return counterA - counterB;
+    }
+
+    const cardsA = Number(a.defenseOption.cardsUsed || 0);
+    const cardsB = Number(b.defenseOption.cardsUsed || 0);
+
+    if (cardsA !== cardsB) {
+      return cardsA - cardsB;
+    }
+
+    return b.score - a.score;
+  })[0];
+}
+
+function chooseCheapCounterDefense(options) {
+  const cheapCounterOptions = options.filter(
+    (option) =>
+      option.defenseOption.type === "counter" &&
+      Number(option.defenseOption.counterUsed || 0) <= 2000
+  );
+
+  if (cheapCounterOptions.length === 0) {
+    return null;
+  }
+
+  const survivingCheapCounters = cheapCounterOptions.filter(
+    (option) => !option.playerStillForcesWin
+  );
+
+  const candidates =
+    survivingCheapCounters.length > 0
+      ? survivingCheapCounters
+      : cheapCounterOptions;
+
+  return [...candidates].sort((a, b) => {
+    const counterA = Number(a.defenseOption.counterUsed || 0);
+    const counterB = Number(b.defenseOption.counterUsed || 0);
+
+    if (counterA !== counterB) {
+      return counterA - counterB;
+    }
+
+    const cardsA = Number(a.defenseOption.cardsUsed || 0);
+    const cardsB = Number(b.defenseOption.cardsUsed || 0);
+
+    if (cardsA !== cardsB) {
+      return cardsA - cardsB;
+    }
+
+    return b.score - a.score;
+  })[0];
+}
 
 function chooseBestLeaderTrashBoostDefense(options) {
   const leaderBoostOptions = options.filter(
@@ -1463,6 +1554,7 @@ function chooseBestLeaderTrashBoostDefense(options) {
 }
 
 function chooseBestNonTakeDefense(options) {
+
   const leaderBoostOption = chooseBestLeaderTrashBoostDefense(options);
 
   if (leaderBoostOption) {
@@ -1750,13 +1842,33 @@ return {
   }
 );
 
-  const isLeaderAttack = targetRef.zone === "leader";
+const isLeaderAttack = targetRef.zone === "leader";
 
 if (isLeaderAttack) {
+  const mandatoryCounterDefense =
+    chooseMandatoryLeaderCounterDefense(evaluatedOptions);
+
+  if (mandatoryCounterDefense) {
+    return {
+      nextState: mandatoryCounterDefense.nextState,
+      message: mandatoryCounterDefense.message,
+      playerStillForcesWin: mandatoryCounterDefense.playerStillForcesWin
+    };
+  }
+
+  const cheapCounterDefense = chooseCheapCounterDefense(evaluatedOptions);
+
+  if (cheapCounterDefense) {
+    return {
+      nextState: cheapCounterDefense.nextState,
+      message: cheapCounterDefense.message,
+      playerStillForcesWin: false
+    };
+  }
+
   const highValueTakeLifeOption = evaluatedOptions.find(
     isHighValueTakeLifeOption
   );
-
   if (highValueTakeLifeOption) {
     return {
       nextState: highValueTakeLifeOption.nextState,

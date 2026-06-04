@@ -1077,7 +1077,58 @@ function App() {
 
     return queueOnPlayTriggersFromResult(withOnKoTriggers, result);
   };
+
+
+const prepareEffectStepForResolution = (effectState, step) => {
+  if (!step) return step;
+
+  if (step.type === "move_attached_don") {
+    return {
+      ...step,
+      sourceInstanceId: effectState.moveAttachedDonSourceInstanceId
+    };
+  }
+
+  if (step.fromSource || step.sourcePowerAtLeast != null) {
+    return {
+      ...step,
+      sourceInstanceId: effectState.sourceInstanceId
+    };
+  }
+
+  return step;
+};
+
+  const mergeEffectStepResultIntoEffectState = (effectState, result) => {
+    let nextEffectState = queueTriggeredAbilitiesFromResult(effectState, result);
+
+    if (result?.moveAttachedDonSourceInstanceId) {
+      nextEffectState = {
+        ...nextEffectState,
+        moveAttachedDonSourceInstanceId: result.moveAttachedDonSourceInstanceId
+      };
+    }
+
+    if (result?.clearMoveAttachedDonSource) {
+      const { moveAttachedDonSourceInstanceId, ...restEffectState } =
+        nextEffectState;
+
+      return restEffectState;
+    }
+
+    return nextEffectState;
+  };
   const finishActiveEffectResolution = (effectState, finalState, finalMessage) => {
+    let completedState = finalState;
+
+if (effectState.effect?.oncePerTurn) {
+  completedState = markActivateMainAbilityUsed(
+    completedState,
+    "you",
+    effectState.effect,
+    effectState.sourceInstanceId
+  );
+}
 
     const pendingOnKoTriggers = effectState.pendingOnKoTriggers || [];
 
@@ -1102,18 +1153,18 @@ function App() {
             nextTrigger.sourceCard.cardId ||
             nextTrigger.sourceCard.id,
           stepIndex: 0,
-          workingState: finalState,
+          workingState: completedState,
           pendingOnKoTriggers: remainingTriggers
         };
 
-        setPlayState(finalState);
+        setPlayState(completedState);
         setActiveEffect(nextEffectState);
         setActionMode("idle");
 
-        continueEffectResolution(
-          nextEffectState,
-          finalState,
-          0,
+continueEffectResolution(
+  nextEffectState,
+  completedState,
+  0,
           `${nextTrigger.sourceCard.name || nextTrigger.sourceCard.cardId} On KO activated.`
         );
 
@@ -1144,36 +1195,24 @@ function App() {
             nextTrigger.sourceCard.cardId ||
             nextTrigger.sourceCard.id,
           stepIndex: 0,
-          workingState: finalState,
+          workingState: completedState,
           pendingOnKoTriggers: effectState.pendingOnKoTriggers || [],
           pendingOnPlayTriggers: remainingTriggers
         };
 
-        setPlayState(finalState);
+        setPlayState(completedState);
         setActiveEffect(nextEffectState);
         setActionMode("idle");
 
         continueEffectResolution(
           nextEffectState,
-          finalState,
+          completedState,
           0,
           `${nextTrigger.sourceCard.name || nextTrigger.sourceCard.cardId} On Play activated.`
         );
 
         return;
       }
-    }
-    let completedState = finalState;
-
-
-
-    if (effectState.effect?.oncePerTurn) {
-      completedState = markActivateMainAbilityUsed(
-        completedState,
-        "you",
-        effectState.effect,
-        effectState.sourceInstanceId
-      );
     }
 
     setPlayState(completedState);
@@ -1230,12 +1269,28 @@ function App() {
     let latestMessage = previousMessage;
 
     while (stepIndex < effectState.effect.steps.length) {
-      const nextStep = effectState.effect.steps[stepIndex];
+      const nextStepRaw = effectState.effect.steps[stepIndex];
+      const nextStep = prepareEffectStepForResolution(effectState, nextStepRaw);
+      if (
+        nextStep.type === "move_attached_don" &&
+        nextStep.skipIfNoMoveAttachedDonSource &&
+        !nextStep.sourceInstanceId
+      ) {
+        stepIndex += 1;
+        continue;
+      }
+
+      const stepForResolution = nextStep.fromSource
+        ? {
+          ...nextStep,
+          sourceInstanceId: effectState.sourceInstanceId
+        }
+        : nextStep;
 
       const isManualTrashSelectionStep =
-        ["play_from_trash", "trash_to_hand"].includes(nextStep.type) &&
-        (nextStep.player || "you") === "you" &&
-        nextStep.manualSelect !== false;
+        ["play_from_trash", "trash_to_hand"].includes(stepForResolution.type) &&
+        (stepForResolution.player || "you") === "you" &&
+        stepForResolution.manualSelect !== false;
 
       if (isManualTrashSelectionStep) {
         const nextActiveEffect = {
@@ -1261,17 +1316,19 @@ function App() {
         });
 
         setMessage(
-          nextStep.prompt ||
-          (nextStep.type === "trash_to_hand"
+          stepForResolution.prompt ||
+          (stepForResolution.type === "trash_to_hand"
             ? "Choose a valid character from your trash to add to hand."
             : "Choose a valid card from your trash.")
         );
+
         return;
       }
-      if (nextStep.targetSelf) {
+
+      if (stepForResolution.targetSelf) {
         const result = applyEffectStep(
           workingState,
-          nextStep,
+          stepForResolution,
           effectState.sourceInstanceId
         );
 
@@ -1283,17 +1340,20 @@ function App() {
           return;
         }
 
-        effectState = queueTriggeredAbilitiesFromResult(effectState, result);
+        effectState = mergeEffectStepResultIntoEffectState(effectState, result);
         workingState = result.nextState;
         latestMessage = result.message || latestMessage;
         stepIndex += 1;
         continue;
       }
 
-      if (nextStep.targetRules) {
-        const nextStepHasTarget = hasValidEffectTarget(workingState, nextStep);
+      if (stepForResolution.targetRules) {
+        const nextStepHasTarget = hasValidEffectTarget(
+          workingState,
+          stepForResolution
+        );
 
-        if (!nextStepHasTarget && nextStep.optional) {
+        if (!nextStepHasTarget && stepForResolution.optional) {
           stepIndex += 1;
           continue;
         }
@@ -1334,19 +1394,15 @@ function App() {
         setHandViewer(null);
         setHoveredCard(null);
         setMobilePreviewCard(null);
-        setMessage(nextStep.prompt || "Choose the next effect target.");
+        setMessage(stepForResolution.prompt || "Choose the next effect target.");
 
         return;
       }
 
-      const autoTargetInstanceId = nextStep.targetSelf
-        ? effectState.sourceInstanceId
-        : null;
-
       const result = applyEffectStep(
         workingState,
-        nextStep,
-        autoTargetInstanceId
+        stepForResolution,
+        null
       );
 
       if (!result.success) {
@@ -1357,7 +1413,7 @@ function App() {
         return;
       }
 
-      effectState = queueTriggeredAbilitiesFromResult(effectState, result);
+      effectState = mergeEffectStepResultIntoEffectState(effectState, result);
 
       workingState = result.nextState;
       latestMessage = result.message || latestMessage;
@@ -1370,7 +1426,11 @@ function App() {
   const handleTrashCardClick = (card, trashIndex, side) => {
     if (!activeEffect) return false;
 
-    const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+    const currentStepRaw = activeEffect.effect.steps[activeEffect.stepIndex];
+    const currentStep = prepareEffectStepForResolution(
+      activeEffect,
+      currentStepRaw
+    );
 
     if (!["play_from_trash", "trash_to_hand"].includes(currentStep?.type)) {
       return false;
@@ -1426,7 +1486,7 @@ function App() {
 
     markActionStarted();
 
-    const nextEffectState = queueTriggeredAbilitiesFromResult(
+    const nextEffectState = mergeEffectStepResultIntoEffectState(
       activeEffect,
       result
     );
@@ -1442,69 +1502,75 @@ function App() {
   };
 
   const handleEffectTargetClick = (card) => {
-    if (actionMode === "select_replace_for_trash_play") {
-      if (!activeEffect?.pendingTrashPlay) {
-        setActionMode("idle");
-        setMessage("No pending trash card to play.");
-        return true;
-      }
+if (actionMode === "select_replace_for_trash_play") {
+  if (!activeEffect?.pendingTrashPlay) {
+    setActionMode("idle");
+    setMessage("No pending trash card to play.");
+    return true;
+  }
 
-      if (!card?.instanceId) {
-        setMessage("Choose one of your characters to replace.");
-        return true;
-      }
+  if (!card?.instanceId) {
+    setMessage("Choose one of your characters to replace.");
+    return true;
+  }
 
-      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
-      const playerKey = currentStep.player || "you";
+  const currentStepRaw = activeEffect.effect.steps[activeEffect.stepIndex];
 
-      const replacementRef = findCardByInstanceId(
-        activeEffect.workingState,
-        card.instanceId
-      );
+  const currentStep = prepareEffectStepForResolution(
+    activeEffect,
+    currentStepRaw
+  );
 
-      if (
-        !replacementRef ||
-        replacementRef.side !== playerKey ||
-        replacementRef.zone !== "board"
-      ) {
-        setMessage("Choose one of your characters to replace.");
-        return true;
-      }
+  const playerKey = currentStep.player || "you";
 
-      const result = applyEffectStep(
-        activeEffect.workingState,
-        currentStep,
-        {
-          side: activeEffect.pendingTrashPlay.side,
-          trashIndex: activeEffect.pendingTrashPlay.trashIndex,
-          replaceTargetInstanceId: card.instanceId
-        }
-      );
+  const replacementRef = findCardByInstanceId(
+    activeEffect.workingState,
+    card.instanceId
+  );
 
-      if (!result.success) {
-        setMessage(result.message);
-        return true;
-      }
+  if (
+    !replacementRef ||
+    replacementRef.side !== playerKey ||
+    replacementRef.zone !== "board"
+  ) {
+    setMessage("Choose one of your characters to replace.");
+    return true;
+  }
 
-      markActionStarted();
-
-      const nextEffectState = queueTriggeredAbilitiesFromResult(
-        {
-          ...activeEffect,
-          pendingTrashPlay: null
-        },
-        result
-      );
-
-      continueEffectResolution(
-        nextEffectState,
-        result.nextState,
-        activeEffect.stepIndex + 1,
-        result.message
-      );
-
-      return true;
+  const result = applyEffectStep(
+    activeEffect.workingState,
+    currentStep,
+    {
+      side: activeEffect.pendingTrashPlay.side,
+      trashIndex: activeEffect.pendingTrashPlay.trashIndex,
+      replaceTargetInstanceId: card.instanceId
     }
+  );
+
+  if (!result.success) {
+    setMessage(result.message);
+    return true;
+  }
+
+  markActionStarted();
+
+  const nextEffectState = mergeEffectStepResultIntoEffectState(
+    {
+      ...activeEffect,
+      pendingTrashPlay: null
+    },
+    result
+  );
+
+  continueEffectResolution(
+    nextEffectState,
+    result.nextState,
+    activeEffect.stepIndex + 1,
+    result.message
+  );
+
+  return true;
+}
 
     if (!activeEffect || actionMode !== "select_effect_target") {
       return false;
@@ -1514,31 +1580,39 @@ function App() {
       return true;
     }
 
-    const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+    const currentStepRaw = activeEffect.effect.steps[activeEffect.stepIndex];
 
-    const result = applyEffectStep(
-      activeEffect.workingState,
-      currentStep,
-      card.instanceId
-    );
+const currentStep = prepareEffectStepForResolution(
+  activeEffect,
+  currentStepRaw
+);
 
-    if (!result.success) {
-      setMessage(result.message);
-      return true;
-    }
+const result = applyEffectStep(
+  activeEffect.workingState,
+  currentStep,
+  card.instanceId
+);
 
-    markActionStarted();
+if (!result.success) {
+  setMessage(result.message);
+  return true;
+}
 
-    const nextEffectState = queueTriggeredAbilitiesFromResult(activeEffect, result);
+markActionStarted();
 
-    continueEffectResolution(
-      nextEffectState,
-      result.nextState,
-      activeEffect.stepIndex + 1,
-      result.message
-    );
+const nextEffectState = mergeEffectStepResultIntoEffectState(
+  activeEffect,
+  result
+);
 
-    return true;
+continueEffectResolution(
+  nextEffectState,
+  result.nextState,
+  activeEffect.stepIndex + 1,
+  result.message
+);
+
+return true;
   };
 
   const startTriggeredAbility = (
@@ -2019,10 +2093,10 @@ function App() {
               onMobilePreviewClose={closeMobilePreview}
             />
 
-          <aside className="desktop-feedback-slot">
-            <FeedbackPanel message={message} />
-          </aside>
-                    </main>
+            <aside className="desktop-feedback-slot">
+              <FeedbackPanel message={message} />
+            </aside>
+          </main>
         </div>
 
         <MobileCardPreview

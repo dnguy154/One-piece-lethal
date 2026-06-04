@@ -206,6 +206,28 @@ export function validateEffectTarget(state, step, targetInstanceId) {
 
   const allowedSides = step.targetRules?.sides || [];
   const allowedZones = step.targetRules?.zones || [];
+  if (step.sourcePowerAtLeast != null) {
+  const sourceRef = findEffectTargetByInstanceId(
+    state,
+    step.sourceInstanceId
+  );
+
+  if (!sourceRef) {
+    return {
+      valid: false,
+      message: "Source card was not found for this effect."
+    };
+  }
+
+  const sourcePower = getDisplayedPower(sourceRef.card);
+
+  if (sourcePower < Number(step.sourcePowerAtLeast)) {
+    return {
+      valid: false,
+      message: `${sourceRef.card.name || sourceRef.card.cardId} needs ${step.sourcePowerAtLeast} or more power to use this effect.`
+    };
+  }
+}
 
   if (allowedSides.length > 0 && !allowedSides.includes(targetRef.side)) {
     return {
@@ -265,12 +287,188 @@ export function validateEffectTarget(state, step, targetInstanceId) {
       };
     }
   }
+  if (step.type === "move_attached_don") {
+  if (targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "You can only move attached DON to a character."
+    };
+  }
+
+  const playerKey = step.player || "you";
+
+  if (targetRef.side !== playerKey) {
+    return {
+      valid: false,
+      message: "You can only move DON to your own character."
+    };
+  }
+
+  const sourceInstanceId = step.sourceInstanceId;
+
+  if (!sourceInstanceId) {
+    return {
+      valid: false,
+      message: "No source card found for this DON move effect."
+    };
+  }
+
+  if (targetRef.card.instanceId === sourceInstanceId) {
+    return {
+      valid: false,
+      message: "Choose another character, not the source card."
+    };
+  }
+
+  const sourceRef = findEffectTargetByInstanceId(state, sourceInstanceId);
+
+  if (!sourceRef || sourceRef.side !== playerKey) {
+    return {
+      valid: false,
+      message: "Source card for attached DON was not found."
+    };
+  }
+
+  const count = Number(step.count || 0);
+  const sourceAttachedDon = Array.isArray(sourceRef.card?.attachedDon)
+    ? sourceRef.card.attachedDon
+    : [];
+
+  if (sourceAttachedDon.length < count) {
+    return {
+      valid: false,
+      message: `${sourceRef.card.name || sourceRef.card.cardId} does not have ${count} attached DON.`
+    };
+  }
+}
+if (step.type === "select_attached_don_source") {
+  const playerKey = step.player || "you";
+
+  if (targetRef.side !== playerKey) {
+    return {
+      valid: false,
+      message: "Choose one of your own cards with attached DON."
+    };
+  }
+
+  if (targetRef.zone !== "leader" && targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "Choose your leader or character with attached DON."
+    };
+  }
+
+  const attachedDon = Array.isArray(targetRef.card?.attachedDon)
+    ? targetRef.card.attachedDon
+    : [];
+
+  if (attachedDon.length <= 0) {
+    return {
+      valid: false,
+      message: `${targetRef.card.name || targetRef.card.cardId} has no attached DON.`
+    };
+  }
+}
+
+if (step.type === "move_attached_don") {
+  const playerKey = step.player || "you";
+
+  if (targetRef.side !== playerKey || targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "Choose one of your characters to receive the DON."
+    };
+  }
+
+  const sourceInstanceId = step.sourceInstanceId;
+
+  if (!sourceInstanceId) {
+    return {
+      valid: false,
+      message: "Choose a DON source first."
+    };
+  }
+
+  if (targetRef.card.instanceId === sourceInstanceId) {
+    return {
+      valid: false,
+      message: "Choose another character, not the DON source."
+    };
+  }
+
+  const sourceRef = findEffectTargetByInstanceId(state, sourceInstanceId);
+
+  if (!sourceRef || sourceRef.side !== playerKey) {
+    return {
+      valid: false,
+      message: "DON source was not found."
+    };
+  }
+
+  const sourceAttachedDon = Array.isArray(sourceRef.card?.attachedDon)
+    ? sourceRef.card.attachedDon
+    : [];
+
+  if (sourceAttachedDon.length <= 0) {
+    return {
+      valid: false,
+      message: `${sourceRef.card.name || sourceRef.card.cardId} has no attached DON.`
+    };
+  }
+}
 
   if (step.type === "grant_rush") {
   if (targetRef.zone !== "board") {
     return {
       valid: false,
       message: "You can only give Rush to a character."
+    };
+  }
+}
+
+if (step.type === "attach_rested_don") {
+  const playerKey = step.player || "you";
+
+  if (targetRef.side !== playerKey) {
+    return {
+      valid: false,
+      message: "You can only attach DON to your own cards."
+    };
+  }
+
+  if (targetRef.zone !== "leader" && targetRef.zone !== "board") {
+    return {
+      valid: false,
+      message: "Choose your leader or character."
+    };
+  }
+
+  const player = state[playerKey];
+
+  if (!player) {
+    return {
+      valid: false,
+      message: "Player state not found."
+    };
+  }
+
+  const count = Number(step.count || 0);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    return {
+      valid: false,
+      message: "Invalid DON attach count."
+    };
+  }
+
+  const availableRestedDon = (player.don || []).filter(
+    (don) => don.rested && don.attachedTo == null
+  );
+
+  if (availableRestedDon.length < count) {
+    return {
+      valid: false,
+      message: `You need ${count} rested, unattached DON.`
     };
   }
 }
@@ -767,6 +965,300 @@ return {
       message: `${newCharacter.name || newCharacter.cardId} was played from life.`
     };
   }
+  if (step.type === "move_attached_don") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+  const playerKey = step.player || "you";
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  const sourceInstanceId = step.sourceInstanceId;
+
+  if (!sourceInstanceId) {
+    return {
+      nextState: state,
+      success: false,
+      message: "No source card found for this DON move effect."
+    };
+  }
+
+  const sourceRef = findEffectTargetByInstanceId(nextState, sourceInstanceId);
+
+  if (!sourceRef || sourceRef.side !== playerKey) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Source card for attached DON was not found."
+    };
+  }
+
+  const count = Number(step.count || 0);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Invalid DON move count."
+    };
+  }
+
+  const sourceAttachedDon = Array.isArray(sourceRef.card.attachedDon)
+    ? sourceRef.card.attachedDon
+    : [];
+
+  if (sourceAttachedDon.length < count) {
+    return {
+      nextState: state,
+      success: false,
+      message: `${sourceRef.card.name || sourceRef.card.cardId} does not have ${count} attached DON.`
+    };
+  }
+
+  const movedDonIds = sourceAttachedDon.slice(0, count);
+
+  sourceRef.card.attachedDon = sourceAttachedDon.filter(
+    (donId) =>
+      !movedDonIds.some((movedDonId) => Number(movedDonId) === Number(donId))
+  );
+
+  targetRef.card.attachedDon = [
+    ...(targetRef.card.attachedDon || []),
+    ...movedDonIds.filter(
+      (donId) =>
+        !(targetRef.card.attachedDon || []).some(
+          (existingDonId) => Number(existingDonId) === Number(donId)
+        )
+    )
+  ];
+
+  for (const donId of movedDonIds) {
+    const donCard = (player.don || []).find(
+      (don) => Number(don.id) === Number(donId)
+    );
+
+    if (donCard) {
+      donCard.attachedTo = targetRef.card.instanceId;
+    }
+  }
+
+  return {
+    nextState,
+    success: true,
+    message: `Moved ${movedDonIds.length} attached DON from ${
+      sourceRef.card.name || sourceRef.card.cardId
+    } to ${targetRef.card.name || targetRef.card.cardId}.`
+  };
+}
+
+if (step.type === "select_attached_don_source") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const sourceRef = validation.targetRef;
+
+  return {
+    nextState,
+    success: true,
+    message: `${sourceRef.card.name || sourceRef.card.cardId} selected as the DON source.`,
+    moveAttachedDonSourceInstanceId: sourceRef.card.instanceId
+  };
+}
+
+if (step.type === "move_attached_don") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+  const playerKey = step.player || "you";
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  const sourceRef = findEffectTargetByInstanceId(
+    nextState,
+    step.sourceInstanceId
+  );
+
+  if (!sourceRef || sourceRef.side !== playerKey) {
+    return {
+      nextState: state,
+      success: false,
+      message: "DON source was not found."
+    };
+  }
+
+  const count = Number(step.count || 0);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Invalid DON move count."
+    };
+  }
+
+  const sourceAttachedDon = Array.isArray(sourceRef.card.attachedDon)
+    ? sourceRef.card.attachedDon
+    : [];
+
+  const movedDonIds = sourceAttachedDon.slice(0, count);
+
+  if (movedDonIds.length <= 0) {
+    return {
+      nextState,
+      success: true,
+      message: "No DON moved.",
+      clearMoveAttachedDonSource: true
+    };
+  }
+
+  sourceRef.card.attachedDon = sourceAttachedDon.filter(
+    (donId) =>
+      !movedDonIds.some((movedDonId) => Number(movedDonId) === Number(donId))
+  );
+
+  targetRef.card.attachedDon = [
+    ...(targetRef.card.attachedDon || []),
+    ...movedDonIds.filter(
+      (donId) =>
+        !(targetRef.card.attachedDon || []).some(
+          (existingDonId) => Number(existingDonId) === Number(donId)
+        )
+    )
+  ];
+
+  for (const donId of movedDonIds) {
+    const donCard = (player.don || []).find(
+      (don) => Number(don.id) === Number(donId)
+    );
+
+    if (donCard) {
+      donCard.attachedTo = targetRef.card.instanceId;
+    }
+  }
+
+  return {
+    nextState,
+    success: true,
+    message: `Moved ${movedDonIds.length} attached DON from ${
+      sourceRef.card.name || sourceRef.card.cardId
+    } to ${targetRef.card.name || targetRef.card.cardId}.`,
+    clearMoveAttachedDonSource: true
+  };
+}
+if (step.type === "attach_rested_don") {
+  const validation = validateEffectTarget(nextState, step, targetInstanceId);
+
+  if (!validation.valid) {
+    return {
+      nextState: state,
+      success: false,
+      message: validation.message
+    };
+  }
+
+  const targetRef = validation.targetRef;
+  const playerKey = step.player || "you";
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  const count = Number(step.count || 0);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Invalid DON attach count."
+    };
+  }
+
+  const availableRestedDon = (player.don || []).filter(
+    (don) => don.rested && don.attachedTo == null
+  );
+
+  if (availableRestedDon.length < count) {
+    return {
+      nextState: state,
+      success: false,
+      message: `You need ${count} rested, unattached DON.`
+    };
+  }
+
+  const donToAttach = availableRestedDon.slice(0, count);
+  const donIdsToAttach = donToAttach.map((don) => don.id);
+
+  targetRef.card.attachedDon = [
+    ...(targetRef.card.attachedDon || []),
+    ...donIdsToAttach.filter(
+      (donId) =>
+        !(targetRef.card.attachedDon || []).some(
+          (existingDonId) => Number(existingDonId) === Number(donId)
+        )
+    )
+  ];
+
+  for (const donId of donIdsToAttach) {
+    const donCard = (player.don || []).find(
+      (don) => Number(don.id) === Number(donId)
+    );
+
+    if (donCard) {
+      donCard.attachedTo = targetRef.card.instanceId;
+      donCard.rested = true;
+    }
+  }
+
+  return {
+    nextState,
+    success: true,
+    message: `Attached ${donIdsToAttach.length} rested DON to ${
+      targetRef.card.name || targetRef.card.cardId
+    }.`
+  };
+}
 
   if (step.type === "restand_don") {
     const playerKey = step.player || "you";

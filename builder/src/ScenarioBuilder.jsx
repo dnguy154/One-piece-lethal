@@ -421,8 +421,11 @@ export default function ScenarioBuilder() {
   const [abilityOncePerTurn, setAbilityOncePerTurn] = useState(false);
   const [abilityStepPlacement, setAbilityStepPlacement] = useState("steps");
   const [abilityRestandDonCount, setAbilityRestandDonCount] = useState(3);
+  const [attachRestedDonCount, setAttachRestedDonCount] = useState(2);
+  const [moveAttachedDonCount, setMoveAttachedDonCount] = useState(2);
   const [drawCardIdsText, setDrawCardIdsText] = useState("");
   const [reducePowerAmount, setReducePowerAmount] = useState(4000);
+  const [reducePowerSourcePowerAtLeast, setReducePowerSourcePowerAtLeast] = useState("");
   const [koMaxPower, setKoMaxPower] = useState(0);
   const [buffPowerAmount, setBuffPowerAmount] = useState(2000);
   const [effectStepOptional, setEffectStepOptional] = useState(false);
@@ -1424,6 +1427,28 @@ export default function ScenarioBuilder() {
     );
   };
 
+  const addAbilitySteps = (steps, placement = "steps") => {
+  const sourceKey = abilitySourceKey.trim();
+
+  if (!sourceKey) {
+    alert("Enter a source card ID or instance ID.");
+    return;
+  }
+
+  const ability = createOrUpdateCurrentAbility();
+
+  if (!ability) return;
+
+  const stepKey = placement === "costSteps" ? "costSteps" : "steps";
+
+  const nextAbility = {
+    ...ability,
+    [stepKey]: [...(ability[stepKey] || []), ...steps]
+  };
+
+  upsertCardAbility(sourceKey, nextAbility);
+};
+
 
   const addAbilityStep = (step, placement = "steps") => {
     const sourceKey = abilitySourceKey.trim();
@@ -1910,26 +1935,40 @@ export default function ScenarioBuilder() {
       abilityStepPlacement
     );
   };
-  const addAbilityReducePowerStep = () => {
-    const parsedAmount = Number(reducePowerAmount);
+const addAbilityReducePowerStep = () => {
+  const parsedAmount = Number(reducePowerAmount);
 
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      alert("Enter a valid power reduction amount.");
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    alert("Enter a valid power reduction amount.");
+    return;
+  }
+
+  const step = {
+    id: `reduce_power_${Date.now()}`,
+    type: "reduce_power",
+    amount: parsedAmount,
+    optional: effectStepOptional,
+    prompt: `Choose an opponent character to give -${parsedAmount} power.`,
+    targetRules: {
+      sides: ["opponent"],
+      zones: ["board"]
+    }
+  };
+
+  if (reducePowerSourcePowerAtLeast !== "") {
+    const sourcePowerAtLeast = Number(reducePowerSourcePowerAtLeast);
+
+    if (!Number.isFinite(sourcePowerAtLeast) || sourcePowerAtLeast < 0) {
+      alert("Enter a valid source power requirement.");
       return;
     }
 
-    addAbilityStep({
-      id: `reduce_power_${Date.now()}`,
-      type: "reduce_power",
-      amount: parsedAmount,
-      optional: effectStepOptional,
-      prompt: `Choose an opponent character to give -${parsedAmount} power.`,
-      targetRules: {
-        sides: ["opponent"],
-        zones: ["board"]
-      }
-    });
-  };
+    step.sourcePowerAtLeast = sourcePowerAtLeast;
+    step.prompt = `Choose an opponent character to give -${parsedAmount} power. This only works if the attacking card has ${sourcePowerAtLeast} or more power.`;
+  }
+
+  addAbilityStep(step, abilityStepPlacement);
+};
 
   const addAbilityKoPowerOrLessStep = () => {
     const parsedMaxPower = Number(koMaxPower);
@@ -1952,6 +1991,57 @@ export default function ScenarioBuilder() {
     });
   };
 
+  const addAbilityMoveAttachedDonFromSourceStep = () => {
+  const count = Number(moveAttachedDonCount);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    alert("Enter a valid attached DON move count.");
+    return;
+  }
+
+  addAbilityStep(
+    {
+      id: `move_attached_don_${Date.now()}`,
+      type: "move_attached_don",
+      player: "you",
+      count,
+      fromSource: true,
+      optional: effectStepOptional,
+      prompt: `Choose your character to move ${count} attached DON from this card to.`,
+      targetRules: {
+        sides: ["you"],
+        zones: ["board"]
+      }
+    },
+    abilityStepPlacement
+  );
+};
+
+const addAbilityAttachRestedDonStep = () => {
+  const count = Number(attachRestedDonCount);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    alert("Enter a valid rested DON attach count.");
+    return;
+  }
+
+  addAbilityStep(
+    {
+      id: `attach_rested_don_${Date.now()}`,
+      type: "attach_rested_don",
+      player: "you",
+      count,
+      optional: effectStepOptional,
+      prompt: `Choose your leader or character to attach ${count} rested DON to.`,
+      targetRules: {
+        sides: ["you"],
+        zones: ["leader", "board"]
+      }
+    },
+    abilityStepPlacement
+  );
+};
+
   const addAbilityRestandDonStep = () => {
     const parsedCount = Number(abilityRestandDonCount);
 
@@ -1967,6 +2057,46 @@ export default function ScenarioBuilder() {
       count: parsedCount
     });
   };
+
+  const addAbilityMoveAttachedDonStep = () => {
+  const count = Number(moveAttachedDonCount);
+
+  if (!Number.isFinite(count) || count <= 0) {
+    alert("Enter a valid attached DON move count.");
+    return;
+  }
+
+  addAbilitySteps(
+    [
+      {
+        id: `select_attached_don_source_${Date.now()}`,
+        type: "select_attached_don_source",
+        player: "you",
+        count,
+        optional: true,
+        prompt: `Choose your leader or character with attached DON to move up to ${count} DON from, or skip to move 0 DON.`,
+        targetRules: {
+          sides: ["you"],
+          zones: ["leader", "board"]
+        }
+      },
+      {
+        id: `move_attached_don_${Date.now()}`,
+        type: "move_attached_don",
+        player: "you",
+        count,
+        skipIfNoMoveAttachedDonSource: true,
+        optional: false,
+        prompt: `Choose your character to receive up to ${count} attached DON.`,
+        targetRules: {
+          sides: ["you"],
+          zones: ["board"]
+        }
+      }
+    ],
+    abilityStepPlacement
+  );
+};
 
 
 
@@ -2332,6 +2462,9 @@ module.exports = scenario;
         {step.type === "trash_to_hand" ? (
   <>
     {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+    {step.sourcePowerAtLeast != null
+  ? ` - Source Power ${step.sourcePowerAtLeast}+`
+  : ""}
     {step.manualSelect ? " - Manual Select" : " - Auto Select"}
     {step.maxCost != null ? ` - Cost ${step.maxCost} or less` : ""}
     {step.exactCost != null ? ` - Exact Cost ${step.exactCost}` : ""}
@@ -2349,6 +2482,31 @@ module.exports = scenario;
               : ""}
           </>
         ) : null}
+        {step.type === "attach_rested_don" ? (
+  <>
+    {` - Attach ${step.count || 0} rested DON`}
+    {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+  </>
+) : null}
+        {step.type === "move_attached_don" ? (
+  <>
+    {` - Move ${step.count || 0} attached DON`}
+
+    {step.fromSource ? " - From Source" : ""}
+  </>
+) : null}
+{step.type === "select_attached_don_source" ? (
+  <>
+    {` - Select source with attached DON`}
+    {step.count != null ? ` - Up to ${step.count}` : ""}
+  </>
+) : null}
+
+{step.type === "move_attached_don" ? (
+  <>
+    {` - Move up to ${step.count || 0} attached DON`}
+  </>
+) : null}
         {step.type === "grant_rush" ? " - Grants Rush" : ""}
         {step.type === "grant_rush" && step.targetSelf ? " - Targets Self" : ""}
         {step.type === "grant_rush"
@@ -3149,6 +3307,17 @@ module.exports = scenario;
                   </button>
                 </div>
 
+                <label>Source Power Requirement</label>
+<input
+  type="number"
+  value={reducePowerSourcePowerAtLeast}
+  onChange={(event) => setReducePowerSourcePowerAtLeast(event.target.value)}
+  placeholder="Leave blank, or enter 7000"
+/>
+<small>
+  For When Attacking effects. Example: enter 7000 if the attacker must be 7000+.
+</small>
+
                 <label>Power Reduction Amount</label>
                 <input
                   type="number"
@@ -3270,6 +3439,36 @@ module.exports = scenario;
                     </button>
                   </div>
                 </div>
+                <label>Move Attached DON Count</label>
+<input
+  type="number"
+  value={moveAttachedDonCount}
+  onChange={(event) =>
+    setMoveAttachedDonCount(Number(event.target.value))
+  }
+  placeholder="2"
+/>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityMoveAttachedDonStep}>
+    Add Move Up To Attached DON
+  </button>
+</div>
+<label>Attach Rested DON Count</label>
+<input
+  type="number"
+  value={attachRestedDonCount}
+  onChange={(event) =>
+    setAttachRestedDonCount(Number(event.target.value))
+  }
+  placeholder="2"
+/>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityAttachRestedDonStep}>
+    Add Attach Rested DON
+  </button>
+</div>
                 <label>Restand DON Count</label>
                 <input
                   type="number"
