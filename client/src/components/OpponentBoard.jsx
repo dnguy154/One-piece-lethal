@@ -30,30 +30,24 @@ export default function OpponentBoard({
           onMobilePreview={onMobilePreview}
         />
 
-        <div className="life-column">
-          <LifeStack
-            lifeCards={data.life}
-            revealCards={visibility.showOpponentLife}
-            setHoveredCard={setHoveredCard}
-          />
-        </div>
+<div className="life-column" aria-hidden="true" />
 
         <div className="playmat compact-playmat opponent-flipped">
           <div className="resource-split-row compact-resource-row">
             <Zone title="DON!! Area" className="don-zone compact-zone">
               <DonArea
-  don={data.don}
-  selectedDonIds={[]}
-  onDonClick={(donId) => {
-    const clickedDon = data.don.find(
-      (donCard) => Number(donCard.id) === Number(donId)
-    );
+                don={data.don}
+                selectedDonIds={[]}
+                onDonClick={(donId) => {
+                  const clickedDon = data.don.find(
+                    (donCard) => Number(donCard.id) === Number(donId)
+                  );
 
-    if (!clickedDon) return;
+                  if (!clickedDon) return;
 
-    onDonTargetClick?.(clickedDon);
-  }}
-/>
+                  onDonTargetClick?.(clickedDon);
+                }}
+              />
             </Zone>
 
             <Zone title="Trash" className="trash-zone compact-zone">
@@ -67,6 +61,14 @@ export default function OpponentBoard({
 
           <div className="mid-row opponent-mid-row compact-mid-row">
             <Zone title="Leader" className="leader-zone compact-zone">
+                <div className="leader-with-life">
+    <div className="leader-life-slot">
+      <LifeStack
+        lifeCards={data.life}
+        revealCards={visibility.showOpponentLife}
+        setHoveredCard={setHoveredCard}
+      />
+    </div>
               <CardTile
                 card={data.leader || null}
                 variant="leader"
@@ -77,6 +79,7 @@ export default function OpponentBoard({
                 powerValue={getDisplayedPower(data.leader, { includeAttachedDon: false })}
                 attachedDonCount={data.leader?.attachedDon?.length || 0}
               />
+                          </div>
             </Zone>
 
             <Zone title="Stage" className="stage-zone compact-zone">
@@ -96,14 +99,14 @@ export default function OpponentBoard({
           </div>
 
           <Zone title="Character Area" className="character-zone">
-<CharacterCards
-  cards={data.board}
-  setHoveredCard={setHoveredCard}
-  onCardClick={onTargetClick}
-  onMobilePreview={onMobilePreview}
-  onMobilePreviewClose={onMobilePreviewClose}
-  includeAttachedDonPower={false}
-/>
+            <CharacterCards
+              cards={data.board}
+              setHoveredCard={setHoveredCard}
+              onCardClick={onTargetClick}
+              onMobilePreview={onMobilePreview}
+              onMobilePreviewClose={onMobilePreviewClose}
+              includeAttachedDonPower={false}
+            />
           </Zone>
         </div>
       </div>

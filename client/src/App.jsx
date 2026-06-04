@@ -43,6 +43,7 @@ import PlayerBoard from "./components/PlayerBoard";
 import MobileCardPreview from "./components/MobileCardPreview";
 import DailyResultModal from "./components/DailyResultModal";
 import GameSidebar from "./components/GameSidebar";
+import FeedbackPanel from "./components/FeedbackPanel";
 import {
   VISIBILITY_BY_DIFFICULTY
 } from "./constants/config";
@@ -845,27 +846,58 @@ function App() {
     return attachedDonCount >= requiredAttachedDon;
   };
 
-  const getUsableActivateMainAbility = (card) => {
-    if (!card || !playState) return null;
+  const getActivateMainAbilityStatus = (card) => {
+    if (!card || !playState) {
+      return {
+        ability: null,
+        canUse: false,
+        reason: "No card selected."
+      };
+    }
 
     const ability = getActivateMainAbility(card, scenario);
 
-    if (!ability) return null;
+    if (!ability) {
+      return {
+        ability: null,
+        canUse: false,
+        reason: "No Activate: Main ability."
+      };
+    }
 
     if (
       ability.oncePerTurn &&
       isActivateMainAbilityUsed(playState, "you", ability, card.instanceId)
     ) {
-      return null;
+      return {
+        ability,
+        canUse: false,
+        reason: "This Activate: Main ability has already been used."
+      };
     }
 
     if (!hasRequiredAttachedDonForAbility(card, ability)) {
-      return null;
+      const requiredAttachedDon = getAttachedDonRequirement(ability);
+
+      return {
+        ability,
+        canUse: false,
+        reason: `${card.name || card.cardId} needs at least ${requiredAttachedDon} attached DON.`
+      };
     }
 
-    return ability;
+    return {
+      ability,
+      canUse: true,
+      reason: ""
+    };
   };
 
+  const getUsableActivateMainAbility = (card) => {
+    const status = getActivateMainAbilityStatus(card);
+
+    return status.canUse ? status.ability : null;
+  };
   const handleCardActionChoice = (card) => {
     if (!card?.instanceId || !playState) return false;
 
@@ -873,27 +905,28 @@ function App() {
 
     if (!ref || ref.side !== "you") return false;
 
-    const usableAbility = getUsableActivateMainAbility(ref.card);
+    const isLeaderOrCharacter =
+      ref.zone === "leader" || ref.zone === "board";
+
+    if (!isLeaderOrCharacter) return false;
+
+    const activateStatus = getActivateMainAbilityStatus(ref.card);
     const canAttackWithCard = canAttack(ref.card);
 
-    if (usableAbility && canAttackWithCard) {
-      setActionChoiceCard(ref.card);
-      setSelectedAttackerId(null);
-      setActionMode("idle");
-      setHoveredCard(null);
-      setMobilePreviewCard(null);
+    setActionChoiceCard(ref.card);
+    setSelectedAttackerId(null);
+    setActionMode("idle");
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
+
+    if (!canAttackWithCard && !activateStatus.ability) {
+      setMessage(`${ref.card.name || ref.card.cardId} has no available actions.`);
+    } else {
       setMessage(`Choose an action for ${ref.card.name || ref.card.cardId}.`);
-      return true;
     }
 
-    if (usableAbility) {
-      startActivateMainAbility(ref.card);
-      return true;
-    }
-
-    return false;
+    return true;
   };
-
 
 
 
@@ -936,66 +969,28 @@ function App() {
     setMessage(`Selected attacker: ${card.name}. Choose a target.`);
   };
   const skipCurrentOptionalEffectStep = () => {
-    if (!canSkipCurrentEffectStep) {
+    if (!canSkipCurrentEffectStep || !activeEffect) {
       return;
     }
 
     const currentState = activeEffect.workingState || playState;
-
     const nextStepIndex = activeEffect.stepIndex + 1;
-    const nextStep = activeEffect.effect.steps[nextStepIndex];
 
-    if (nextStep) {
-      const nextActiveEffect = {
-        ...activeEffect,
-        stepIndex: nextStepIndex,
-        workingState: currentState
-      };
-      finishActiveEffectResolution(
-        activeEffect,
-        currentState,
-        `${activeEffect.sourceCardName || activeEffect.effect.name || "Effect"} resolved. Optional effect skipped.`
-      );
+    const nextEffectState = {
+      ...activeEffect,
+      workingState: currentState
+    };
 
-      setActiveEffect(nextActiveEffect);
-      setPlayState(currentState);
-
-      saveCurrentDailyProgress(currentState, {
-        activeEffect: nextActiveEffect,
-        actionMode: "select_effect_target",
-        selectedDonIds: [],
-        selectedHandCardIndex: null,
-        selectedAttackerId: null
-      });
-
-      setHandViewer(null);
-      setHoveredCard(null);
-      setMobilePreviewCard(null);
-      setMessage(nextStep.prompt || "Choose the next effect target.");
-
-      return;
-    }
-
-    setPlayState(currentState);
-    setActiveEffect(null);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setSelectedDonIds([]);
-    setActionMode("idle");
     setHandViewer(null);
+    setTrashViewer(null);
     setHoveredCard(null);
     setMobilePreviewCard(null);
 
-    saveCurrentDailyProgress(currentState, {
-      activeEffect: null,
-      actionMode: "idle",
-      selectedDonIds: [],
-      selectedHandCardIndex: null,
-      selectedAttackerId: null
-    });
-
-    setMessage(
-      `${activeEffect.sourceCardName || activeEffect.effect.name || "Effect"} resolved. Optional effect skipped.`
+    continueEffectResolution(
+      nextEffectState,
+      currentState,
+      nextStepIndex,
+      `${activeEffect.sourceCardName || activeEffect.effect.name || "Effect"} optional step skipped.`
     );
   };
 
@@ -1022,28 +1017,28 @@ function App() {
   };
 
   const getOnPlayTriggersFromResult = (result) => {
-  const playedCards = Array.isArray(result?.playedCards)
-    ? result.playedCards
-    : [];
+    const playedCards = Array.isArray(result?.playedCards)
+      ? result.playedCards
+      : [];
 
-  return playedCards
-    .map(({ card, side }) => {
-      const ability = getTriggeredAbility(
-        card,
-        scenario,
-        ABILITY_TRIGGERS.ON_PLAY
-      );
+    return playedCards
+      .map(({ card, side }) => {
+        const ability = getTriggeredAbility(
+          card,
+          scenario,
+          ABILITY_TRIGGERS.ON_PLAY
+        );
 
-      if (!ability) return null;
+        if (!ability) return null;
 
-      return {
-        ability,
-        sourceCard: card,
-        side
-      };
-    })
-    .filter(Boolean);
-};
+        return {
+          ability,
+          sourceCard: card,
+          side
+        };
+      })
+      .filter(Boolean);
+  };
 
   const queueOnKoTriggersFromResult = (effectState, result) => {
     const onKoTriggers = getOnKoTriggersFromResult(result);
@@ -1061,27 +1056,27 @@ function App() {
     };
   };
 
-const queueOnPlayTriggersFromResult = (effectState, result) => {
-  const onPlayTriggers = getOnPlayTriggersFromResult(result);
+  const queueOnPlayTriggersFromResult = (effectState, result) => {
+    const onPlayTriggers = getOnPlayTriggersFromResult(result);
 
-  if (onPlayTriggers.length === 0) {
-    return effectState;
-  }
+    if (onPlayTriggers.length === 0) {
+      return effectState;
+    }
 
-  return {
-    ...effectState,
-    pendingOnPlayTriggers: [
-      ...(effectState.pendingOnPlayTriggers || []),
-      ...onPlayTriggers
-    ]
+    return {
+      ...effectState,
+      pendingOnPlayTriggers: [
+        ...(effectState.pendingOnPlayTriggers || []),
+        ...onPlayTriggers
+      ]
+    };
   };
-};
 
-const queueTriggeredAbilitiesFromResult = (effectState, result) => {
-  const withOnKoTriggers = queueOnKoTriggersFromResult(effectState, result);
+  const queueTriggeredAbilitiesFromResult = (effectState, result) => {
+    const withOnKoTriggers = queueOnKoTriggersFromResult(effectState, result);
 
-  return queueOnPlayTriggersFromResult(withOnKoTriggers, result);
-};
+    return queueOnPlayTriggersFromResult(withOnKoTriggers, result);
+  };
   const finishActiveEffectResolution = (effectState, finalState, finalMessage) => {
 
     const pendingOnKoTriggers = effectState.pendingOnKoTriggers || [];
@@ -1128,46 +1123,46 @@ const queueTriggeredAbilitiesFromResult = (effectState, result) => {
 
     const pendingOnPlayTriggers = effectState.pendingOnPlayTriggers || [];
 
-if (pendingOnPlayTriggers.length > 0) {
-  const [nextTrigger, ...remainingTriggers] = pendingOnPlayTriggers;
+    if (pendingOnPlayTriggers.length > 0) {
+      const [nextTrigger, ...remainingTriggers] = pendingOnPlayTriggers;
 
-  const allSteps = [
-    ...(nextTrigger.ability.costSteps || []),
-    ...(nextTrigger.ability.steps || [])
-  ];
+      const allSteps = [
+        ...(nextTrigger.ability.costSteps || []),
+        ...(nextTrigger.ability.steps || [])
+      ];
 
-  if (allSteps.length > 0) {
-    const nextEffectState = {
-      kind: ABILITY_TRIGGERS.ON_PLAY,
-      effect: {
-        ...nextTrigger.ability,
-        steps: allSteps
-      },
-      sourceInstanceId: nextTrigger.sourceCard.instanceId,
-      sourceCardName:
-        nextTrigger.sourceCard.name ||
-        nextTrigger.sourceCard.cardId ||
-        nextTrigger.sourceCard.id,
-      stepIndex: 0,
-      workingState: finalState,
-      pendingOnKoTriggers: effectState.pendingOnKoTriggers || [],
-      pendingOnPlayTriggers: remainingTriggers
-    };
+      if (allSteps.length > 0) {
+        const nextEffectState = {
+          kind: ABILITY_TRIGGERS.ON_PLAY,
+          effect: {
+            ...nextTrigger.ability,
+            steps: allSteps
+          },
+          sourceInstanceId: nextTrigger.sourceCard.instanceId,
+          sourceCardName:
+            nextTrigger.sourceCard.name ||
+            nextTrigger.sourceCard.cardId ||
+            nextTrigger.sourceCard.id,
+          stepIndex: 0,
+          workingState: finalState,
+          pendingOnKoTriggers: effectState.pendingOnKoTriggers || [],
+          pendingOnPlayTriggers: remainingTriggers
+        };
 
-    setPlayState(finalState);
-    setActiveEffect(nextEffectState);
-    setActionMode("idle");
+        setPlayState(finalState);
+        setActiveEffect(nextEffectState);
+        setActionMode("idle");
 
-    continueEffectResolution(
-      nextEffectState,
-      finalState,
-      0,
-      `${nextTrigger.sourceCard.name || nextTrigger.sourceCard.cardId} On Play activated.`
-    );
+        continueEffectResolution(
+          nextEffectState,
+          finalState,
+          0,
+          `${nextTrigger.sourceCard.name || nextTrigger.sourceCard.cardId} On Play activated.`
+        );
 
-    return;
-  }
-}
+        return;
+      }
+    }
     let completedState = finalState;
 
 
@@ -1237,12 +1232,12 @@ if (pendingOnPlayTriggers.length > 0) {
     while (stepIndex < effectState.effect.steps.length) {
       const nextStep = effectState.effect.steps[stepIndex];
 
- const isManualTrashSelectionStep =
-  ["play_from_trash", "trash_to_hand"].includes(nextStep.type) &&
-  (nextStep.player || "you") === "you" &&
-  nextStep.manualSelect !== false;
+      const isManualTrashSelectionStep =
+        ["play_from_trash", "trash_to_hand"].includes(nextStep.type) &&
+        (nextStep.player || "you") === "you" &&
+        nextStep.manualSelect !== false;
 
-if (isManualTrashSelectionStep) {
+      if (isManualTrashSelectionStep) {
         const nextActiveEffect = {
           ...effectState,
           stepIndex,
@@ -1265,35 +1260,35 @@ if (isManualTrashSelectionStep) {
           selectedAttackerId: null
         });
 
-setMessage(
-  nextStep.prompt ||
-    (nextStep.type === "trash_to_hand"
-      ? "Choose a valid character from your trash to add to hand."
-      : "Choose a valid card from your trash.")
-);
+        setMessage(
+          nextStep.prompt ||
+          (nextStep.type === "trash_to_hand"
+            ? "Choose a valid character from your trash to add to hand."
+            : "Choose a valid card from your trash.")
+        );
         return;
       }
       if (nextStep.targetSelf) {
-  const result = applyEffectStep(
-    workingState,
-    nextStep,
-    effectState.sourceInstanceId
-  );
+        const result = applyEffectStep(
+          workingState,
+          nextStep,
+          effectState.sourceInstanceId
+        );
 
-  if (!result.success) {
-    setPlayState(workingState);
-    setActiveEffect(null);
-    setActionMode("idle");
-    setMessage(result.message || "Effect failed.");
-    return;
-  }
+        if (!result.success) {
+          setPlayState(workingState);
+          setActiveEffect(null);
+          setActionMode("idle");
+          setMessage(result.message || "Effect failed.");
+          return;
+        }
 
-  effectState = queueTriggeredAbilitiesFromResult(effectState, result);
-  workingState = result.nextState;
-  latestMessage = result.message || latestMessage;
-  stepIndex += 1;
-  continue;
-}
+        effectState = queueTriggeredAbilitiesFromResult(effectState, result);
+        workingState = result.nextState;
+        latestMessage = result.message || latestMessage;
+        stepIndex += 1;
+        continue;
+      }
 
       if (nextStep.targetRules) {
         const nextStepHasTarget = hasValidEffectTarget(workingState, nextStep);
@@ -1345,14 +1340,14 @@ setMessage(
       }
 
       const autoTargetInstanceId = nextStep.targetSelf
-  ? effectState.sourceInstanceId
-  : null;
+        ? effectState.sourceInstanceId
+        : null;
 
-const result = applyEffectStep(
-  workingState,
-  nextStep,
-  autoTargetInstanceId
-);
+      const result = applyEffectStep(
+        workingState,
+        nextStep,
+        autoTargetInstanceId
+      );
 
       if (!result.success) {
         setPlayState(workingState);
@@ -1372,135 +1367,69 @@ const result = applyEffectStep(
     finishActiveEffectResolution(effectState, workingState, latestMessage);
   };
 
-const handleTrashCardClick = (card, trashIndex, side) => {
-  if (!activeEffect) return false;
-
-  const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
-
-  if (!["play_from_trash", "trash_to_hand"].includes(currentStep?.type)) {
-    return false;
-  }
-
-  const playerKey = currentStep.player || "you";
-
-  if (side !== playerKey) {
-    setMessage(
-      `Choose a card from ${
-        playerKey === "you" ? "your" : "opponent's"
-      } trash.`
-    );
-    return true;
-  }
-
-  const trashTargetId = `${side}-trash-${trashIndex}`;
-
-  const result = applyEffectStep(
-    activeEffect.workingState,
-    currentStep,
-    trashTargetId
-  );
-
-  if (currentStep.type === "play_from_trash" && result.requiresReplacement) {
-    setTrashViewer(null);
-
-    setActiveEffect({
-      ...activeEffect,
-      pendingTrashPlay: {
-        side,
-        trashIndex
-      }
-    });
-
-    setActionMode("select_replace_for_trash_play");
-    setSelectedAttackerId(null);
-    setSelectedHandCardIndex(null);
-    setSelectedDonIds([]);
-
-    setMessage(
-      "Your character area is full. Choose one of your characters to replace."
-    );
-
-    return true;
-  }
-
-  if (!result.success) {
-    setMessage(result.message);
-    return true;
-  }
-
-  setTrashViewer(null);
-
-  markActionStarted();
-
-  const nextEffectState = queueTriggeredAbilitiesFromResult(
-    activeEffect,
-    result
-  );
-
-  continueEffectResolution(
-    nextEffectState,
-    result.nextState,
-    activeEffect.stepIndex + 1,
-    result.message
-  );
-
-  return true;
-};
-
-const handleEffectTargetClick = (card) => {
-  if (actionMode === "select_replace_for_trash_play") {
-    if (!activeEffect?.pendingTrashPlay) {
-      setActionMode("idle");
-      setMessage("No pending trash card to play.");
-      return true;
-    }
-
-    if (!card?.instanceId) {
-      setMessage("Choose one of your characters to replace.");
-      return true;
-    }
+  const handleTrashCardClick = (card, trashIndex, side) => {
+    if (!activeEffect) return false;
 
     const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+    if (!["play_from_trash", "trash_to_hand"].includes(currentStep?.type)) {
+      return false;
+    }
+
     const playerKey = currentStep.player || "you";
 
-    const replacementRef = findCardByInstanceId(
-      activeEffect.workingState,
-      card.instanceId
-    );
-
-    if (
-      !replacementRef ||
-      replacementRef.side !== playerKey ||
-      replacementRef.zone !== "board"
-    ) {
-      setMessage("Choose one of your characters to replace.");
+    if (side !== playerKey) {
+      setMessage(
+        `Choose a card from ${playerKey === "you" ? "your" : "opponent's"
+        } trash.`
+      );
       return true;
     }
+
+    const trashTargetId = `${side}-trash-${trashIndex}`;
 
     const result = applyEffectStep(
       activeEffect.workingState,
       currentStep,
-      {
-        side: activeEffect.pendingTrashPlay.side,
-        trashIndex: activeEffect.pendingTrashPlay.trashIndex,
-        replaceTargetInstanceId: card.instanceId
-      }
+      trashTargetId
     );
+
+    if (currentStep.type === "play_from_trash" && result.requiresReplacement) {
+      setTrashViewer(null);
+
+      setActiveEffect({
+        ...activeEffect,
+        pendingTrashPlay: {
+          side,
+          trashIndex
+        }
+      });
+
+      setActionMode("select_replace_for_trash_play");
+      setSelectedAttackerId(null);
+      setSelectedHandCardIndex(null);
+      setSelectedDonIds([]);
+
+      setMessage(
+        "Your character area is full. Choose one of your characters to replace."
+      );
+
+      return true;
+    }
 
     if (!result.success) {
       setMessage(result.message);
       return true;
     }
 
+    setTrashViewer(null);
+
     markActionStarted();
 
-const nextEffectState = queueTriggeredAbilitiesFromResult(
-  {
-    ...activeEffect,
-    pendingTrashPlay: null
-  },
-  result
-);
+    const nextEffectState = queueTriggeredAbilitiesFromResult(
+      activeEffect,
+      result
+    );
 
     continueEffectResolution(
       nextEffectState,
@@ -1510,162 +1439,359 @@ const nextEffectState = queueTriggeredAbilitiesFromResult(
     );
 
     return true;
-  }
-
-  if (!activeEffect || actionMode !== "select_effect_target") {
-    return false;
-  }
-
-  if (!card?.instanceId) {
-    return true;
-  }
-
-  const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
-
-  const result = applyEffectStep(
-    activeEffect.workingState,
-    currentStep,
-    card.instanceId
-  );
-
-  if (!result.success) {
-    setMessage(result.message);
-    return true;
-  }
-
-  markActionStarted();
-
- const nextEffectState = queueTriggeredAbilitiesFromResult(activeEffect, result);
-
-  continueEffectResolution(
-    nextEffectState,
-    result.nextState,
-    activeEffect.stepIndex + 1,
-    result.message
-  );
-
-  return true;
-};
-
-const startTriggeredAbility = (
-  ability,
-  sourceCard,
-  workingState,
-  extra = {}
-) => {
-  if (!ability || !sourceCard || !workingState) return false;
-
-  const allSteps = [
-    ...(ability.costSteps || []),
-    ...(ability.steps || [])
-  ];
-
-  if (allSteps.length === 0) {
-    setMessage(`${ability.name || "Ability"} has no steps.`);
-    return true;
-  }
-
-  markActionStarted();
-
-  const abilityEffect = {
-    ...ability,
-    steps: allSteps
   };
 
-  const abilityState = {
-    kind: ability.trigger,
-    effect: abilityEffect,
-    sourceInstanceId: sourceCard.instanceId,
-    sourceCardName: sourceCard.name || sourceCard.cardId || sourceCard.id,
-    stepIndex: 0,
-    workingState,
-    pendingAttack: extra.pendingAttack || null
-  };
+  const handleEffectTargetClick = (card) => {
+    if (actionMode === "select_replace_for_trash_play") {
+      if (!activeEffect?.pendingTrashPlay) {
+        setActionMode("idle");
+        setMessage("No pending trash card to play.");
+        return true;
+      }
 
-  continueEffectResolution(abilityState, workingState, 0);
+      if (!card?.instanceId) {
+        setMessage("Choose one of your characters to replace.");
+        return true;
+      }
 
-  return true;
-};
+      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+      const playerKey = currentStep.player || "you";
 
-const startActivateMainAbility = (sourceCard) => {
-  if (hasWon || hasLost || hasConceded) return;
-  if (!sourceCard || !playState) return;
+      const replacementRef = findCardByInstanceId(
+        activeEffect.workingState,
+        card.instanceId
+      );
 
-  if (isResolvingEffect) {
-    setMessage("Finish resolving the current effect first.");
-    return;
-  }
+      if (
+        !replacementRef ||
+        replacementRef.side !== playerKey ||
+        replacementRef.zone !== "board"
+      ) {
+        setMessage("Choose one of your characters to replace.");
+        return true;
+      }
 
-  const ability = getTriggeredAbility(
-    sourceCard,
-    scenario,
-    ABILITY_TRIGGERS.ACTIVATE_MAIN
-  );
+      const result = applyEffectStep(
+        activeEffect.workingState,
+        currentStep,
+        {
+          side: activeEffect.pendingTrashPlay.side,
+          trashIndex: activeEffect.pendingTrashPlay.trashIndex,
+          replaceTargetInstanceId: card.instanceId
+        }
+      );
 
-  if (!hasRequiredAttachedDonForAbility(sourceCard, ability)) {
-    const requiredAttachedDon = getAttachedDonRequirement(ability);
+      if (!result.success) {
+        setMessage(result.message);
+        return true;
+      }
 
-    setMessage(
-      `${sourceCard.name || sourceCard.cardId} needs at least ${requiredAttachedDon} attached DON to use this Activate: Main ability.`
-    );
+      markActionStarted();
 
-    return true;
-  }
+      const nextEffectState = queueTriggeredAbilitiesFromResult(
+        {
+          ...activeEffect,
+          pendingTrashPlay: null
+        },
+        result
+      );
 
-  if (
-    ability.oncePerTurn &&
-    isActivateMainAbilityUsed(playState, "you", ability, sourceCard.instanceId)
-  ) {
-    setMessage("This Activate: Main ability has already been used.");
-    return true;
-  }
+      continueEffectResolution(
+        nextEffectState,
+        result.nextState,
+        activeEffect.stepIndex + 1,
+        result.message
+      );
 
-  const allSteps = [
-    ...(ability.costSteps || []),
-    ...(ability.steps || [])
-  ];
+      return true;
+    }
 
-  if (allSteps.length === 0) {
-    setMessage("This ability has no steps.");
-    return true;
-  }
+    if (!activeEffect || actionMode !== "select_effect_target") {
+      return false;
+    }
 
-  markActionStarted();
+    if (!card?.instanceId) {
+      return true;
+    }
 
-  const abilityEffect = {
-    ...ability,
-    steps: allSteps
-  };
+    const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
 
-  const abilityState = {
-    kind: "activate_main",
-    effect: abilityEffect,
-    sourceInstanceId: sourceCard.instanceId,
-    sourceCardName: sourceCard.name || sourceCard.cardId || sourceCard.id,
-    stepIndex: 0,
-    workingState: playState
-  };
-
-  continueEffectResolution(abilityState, playState, 0);
-
-  return true;
-};
-
-const handleAttachTargetClick = (card) => {
-  if (hasWon || hasLost || hasConceded) return;
-  if (!card?.instanceId || !playState) return;
-  if (handleEffectTargetClick(card)) {
-    return;
-  }
-
-  if (selectedDonIds.length > 0) {
-    const nextState = attachMultipleDonToTarget(
-      playState,
-      selectedDonIds,
+    const result = applyEffectStep(
+      activeEffect.workingState,
+      currentStep,
       card.instanceId
     );
 
+    if (!result.success) {
+      setMessage(result.message);
+      return true;
+    }
+
     markActionStarted();
+
+    const nextEffectState = queueTriggeredAbilitiesFromResult(activeEffect, result);
+
+    continueEffectResolution(
+      nextEffectState,
+      result.nextState,
+      activeEffect.stepIndex + 1,
+      result.message
+    );
+
+    return true;
+  };
+
+  const startTriggeredAbility = (
+    ability,
+    sourceCard,
+    workingState,
+    extra = {}
+  ) => {
+    if (!ability || !sourceCard || !workingState) return false;
+
+    const allSteps = [
+      ...(ability.costSteps || []),
+      ...(ability.steps || [])
+    ];
+
+    if (allSteps.length === 0) {
+      setMessage(`${ability.name || "Ability"} has no steps.`);
+      return true;
+    }
+
+    markActionStarted();
+
+    const abilityEffect = {
+      ...ability,
+      steps: allSteps
+    };
+
+    const abilityState = {
+      kind: ability.trigger,
+      effect: abilityEffect,
+      sourceInstanceId: sourceCard.instanceId,
+      sourceCardName: sourceCard.name || sourceCard.cardId || sourceCard.id,
+      stepIndex: 0,
+      workingState,
+      pendingAttack: extra.pendingAttack || null
+    };
+
+    continueEffectResolution(abilityState, workingState, 0);
+
+    return true;
+  };
+
+  const startActivateMainAbility = (sourceCard) => {
+    if (hasWon || hasLost || hasConceded) return;
+    if (!sourceCard || !playState) return;
+
+    if (isResolvingEffect) {
+      setMessage("Finish resolving the current effect first.");
+      return;
+    }
+
+    const ability = getTriggeredAbility(
+      sourceCard,
+      scenario,
+      ABILITY_TRIGGERS.ACTIVATE_MAIN
+    );
+    if (!ability) {
+      setMessage("This card has no Activate: Main ability.");
+      return false;
+    }
+
+    if (!hasRequiredAttachedDonForAbility(sourceCard, ability)) {
+      const requiredAttachedDon = getAttachedDonRequirement(ability);
+
+      setMessage(
+        `${sourceCard.name || sourceCard.cardId} needs at least ${requiredAttachedDon} attached DON to use this Activate: Main ability.`
+      );
+
+      return true;
+    }
+
+    if (
+      ability.oncePerTurn &&
+      isActivateMainAbilityUsed(playState, "you", ability, sourceCard.instanceId)
+    ) {
+      setMessage("This Activate: Main ability has already been used.");
+      return true;
+    }
+
+    const allSteps = [
+      ...(ability.costSteps || []),
+      ...(ability.steps || [])
+    ];
+
+    if (allSteps.length === 0) {
+      setMessage("This ability has no steps.");
+      return true;
+    }
+
+    markActionStarted();
+
+    const abilityEffect = {
+      ...ability,
+      steps: allSteps
+    };
+
+    const abilityState = {
+      kind: "activate_main",
+      effect: abilityEffect,
+      sourceInstanceId: sourceCard.instanceId,
+      sourceCardName: sourceCard.name || sourceCard.cardId || sourceCard.id,
+      stepIndex: 0,
+      workingState: playState
+    };
+
+    continueEffectResolution(abilityState, playState, 0);
+
+    return true;
+  };
+
+  const handleAttachTargetClick = (card) => {
+    if (hasWon || hasLost || hasConceded) return;
+    if (!card?.instanceId || !playState) return;
+    if (handleEffectTargetClick(card)) {
+      return;
+    }
+
+    if (selectedDonIds.length > 0) {
+      const nextState = attachMultipleDonToTarget(
+        playState,
+        selectedDonIds,
+        card.instanceId
+      );
+
+      markActionStarted();
+
+      setPlayState(nextState);
+
+      saveCurrentDailyProgress(nextState, {
+        selectedDonIds: [],
+        selectedHandCardIndex: null,
+        selectedAttackerId: null,
+        activeEffect: null,
+        actionMode: "idle"
+      });
+
+      setSelectedDonIds([]);
+      setSelectedHandCardIndex(null);
+      setSelectedAttackerId(null);
+      setActionMode("idle");
+      setMessage("DON attached.");
+      return;
+    }
+
+    if (selectedHandCardIndex != null) {
+      const isYourBoardCharacter = playState.you.board.some(
+        (boardCard) => boardCard.instanceId === card.instanceId
+      );
+
+      if (!isYourBoardCharacter) {
+        setMessage("You can only replace one of your own characters.");
+        return;
+      }
+
+      if ((playState.you.board?.length || 0) < 5) {
+        setMessage("You can only replace a character when your board has 5 characters.");
+        return;
+      }
+
+      const playedCardFromHand = playState.you.hand[selectedHandCardIndex];
+
+      const onPlayAbility = getTriggeredAbility(
+        playedCardFromHand,
+        scenario,
+        ABILITY_TRIGGERS.ON_PLAY
+      );
+
+      const {
+        nextState,
+        success,
+        message: resultMessage,
+        playedCard
+      } = playHandCardToState(
+        playState,
+        selectedHandCardIndex,
+        card.instanceId
+      );
+
+      if (!success) {
+        setMessage(resultMessage);
+        return;
+      }
+
+      markActionStarted();
+
+      setPlayState(nextState);
+      setSelectedHandCardIndex(null);
+      setSelectedAttackerId(null);
+      setActionMode("idle");
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
+
+      if (onPlayAbility) {
+        startTriggeredAbility(
+          onPlayAbility,
+          playedCard || playedCardFromHand,
+          nextState
+        );
+        return;
+      }
+
+      setMessage(resultMessage);
+      return;
+    }
+
+    if (handleCardActionChoice(card)) {
+      return;
+    }
+
+    handleAttackerClick(card);
+  };
+
+  const canPlayerStillAttackOrCreateAttack = (state) => {
+    if (!state?.you) return false;
+
+    const yourCardsThatCanAttack = [
+      state.you.leader,
+      ...(state.you.board || [])
+    ].filter(Boolean);
+
+    const hasReadyAttacker = yourCardsThatCanAttack.some((card) =>
+      canAttack(card)
+    );
+
+    if (hasReadyAttacker) {
+      return true;
+    }
+
+    const boardCanReceiveCharacter = (state.you.board || []).length < 5;
+    const boardCanReplaceCharacter = (state.you.board || []).length >= 5;
+
+    const canPlayRushCharacter = (state.you.hand || []).some((card) => {
+      if (!isCharacterCard(card)) return false;
+      if (!hasRush(card)) return false;
+      if (!canAffordCard(state.you, card)) return false;
+
+      return boardCanReceiveCharacter || boardCanReplaceCharacter;
+    });
+
+    return canPlayRushCharacter;
+  };
+
+  const resolveDeclaredAttack = (stateBeforeAttack, attackerId, targetId) => {
+    markActionStarted();
+
+    const { nextState, resultMessage } = resolveAttack(
+      stateBeforeAttack,
+      attackerId,
+      targetId,
+      scenario
+    );
+
+    const scenarioResult = evaluateScenarioResult(nextState);
 
     setPlayState(nextState);
 
@@ -1677,483 +1803,395 @@ const handleAttachTargetClick = (card) => {
       actionMode: "idle"
     });
 
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setMessage("DON attached.");
-    return;
-  }
+    clearSelections();
 
-  if (selectedHandCardIndex != null) {
-    const isYourBoardCharacter = playState.you.board.some(
-      (boardCard) => boardCard.instanceId === card.instanceId
-    );
+    if (scenarioResult.finished) {
+      setHasWon(true);
+      setHasLost(false);
+      setHasConceded(false);
+      setMessage("");
 
-    if (!isYourBoardCharacter) {
-      setMessage("You can only replace one of your own characters.");
+      finishDailyChallenge({ solved: true });
       return;
     }
 
-    if ((playState.you.board?.length || 0) < 5) {
-      setMessage("You can only replace a character when your board has 5 characters.");
-      return;
-    }
+    if (!canPlayerStillAttackOrCreateAttack(nextState)) {
+      setHasWon(false);
+      setHasLost(true);
+      setHasConceded(false);
 
-    const playedCardFromHand = playState.you.hand[selectedHandCardIndex];
-
-    const onPlayAbility = getTriggeredAbility(
-      playedCardFromHand,
-      scenario,
-      ABILITY_TRIGGERS.ON_PLAY
-    );
-
-    const {
-      nextState,
-      success,
-      message: resultMessage,
-      playedCard
-    } = playHandCardToState(
-      playState,
-      selectedHandCardIndex,
-      card.instanceId
-    );
-
-    if (!success) {
-      setMessage(resultMessage);
-      return;
-    }
-
-    markActionStarted();
-
-    setPlayState(nextState);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActionMode("idle");
-    setHoveredCard(null);
-    setMobilePreviewCard(null);
-
-    if (onPlayAbility) {
-      startTriggeredAbility(
-        onPlayAbility,
-        playedCard || playedCardFromHand,
-        nextState
+      setMessage(
+        `${resultMessage} You have no attacks left and cannot play a Rush character.`
       );
+
+      finishDailyChallenge({ solved: false });
       return;
     }
 
     setMessage(resultMessage);
-    return;
-  }
+  };
 
-  if (handleCardActionChoice(card)) {
-    return;
-  }
+  const handleAttackTargetClick = (card) => {
+    if (hasWon || hasLost || hasConceded) return;
 
-  handleAttackerClick(card);
-};
-
-const canPlayerStillAttackOrCreateAttack = (state) => {
-  if (!state?.you) return false;
-
-  const yourCardsThatCanAttack = [
-    state.you.leader,
-    ...(state.you.board || [])
-  ].filter(Boolean);
-
-  const hasReadyAttacker = yourCardsThatCanAttack.some((card) =>
-    canAttack(card)
-  );
-
-  if (hasReadyAttacker) {
-    return true;
-  }
-
-  const boardCanReceiveCharacter = (state.you.board || []).length < 5;
-  const boardCanReplaceCharacter = (state.you.board || []).length >= 5;
-
-  const canPlayRushCharacter = (state.you.hand || []).some((card) => {
-    if (!isCharacterCard(card)) return false;
-    if (!hasRush(card)) return false;
-    if (!canAffordCard(state.you, card)) return false;
-
-    return boardCanReceiveCharacter || boardCanReplaceCharacter;
-  });
-
-  return canPlayRushCharacter;
-};
-
-const resolveDeclaredAttack = (stateBeforeAttack, attackerId, targetId) => {
-  markActionStarted();
-
-  const { nextState, resultMessage } = resolveAttack(
-    stateBeforeAttack,
-    attackerId,
-    targetId,
-    scenario
-  );
-
-  const scenarioResult = evaluateScenarioResult(nextState);
-
-  setPlayState(nextState);
-
-  saveCurrentDailyProgress(nextState, {
-    selectedDonIds: [],
-    selectedHandCardIndex: null,
-    selectedAttackerId: null,
-    activeEffect: null,
-    actionMode: "idle"
-  });
-
-  clearSelections();
-
-  if (scenarioResult.finished) {
-    setHasWon(true);
-    setHasLost(false);
-    setHasConceded(false);
-    setMessage("");
-
-    finishDailyChallenge({ solved: true });
-    return;
-  }
-
-  if (!canPlayerStillAttackOrCreateAttack(nextState)) {
-    setHasWon(false);
-    setHasLost(true);
-    setHasConceded(false);
-
-    setMessage(
-      `${resultMessage} You have no attacks left and cannot play a Rush character.`
-    );
-
-    finishDailyChallenge({ solved: false });
-    return;
-  }
-
-  setMessage(resultMessage);
-};
-
-const handleAttackTargetClick = (card) => {
-  if (hasWon || hasLost || hasConceded) return;
-
-  if (handleEffectTargetClick(card)) {
-    return;
-  }
-
-  if (
-    actionMode !== "select_attack_target" ||
-    !selectedAttackerId ||
-    !card?.instanceId
-  ) {
-    return;
-  }
-
-  const attackerRef = findCardByInstanceId(playState, selectedAttackerId);
-
-  if (!attackerRef || attackerRef.side !== "you") {
-    setMessage("Invalid attacker.");
-    return;
-  }
-
-  const targetRef = findCardByInstanceId(playState, card.instanceId);
-
-if (targetRef?.zone === "leader" && !canAttackLeaderTarget(attackerRef.card)) {
-  setMessage(
-    `${attackerRef.card.name || attackerRef.card.cardId} can only attack characters this turn.`
-  );
-  return;
-}
-
-  const whenAttackingAbility = getTriggeredAbility(
-    attackerRef.card,
-    scenario,
-    ABILITY_TRIGGERS.WHEN_ATTACKING
-  );
-
-  if (whenAttackingAbility) {
-    startTriggeredAbility(whenAttackingAbility, attackerRef.card, playState, {
-      pendingAttack: {
-        attackerId: selectedAttackerId,
-        targetId: card.instanceId,
-        attackerName: attackerRef.card.name || attackerRef.card.cardId,
-        targetName: card.name || card.cardId
-      }
-    });
-
-    return;
-  }
-
-  resolveDeclaredAttack(playState, selectedAttackerId, card.instanceId);
-};
-
-const handleDonClick = (donId) => {
-  if (activeEffect) {
-    const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
-
-    const canTargetDon =
-      currentStep?.targetRules?.zones?.includes("don") &&
-      currentStep?.targetRules?.sides?.includes("you");
-
-    if (canTargetDon) {
-      handleEffectTargetClick({
-        instanceId: `you-don-${donId}`,
-        id: donId
-      });
+    if (handleEffectTargetClick(card)) {
       return;
     }
-  }
-  if (hasWon || hasLost || hasConceded) return;
 
-  if (isResolvingEffect) {
-    const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+    if (
+      actionMode !== "select_attack_target" ||
+      !selectedAttackerId ||
+      !card?.instanceId
+    ) {
+      return;
+    }
 
-    setMessage(
-      currentStep?.prompt ||
-      "Finish resolving the current event effect before attaching DON."
+    const attackerRef = findCardByInstanceId(playState, selectedAttackerId);
+
+    if (!attackerRef || attackerRef.side !== "you") {
+      setMessage("Invalid attacker.");
+      return;
+    }
+
+    const targetRef = findCardByInstanceId(playState, card.instanceId);
+
+    if (targetRef?.zone === "leader" && !canAttackLeaderTarget(attackerRef.card)) {
+      setMessage(
+        `${attackerRef.card.name || attackerRef.card.cardId} can only attack characters this turn.`
+      );
+      return;
+    }
+
+    const whenAttackingAbility = getTriggeredAbility(
+      attackerRef.card,
+      scenario,
+      ABILITY_TRIGGERS.WHEN_ATTACKING
     );
 
-    return;
+    if (whenAttackingAbility) {
+      startTriggeredAbility(whenAttackingAbility, attackerRef.card, playState, {
+        pendingAttack: {
+          attackerId: selectedAttackerId,
+          targetId: card.instanceId,
+          attackerName: attackerRef.card.name || attackerRef.card.cardId,
+          targetName: card.name || card.cardId
+        }
+      });
+
+      return;
+    }
+
+    resolveDeclaredAttack(playState, selectedAttackerId, card.instanceId);
+  };
+
+  const handleDonClick = (donId) => {
+    if (activeEffect) {
+      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+      const canTargetDon =
+        currentStep?.targetRules?.zones?.includes("don") &&
+        currentStep?.targetRules?.sides?.includes("you");
+
+      if (canTargetDon) {
+        handleEffectTargetClick({
+          instanceId: `you-don-${donId}`,
+          id: donId
+        });
+        return;
+      }
+    }
+    if (hasWon || hasLost || hasConceded) return;
+
+    if (isResolvingEffect) {
+      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+
+      setMessage(
+        currentStep?.prompt ||
+        "Finish resolving the current event effect before attaching DON."
+      );
+
+      return;
+    }
+
+    setHoveredCard(null);
+    setSelectedAttackerId(null);
+    setSelectedHandCardIndex(null);
+    setActiveEffect(null);
+    setActionMode("idle");
+
+    setSelectedDonIds((prev) =>
+      prev.includes(donId)
+        ? prev.filter((id) => id !== donId)
+        : [...prev, donId]
+    );
+  };
+
+  const resetScenario = () => {
+    if (!scenario) return;
+
+    // Cannot reset mid-attempt after making an action.
+    if (!isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded) {
+      setMessage("You cannot reset after making an action.");
+      return;
+    }
+    setPlayState(deepClone(scenario.initialState));
+    clearSelections();
+
+    setMessage("");
+    setHasWon(false);
+    setHasLost(false);
+    setHasConceded(false);
+
+    setHasStartedAction(false);
+    setStartTimeMs(null);
+    startTimeRef.current = null;
+    setFinishedTimeSeconds(null);
+
+    // If today already has a locked result, this new run is replay/practice.
+    setIsReplayAttempt(!!getSavedDailyResult(dailyChallenge));
+  };
+
+  const handleConcede = () => {
+    clearSelections();
+    setMessage("");
+    setHasWon(false);
+    setHasLost(false);
+    setHasConceded(true);
+
+    finishDailyChallenge({ solved: false });
+  };
+
+  if (loadError) {
+    return (
+      <div className="app-shell" style={{ color: "white", fontSize: "24px", padding: "30px" }}>
+        Failed to load: {String(loadError)}
+      </div>
+    );
   }
 
-  setHoveredCard(null);
-  setSelectedAttackerId(null);
-  setSelectedHandCardIndex(null);
-  setActiveEffect(null);
-  setActionMode("idle");
-
-  setSelectedDonIds((prev) =>
-    prev.includes(donId)
-      ? prev.filter((id) => id !== donId)
-      : [...prev, donId]
-  );
-};
-
-const resetScenario = () => {
-  if (!scenario) return;
-
-  // Cannot reset mid-attempt after making an action.
-  if (!isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded) {
-    setMessage("You cannot reset after making an action.");
-    return;
+  if (!scenario || !playState) {
+    return (
+      <div className="app-shell" style={{ color: "white", fontSize: "24px", padding: "30px" }}>
+        Loading...
+      </div>
+    );
   }
-  setPlayState(deepClone(scenario.initialState));
-  clearSelections();
+  const baseVisibility = VISIBILITY_BY_DIFFICULTY[difficultyMode];
 
-  setMessage("");
-  setHasWon(false);
-  setHasLost(false);
-  setHasConceded(false);
+  const gameIsFinished = hasWon || hasLost || hasConceded;
 
-  setHasStartedAction(false);
-  setStartTimeMs(null);
-  startTimeRef.current = null;
-  setFinishedTimeSeconds(null);
-
-  // If today already has a locked result, this new run is replay/practice.
-  setIsReplayAttempt(!!getSavedDailyResult(dailyChallenge));
-};
-
-const handleConcede = () => {
-  clearSelections();
-  setMessage("");
-  setHasWon(false);
-  setHasLost(false);
-  setHasConceded(true);
-
-  finishDailyChallenge({ solved: false });
-};
-
-if (loadError) {
+  const visibility = gameIsFinished
+    ? {
+      ...baseVisibility,
+      showOpponentHand: true,
+      showOpponentLife: true
+    }
+    : baseVisibility;
   return (
-    <div className="app-shell" style={{ color: "white", fontSize: "24px", padding: "30px" }}>
-      Failed to load: {String(loadError)}
-    </div>
-  );
-}
+    <div className="app-shell">
+      <div className="layout">
+        <div className="board-feedback-layout">
+          <main className="board-wrapper">
+            <OpponentBoard
+              data={playState.opponent}
+              setHoveredCard={setHoveredCard}
+              onTargetClick={handleAttackTargetClick}
+              onDonTargetClick={handleOpponentDonTargetClick}
+              visibility={visibility}
+              onTrashClick={() => openTrashViewer("opponent")}
+              onOpenHand={() => openHandViewer("opponent")}
+              onMobilePreview={openMobilePreview}
+              onMobilePreviewClose={closeMobilePreview}
+            />
+            <PlayerBoard
+              data={playState.you}
+              setHoveredCard={setHoveredCard}
+              selectedDonIds={selectedDonIds}
+              onDonClick={handleDonClick}
+              onStageClick={handleAttachTargetClick}
+              onAttachTargetClick={handleAttachTargetClick}
+              onHandCardClick={handleHandCardClick}
+              onEmptyCharacterSlotClick={handleEmptyCharacterSlotClick}
+              selectedHandCardIndex={selectedHandCardIndex}
+              onTrashClick={() => openTrashViewer("you")}
+              onOpenHand={() => openHandViewer("you")}
+              onMobilePreview={openMobilePreview}
+              onMobilePreviewClose={closeMobilePreview}
+            />
 
-if (!scenario || !playState) {
-  return (
-    <div className="app-shell" style={{ color: "white", fontSize: "24px", padding: "30px" }}>
-      Loading...
-    </div>
-  );
-}
-const baseVisibility = VISIBILITY_BY_DIFFICULTY[difficultyMode];
-
-const gameIsFinished = hasWon || hasLost || hasConceded;
-
-const visibility = gameIsFinished
-  ? {
-    ...baseVisibility,
-    showOpponentHand: true,
-    showOpponentLife: true
-  }
-  : baseVisibility;
-return (
-  <div className="app-shell">
-    <div className="layout">
-      <main className="board-wrapper">
-        <OpponentBoard
-          data={playState.opponent}
-          setHoveredCard={setHoveredCard}
-          onTargetClick={handleAttackTargetClick}
-          onDonTargetClick={handleOpponentDonTargetClick}
-          visibility={visibility}
-          onTrashClick={() => openTrashViewer("opponent")}
-          onOpenHand={() => openHandViewer("opponent")}
-          onMobilePreview={openMobilePreview}
-          onMobilePreviewClose={closeMobilePreview}
-        />
-        <PlayerBoard
-          data={playState.you}
-          setHoveredCard={setHoveredCard}
-          selectedDonIds={selectedDonIds}
-          onDonClick={handleDonClick}
-          onStageClick={handleAttachTargetClick}
-          onAttachTargetClick={handleAttachTargetClick}
-          onHandCardClick={handleHandCardClick}
-          onEmptyCharacterSlotClick={handleEmptyCharacterSlotClick}
-          selectedHandCardIndex={selectedHandCardIndex}
-          onTrashClick={() => openTrashViewer("you")}
-          onOpenHand={() => openHandViewer("you")}
-          onMobilePreview={openMobilePreview}
-          onMobilePreviewClose={closeMobilePreview}
-        />
-      </main>
-      <MobileCardPreview
-        card={mobilePreviewCard}
-        onClose={closeMobilePreview}
-      />
-
-      {trashViewer && (
-        <TrashViewerModal
-          title={trashViewer.title}
-          side={trashViewer.side}
-          cards={playState?.[trashViewer.side]?.trash || []}
-          onClose={closeTrashViewer}
-          setHoveredCard={setHoveredCard}
-          onMobilePreview={openMobilePreview}
-          onCardClick={handleTrashCardClick}
-        />
-      )}
-      {handViewer && (
-        <HandViewerModal
-          title={handViewer.title}
-          cards={playState?.[handViewer.side]?.hand || []}
-          hiddenCards={
-            handViewer.side === "opponent" && !visibility.showOpponentHand
-          }
-          onClose={closeHandViewer}
-          setHoveredCard={setHoveredCard}
-          onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
-          selectedHandCardIndex={
-            handViewer.side === "you" ? selectedHandCardIndex : null
-          }
-          onMobilePreview={openMobilePreview}
-        />
-      )}
-
-      {hoveredCard && (
-        <div className="center-preview">
-          <img src={hoveredCard.image} alt={hoveredCard.name} />
+          <aside className="desktop-feedback-slot">
+            <FeedbackPanel message={message} />
+          </aside>
+                    </main>
         </div>
-      )}
 
-      {resultModalOpen && (
-        <DailyResultModal
-          dailyResult={dailyResult}
-          dailyStats={dailyStats}
-          isArchiveMode={isArchiveMode}
-          isReplayAttempt={isReplayAttempt}
-          onClose={() => setResultModalOpen(false)}
-          onPlayAgain={() => {
-            setResultModalOpen(false);
-            resetScenario();
-          }}
+        <MobileCardPreview
+          card={mobilePreviewCard}
+          onClose={closeMobilePreview}
         />
-      )}
-      {actionChoiceCard && (
-        <div className="action-choice-overlay">
-          <div className="action-choice-card">
-            <h2>{actionChoiceCard.name || actionChoiceCard.cardId}</h2>
-            <p>Choose an action.</p>
 
-            <div className="action-choice-buttons">
-              <button
-                type="button"
-                onClick={() => {
-                  const chosenCard = actionChoiceCard;
-                  setActionChoiceCard(null);
-                  handleAttackerClick(chosenCard);
-                }}
-              >
-                ATTACK
-              </button>
+        {trashViewer && (
+          <TrashViewerModal
+            title={trashViewer.title}
+            side={trashViewer.side}
+            cards={playState?.[trashViewer.side]?.trash || []}
+            onClose={closeTrashViewer}
+            setHoveredCard={setHoveredCard}
+            onMobilePreview={openMobilePreview}
+            onCardClick={handleTrashCardClick}
+          />
+        )}
+        {handViewer && (
+          <HandViewerModal
+            title={handViewer.title}
+            cards={playState?.[handViewer.side]?.hand || []}
+            hiddenCards={
+              handViewer.side === "opponent" && !visibility.showOpponentHand
+            }
+            onClose={closeHandViewer}
+            setHoveredCard={setHoveredCard}
+            onCardClick={handViewer.side === "you" ? handleHandCardClick : undefined}
+            selectedHandCardIndex={
+              handViewer.side === "you" ? selectedHandCardIndex : null
+            }
+            onMobilePreview={openMobilePreview}
+          />
+        )}
 
-              <button
-                type="button"
-                onClick={() => {
-                  const chosenCard = actionChoiceCard;
-                  setActionChoiceCard(null);
-                  startActivateMainAbility(chosenCard);
-                }}
-              >
-                ACTIVATE: MAIN
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActionChoiceCard(null);
-                  setMessage("");
-                }}
-              >
-                Cancel
-              </button>
-            </div>
+        {hoveredCard && (
+          <div className="center-preview">
+            <img src={hoveredCard.image} alt={hoveredCard.name} />
           </div>
-        </div>
-      )}
+        )}
 
-      <GameResultOverlay
-        hasWon={hasWon}
-        hasLost={hasLost}
-        hasConceded={hasConceded}
-      />
+        {resultModalOpen && (
+          <DailyResultModal
+            dailyResult={dailyResult}
+            dailyStats={dailyStats}
+            isArchiveMode={isArchiveMode}
+            isReplayAttempt={isReplayAttempt}
+            onClose={() => setResultModalOpen(false)}
+            onPlayAgain={() => {
+              setResultModalOpen(false);
+              resetScenario();
+            }}
+          />
+        )}
+        {actionChoiceCard && (() => {
+          const currentRef = actionChoiceCard?.instanceId
+            ? findCardByInstanceId(playState, actionChoiceCard.instanceId)
+            : null;
+
+          const currentCard = currentRef?.card || actionChoiceCard;
+          const activateStatus = getActivateMainAbilityStatus(currentCard);
+          const canAttackWithCard = canAttack(currentCard);
+
+          const attackDisabledReason = "This card cannot attack right now.";
+
+          return (
+            <div className="action-choice-overlay">
+              <div className="action-choice-card">
+                <h2>{currentCard.name || currentCard.cardId}</h2>
+                <p>Choose an action.</p>
+
+                {!canAttackWithCard ? (
+                  <p className="action-choice-note">{attackDisabledReason}</p>
+                ) : null}
+
+                {activateStatus.ability && !activateStatus.canUse ? (
+                  <p className="action-choice-note">{activateStatus.reason}</p>
+                ) : null}
+
+                <div className="action-choice-buttons">
+                  <button
+                    type="button"
+                    disabled={!canAttackWithCard}
+                    title={!canAttackWithCard ? attackDisabledReason : ""}
+                    onClick={() => {
+                      if (!canAttackWithCard) {
+                        setMessage(attackDisabledReason);
+                        return;
+                      }
+
+                      setActionChoiceCard(null);
+                      handleAttackerClick(currentCard);
+                    }}
+                  >
+                    ATTACK
+                  </button>
+
+                  {activateStatus.ability ? (
+                    <button
+                      type="button"
+                      disabled={!activateStatus.canUse}
+                      title={!activateStatus.canUse ? activateStatus.reason : ""}
+                      onClick={() => {
+                        if (!activateStatus.canUse) {
+                          setMessage(activateStatus.reason);
+                          return;
+                        }
+
+                        setActionChoiceCard(null);
+                        startActivateMainAbility(currentCard);
+                      }}
+                    >
+                      ACTIVATE: MAIN
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionChoiceCard(null);
+                      setMessage("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+        <GameResultOverlay
+          hasWon={hasWon}
+          hasLost={hasLost}
+          hasConceded={hasConceded}
+        />
 
 
-      <GameSidebar
+        <GameSidebar
 
-        scenario={scenario}
-        isArchiveMode={isArchiveMode}
-        message={message}
+          scenario={scenario}
+          isArchiveMode={isArchiveMode}
+          message={message}
 
-        difficultyMode={difficultyMode}
-        setDifficultyMode={handleDifficultyChange}
+          difficultyMode={difficultyMode}
+          setDifficultyMode={handleDifficultyChange}
 
-        resetScenario={resetScenario}
-        handleConcede={handleConcede}
+          resetScenario={resetScenario}
+          handleConcede={handleConcede}
 
-        hasStartedAction={hasStartedAction}
-        hasWon={hasWon}
-        hasLost={hasLost}
-        hasConceded={hasConceded}
+          hasStartedAction={hasStartedAction}
+          hasWon={hasWon}
+          hasLost={hasLost}
+          hasConceded={hasConceded}
 
-        loadTodayChallenge={loadTodayChallenge}
-        disableDifficultyChange={isDailyAttemptLocked}
-        disableLoadToday={isDailyAttemptLocked}
+          loadTodayChallenge={loadTodayChallenge}
+          disableDifficultyChange={isDailyAttemptLocked}
+          disableLoadToday={isDailyAttemptLocked}
 
-        canSkipEffectStep={canSkipCurrentEffectStep}
-        onSkipEffectStep={skipCurrentOptionalEffectStep}
+          canSkipEffectStep={canSkipCurrentEffectStep}
+          onSkipEffectStep={skipCurrentOptionalEffectStep}
 
-        selectedArchiveDate={selectedArchiveDate}
-        loadArchiveChallenge={loadArchiveChallenge}
-        challengeList={challengeList}
+          selectedArchiveDate={selectedArchiveDate}
+          loadArchiveChallenge={loadArchiveChallenge}
+          challengeList={challengeList}
 
-      />
+        />
+      </div>
     </div>
-  </div>
-);
+  );
 }
 
 export default App;

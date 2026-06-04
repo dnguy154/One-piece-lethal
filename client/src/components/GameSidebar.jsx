@@ -1,3 +1,4 @@
+import FeedbackPanel from "./FeedbackPanel";
 export default function GameSidebar({
   scenario,
   isArchiveMode,
@@ -30,15 +31,14 @@ export default function GameSidebar({
     <aside className="sidebar">
 
             {message && (
-        <section className="panel">
-          <h2>Feedback</h2>
-          <p>{message}</p>
+<div className="sidebar-feedback-slot">
+  <FeedbackPanel message={message} />
           {canSkipEffectStep && (
             <button type="button" onClick={onSkipEffectStep}>
               Skip Optional Effect
             </button>
           )}
-        </section>
+        </div>
       )}
       
       <section className="panel">

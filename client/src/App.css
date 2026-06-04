@@ -3,9 +3,11 @@
   --board-gap: 6px;
   --zone-gap: 3px;
   --sidebar-w: 235px;
+  --feedback-w: 230px;
 
   --side-hand-w: 150px;
   --life-col-w: 12px;
+  --life-overlap-x: 34px;
 
   --hand-card-w: 64px;
   --hand-card-h: 84px;
@@ -32,10 +34,10 @@
 html,
 body,
 #root {
-  margin: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body {
@@ -160,12 +162,51 @@ button:disabled {
   background: #ccb37a;
 }
 
+.board-feedback-layout {
+  min-width: 0;
+  min-height: 0;
+  display: block;
+}
+
+.desktop-feedback-slot {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: clamp(12px, 4vw, 90px);
+  transform: translateY(-50%);
+  width: var(--feedback-w);
+  z-index: 30;
+  pointer-events: none;
+}
+
+.desktop-feedback-slot .feedback-panel {
+  pointer-events: auto;
+}
+
+.sidebar-feedback-slot {
+  display: block;
+}
+
+.feedback-panel {
+  min-height: 92px;
+}
+
+.feedback-text {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
 .board-wrapper {
   min-height: 0;
   display: grid;
   grid-template-rows: auto auto;
   gap: var(--board-gap);
   align-content: start;
+
+  position: relative;
+  
 }
 
 .board-area {
@@ -192,10 +233,11 @@ button:disabled {
   grid-template-columns: var(--side-hand-w) var(--life-col-w) minmax(0, 1fr);
   gap: var(--zone-gap);
   align-items: center;
+  overflow: visible;
 }
 
 .playmat {
-  overflow: hidden;
+  overflow: visible;
   display: grid;
   gap: var(--zone-gap);
   justify-items: start;
@@ -241,16 +283,42 @@ button:disabled {
 }
 
 .life-column {
+  width: var(--life-col-w);
+  min-width: var(--life-col-w);
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+  transform: none;
+}
+
+.leader-zone {
+  overflow: visible;
+  z-index: 25;
+}
+
+.leader-zone .zone-body {
+  overflow: visible;
+  position: relative;
+}
+
+.leader-with-life {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  position: relative;
-  transform: translateX(clamp(
-    0px,
-    calc((100vw - var(--sidebar-w) - var(--side-hand-w) - var(--character-area-width)) / 2 - 10px),
-    350px
-  ));
-  z-index: 2;
+  justify-content: center;
+  width: max-content;
+  margin: 0 auto;
+}
+
+.leader-life-slot {
+  position: absolute;
+  top: 50%;
+  right: calc(100% - var(--life-overlap-x));
+  transform: translateY(-50%);
+  z-index: 70;
+  width: 56px;
+  height: 120px;
+  pointer-events: auto;
 }
 
 .zone {
@@ -1121,6 +1189,17 @@ button:disabled {
   gap: 10px;
 }
 
+.action-choice-buttons button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action-choice-note {
+  margin: 6px 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
 .action-choice-buttons button {
   padding: 10px 12px;
   border-radius: 8px;
@@ -1188,6 +1267,7 @@ textarea {
     --sidebar-w: 220px;
     --side-hand-w: 120px;
     --life-col-w: 46px;
+    --life-overlap-x: 42px;
 
     --hand-card-w: 40px;
     --hand-card-h: 56px;
@@ -1210,12 +1290,11 @@ textarea {
     grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
   }
 
-  .life-column {
-    transform: translateX(clamp(
-      0px,
-      calc((100vw - var(--sidebar-w) - var(--side-hand-w) - var(--character-area-width)) / 2 - 20px),
-      260px
-    ));
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --life-overlap-x: 50px;
   }
 }
 
@@ -1224,6 +1303,7 @@ textarea {
     --side-hand-w: 38px;
     --life-col-w: 38px;
     --zone-gap: 1px;
+     --life-overlap-x: 38px;
   }
 
   .side-hand-layout {
@@ -1277,5 +1357,157 @@ textarea {
 
   .sidebar {
     grid-template-rows: none;
+  }
+    :root {
+    --feedback-w: 0px;
+  }
+
+  .board-feedback-layout {
+    display: block;
+  }
+
+  .desktop-feedback-slot {
+    display: none;
+  }
+
+  .sidebar-feedback-slot {
+    display: block;
+  }
+}
+
+@media (max-height: 820px) and (min-width: 1201px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .layout {
+    height: auto;
+    min-height: calc(100vh - (var(--outer-pad) * 2));
+    align-items: start;
+  }
+
+  .sidebar {
+    overflow: visible;
+  }
+
+  :root {
+    --feedback-w: 0px;
+  }
+
+  .board-feedback-layout {
+    display: block;
+  }
+
+  .desktop-feedback-slot {
+    display: none;
+  }
+
+  .sidebar-feedback-slot {
+    display: block;
+  }
+}
+
+@media (max-height: 680px) and (min-width: 1201px) {
+  :root {
+    --outer-pad: 2px;
+    --board-gap: 4px;
+    --zone-gap: 2px;
+    
+  }
+
+  .panel {
+    padding: 7px;
+  }
+
+  .board-wrapper {
+    gap: 4px;
+  }
+
+  .board-area {
+    padding: 3px;
+  }
+}
+
+/* Allow life stack to overlap out of leader zone */
+.playmat,
+.compact-playmat,
+.mid-row,
+.compact-mid-row,
+.leader-zone,
+.leader-zone .zone-body {
+  overflow: visible !important;
+}
+
+.leader-zone {
+  position: relative;
+  z-index: 50;
+}
+
+.leader-zone .zone-body {
+  position: relative;
+  z-index: 50;
+}
+
+.leader-with-life {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  margin: 0 auto;
+  z-index: 60;
+}
+
+.leader-life-slot {
+  position: absolute;
+  top: 50%;
+  right: calc(100% - -120px);
+  transform: translateY(-50%);
+  z-index: 70;
+  width: 56px;
+  height: 120px;
+  pointer-events: auto;
+}
+@media (max-width: 1200px) {
+  :root {
+    --life-overlap-x: -70px;
+  }
+
+  .leader-life-slot {
+    right: calc(100% - var(--life-overlap-x));
+  }
+}
+
+
+@media (max-width: 800px) {
+  :root {
+    --life-overlap-x: -35px;
+  }
+
+  .leader-life-slot {
+    right: calc(100% - var(--life-overlap-x));
+  }
+}
+
+/* Only use desktop feedback when there is enough room */
+@media (min-width: 1600px) and (min-height: 821px) {
+  .desktop-feedback-slot {
+    display: block;
+  }
+
+  .sidebar-feedback-slot {
+    display: none;
   }
 }
