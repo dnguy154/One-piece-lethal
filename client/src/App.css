@@ -1207,6 +1207,7 @@ textarea {
 
     --don-card-w: 34px;
     --don-card-h: 48px;
+    
 
     --char-row-h: calc(var(--board-card-h) + 12px);
     --mid-row-h: calc(var(--mid-card-h) + 12px);
@@ -1256,7 +1257,7 @@ textarea {
 
   .character-cards {
     grid-template-columns: repeat(5, var(--board-card-w));
-    gap: clamp(30px, 1.5vw, 14px);
+    gap: 10px;
     padding: 8px;
   }
 
