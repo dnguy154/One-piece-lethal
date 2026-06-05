@@ -1256,7 +1256,7 @@ textarea {
 
   .character-cards {
     grid-template-columns: repeat(5, var(--board-card-w));
-    gap: 8px;
+    gap: clamp(30px, 1.5vw, 14px);
     padding: 8px;
   }
 
