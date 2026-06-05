@@ -35,9 +35,7 @@ export default function PlayerBoard({
           onMobilePreview={onMobilePreview}
         />
 
-        <div className="life-column">
-          <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
-        </div>
+        <div className="life-column" aria-hidden="true" />
 
         <div className="playmat compact-playmat">
           <Zone title="Character Area" className="character-zone">
@@ -53,19 +51,25 @@ export default function PlayerBoard({
           </Zone>
 
           <div className="mid-row player-mid-row compact-mid-row">
-            <Zone title="Leader" className="leader-zone compact-zone">
-              <CardTile
-                card={data.leader || null}
-                variant="leader"
-                setHoveredCard={setHoveredCard}
-                onClick={onAttachTargetClick}
-                onMobilePreview={onMobilePreview}
-                onMobilePreviewClose={onMobilePreviewClose}
-                powerValue={getDisplayedPower(data.leader)}
-                attachedDonCount={data.leader?.attachedDon?.length || 0}
-                disableHoverPreview={selectedDonIds.length > 0}
-              />
-            </Zone>
+           <Zone title="Leader" className="leader-zone compact-zone">
+  <div className="leader-with-life">
+    <div className="leader-life-slot">
+      <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
+    </div>
+
+    <CardTile
+      card={data.leader || null}
+      variant="leader"
+      setHoveredCard={setHoveredCard}
+      onClick={onAttachTargetClick}
+      onMobilePreview={onMobilePreview}
+      onMobilePreviewClose={onMobilePreviewClose}
+      powerValue={getDisplayedPower(data.leader)}
+      attachedDonCount={data.leader?.attachedDon?.length || 0}
+      disableHoverPreview={selectedDonIds.length > 0}
+    />
+  </div>
+</Zone>
 
 <Zone title="Stage" className="stage-zone compact-zone">
   <CardTile
