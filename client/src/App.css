@@ -1219,6 +1219,8 @@ textarea {
     --life-slot-w: 46px;
     --life-slot-h: 96px;
     --life-card-base: 54px;
+
+    
   }
 
   .app-shell {
@@ -1257,7 +1259,7 @@ textarea {
 
   .character-cards {
     grid-template-columns: repeat(5, var(--board-card-w));
-    gap: 10px;
+    gap: 15px;
     padding: 8px;
   }
 
