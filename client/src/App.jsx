@@ -250,40 +250,107 @@ function App() {
     setFinishedTimeSeconds(null);
   };
 
-  useEffect(() => {
+  const getRequestErrorMessage = (
+  err,
+  fallbackMessage = "Failed to load challenge."
+) => {
+  const errorData = err?.response?.data;
 
-    fetchTodayChallenge()
-      .then((data) => {
-        const loadedChallenge = data.challenge;
-        const loadedScenario = data.scenario;
+  return typeof errorData === "string"
+    ? errorData
+    : errorData?.message ||
+        errorData?.error ||
+        err?.message ||
+        fallbackMessage;
+};
 
-        loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
-        setSelectedArchiveDate(loadedChallenge.date);
-      })
-      .catch((err) => {
-        console.error("Error fetching daily challenge:", err);
+const loadMostRecentPlayableArchive = async (
+  list,
+  fallbackMessage = "Today's challenge is unavailable. Loaded the most recent playable archive instead."
+) => {
+  const sortedChallenges = [...(list || [])]
+    .filter((challenge) => challenge?.date)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
-        const errorData = err.response?.data;
+  for (const challenge of sortedChallenges) {
+    try {
+      const data = await fetchArchiveChallenge(challenge.date);
 
-        const errorMessage =
-          typeof errorData === "string"
-            ? errorData
-            : errorData?.message ||
-            errorData?.error ||
-            err.message ||
-            "Failed to load daily challenge.";
+      const loadedChallenge = data.challenge;
+      const loadedScenario = data.scenario;
 
+      loadChallengeFromResponse(loadedChallenge, loadedScenario, true);
+      setSelectedArchiveDate(challenge.date);
+      setLoadError("");
+      setMessage(fallbackMessage);
+
+      return true;
+    } catch (error) {
+      console.warn(
+        `Archive challenge ${challenge.date} could not load. Trying previous archive.`,
+        error
+      );
+    }
+  }
+
+  return false;
+};
+
+ useEffect(() => {
+  let isCancelled = false;
+
+  const loadInitialChallenge = async () => {
+    let list = [];
+
+    try {
+      list = await fetchChallengeList();
+
+      if (isCancelled) return;
+
+      setChallengeList(list || []);
+    } catch (err) {
+      console.error("Error fetching challenge list:", err);
+      list = [];
+    }
+
+    try {
+      const data = await fetchTodayChallenge();
+
+      if (isCancelled) return;
+
+      const loadedChallenge = data.challenge;
+      const loadedScenario = data.scenario;
+
+      loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
+      setSelectedArchiveDate(loadedChallenge.date);
+      setLoadError("");
+    } catch (err) {
+      console.error("Error fetching daily challenge:", err);
+
+      if (isCancelled) return;
+
+      const errorMessage = getRequestErrorMessage(
+        err,
+        "Failed to load daily challenge."
+      );
+
+      const loadedFallback = await loadMostRecentPlayableArchive(
+        list,
+        "Today's challenge is missing or failed to load. Loaded the most recent playable archive instead."
+      );
+
+      if (!isCancelled && !loadedFallback) {
         setLoadError(errorMessage);
-      });
+      }
+    }
+  };
 
-    fetchChallengeList()
-      .then((data) => {
-        setChallengeList(data || []);
-      })
-      .catch((err) => {
-        console.error("Error fetching challenge list:", err);
-      });
-  }, []);
+  loadInitialChallenge();
+
+  return () => {
+    isCancelled = true;
+  };
+}, []);
 
   const isDailyAttemptLocked =
     !isArchiveMode && hasStartedAction && !hasWon && !hasLost && !hasConceded;
@@ -333,10 +400,23 @@ function App() {
         loadChallengeFromResponse(loadedChallenge, loadedScenario, false);
         setSelectedArchiveDate(loadedChallenge.date);
       })
-      .catch((err) => {
-        console.error("Error loading today challenge:", err);
-        setMessage("Failed to load today's challenge.");
-      });
+.catch(async (err) => {
+  console.error("Error loading today challenge:", err);
+
+  const errorMessage = getRequestErrorMessage(
+    err,
+    "Failed to load today's challenge."
+  );
+
+  const loadedFallback = await loadMostRecentPlayableArchive(
+    challengeList,
+    "Today's challenge is missing or failed to load. Loaded the most recent playable archive instead."
+  );
+
+  if (!loadedFallback) {
+    setMessage(errorMessage);
+  }
+});
   };
 
 const handleOpponentDonTargetClick = (donOrId) => {
