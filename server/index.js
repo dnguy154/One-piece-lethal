@@ -6,6 +6,9 @@ const { hydrateScenario, fetchCard } = require("./cardService");
 const challenges = require("./challenges");
 
 const app = express();
+app.set("trust proxy", 1);
+
+const rateLimit = require("express-rate-limit");
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -45,6 +48,29 @@ app.use(
 );
 app.use(express.json());
 
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many requests. Please try again later."
+  }
+});
+
+const cardLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",
+  message: {
+    error: "Too many card requests. Please try again later."
+  }
+});
+
+app.use(generalLimiter);
+
 app.get("/scenarios", (req, res) => {
   const summary = scenarios.map((scenario) => ({
     id: scenario.id,
@@ -72,7 +98,7 @@ app.get("/scenario/:id", async (req, res) => {
   }
 });
 
-app.get("/card/:id", async (req, res) => {
+app.get("/card/:id", cardLimiter, async (req, res) => {
   try {
     const card = await fetchCard(req.params.id);
     res.json(card);
