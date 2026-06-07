@@ -36,6 +36,11 @@ const EMPTY_SCENARIO = {
     },
     leaderTrashBoostOnAttack: {
       ...DEFAULT_LEADER_TRASH_BOOST_ON_ATTACK
+    },
+    counterEvents: {
+      enabled: true,
+      discardStrategy: "lowest_counter",
+      cards: {}
     }
   },
   initialState: {
@@ -476,6 +481,19 @@ export default function ScenarioBuilder() {
     stage: true,
     don: true
   });
+  const [counterEventCardId, setCounterEventCardId] = useState("");
+  const [counterEventName, setCounterEventName] = useState(
+    "Counter Event +4000 Draw 2"
+  );
+  const [counterEventCost, setCounterEventCost] = useState(1);
+  const [counterEventPower, setCounterEventPower] = useState(4000);
+  const [counterEventRemoveDonCount, setCounterEventRemoveDonCount] = useState(2);
+  const [counterEventDiscardCount, setCounterEventDiscardCount] = useState(1);
+  const [counterEventDiscardStrategy, setCounterEventDiscardStrategy] =
+    useState("lowest_counter");
+  const [counterEventDrawCount, setCounterEventDrawCount] = useState(2);
+  const [counterEventAllowLeader, setCounterEventAllowLeader] = useState(true);
+  const [counterEventAllowBoard, setCounterEventAllowBoard] = useState(true);
 
   const updateScenarioMeta = (field, value) => {
     setScenario((prev) => ({
@@ -1428,26 +1446,26 @@ export default function ScenarioBuilder() {
   };
 
   const addAbilitySteps = (steps, placement = "steps") => {
-  const sourceKey = abilitySourceKey.trim();
+    const sourceKey = abilitySourceKey.trim();
 
-  if (!sourceKey) {
-    alert("Enter a source card ID or instance ID.");
-    return;
-  }
+    if (!sourceKey) {
+      alert("Enter a source card ID or instance ID.");
+      return;
+    }
 
-  const ability = createOrUpdateCurrentAbility();
+    const ability = createOrUpdateCurrentAbility();
 
-  if (!ability) return;
+    if (!ability) return;
 
-  const stepKey = placement === "costSteps" ? "costSteps" : "steps";
+    const stepKey = placement === "costSteps" ? "costSteps" : "steps";
 
-  const nextAbility = {
-    ...ability,
-    [stepKey]: [...(ability[stepKey] || []), ...steps]
+    const nextAbility = {
+      ...ability,
+      [stepKey]: [...(ability[stepKey] || []), ...steps]
+    };
+
+    upsertCardAbility(sourceKey, nextAbility);
   };
-
-  upsertCardAbility(sourceKey, nextAbility);
-};
 
 
   const addAbilityStep = (step, placement = "steps") => {
@@ -1935,40 +1953,40 @@ export default function ScenarioBuilder() {
       abilityStepPlacement
     );
   };
-const addAbilityReducePowerStep = () => {
-  const parsedAmount = Number(reducePowerAmount);
+  const addAbilityReducePowerStep = () => {
+    const parsedAmount = Number(reducePowerAmount);
 
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-    alert("Enter a valid power reduction amount.");
-    return;
-  }
-
-  const step = {
-    id: `reduce_power_${Date.now()}`,
-    type: "reduce_power",
-    amount: parsedAmount,
-    optional: effectStepOptional,
-    prompt: `Choose an opponent character to give -${parsedAmount} power.`,
-    targetRules: {
-      sides: ["opponent"],
-      zones: ["board"]
-    }
-  };
-
-  if (reducePowerSourcePowerAtLeast !== "") {
-    const sourcePowerAtLeast = Number(reducePowerSourcePowerAtLeast);
-
-    if (!Number.isFinite(sourcePowerAtLeast) || sourcePowerAtLeast < 0) {
-      alert("Enter a valid source power requirement.");
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      alert("Enter a valid power reduction amount.");
       return;
     }
 
-    step.sourcePowerAtLeast = sourcePowerAtLeast;
-    step.prompt = `Choose an opponent character to give -${parsedAmount} power. This only works if the attacking card has ${sourcePowerAtLeast} or more power.`;
-  }
+    const step = {
+      id: `reduce_power_${Date.now()}`,
+      type: "reduce_power",
+      amount: parsedAmount,
+      optional: effectStepOptional,
+      prompt: `Choose an opponent character to give -${parsedAmount} power.`,
+      targetRules: {
+        sides: ["opponent"],
+        zones: ["board"]
+      }
+    };
 
-  addAbilityStep(step, abilityStepPlacement);
-};
+    if (reducePowerSourcePowerAtLeast !== "") {
+      const sourcePowerAtLeast = Number(reducePowerSourcePowerAtLeast);
+
+      if (!Number.isFinite(sourcePowerAtLeast) || sourcePowerAtLeast < 0) {
+        alert("Enter a valid source power requirement.");
+        return;
+      }
+
+      step.sourcePowerAtLeast = sourcePowerAtLeast;
+      step.prompt = `Choose an opponent character to give -${parsedAmount} power. This only works if the attacking card has ${sourcePowerAtLeast} or more power.`;
+    }
+
+    addAbilityStep(step, abilityStepPlacement);
+  };
 
   const addAbilityKoPowerOrLessStep = () => {
     const parsedMaxPower = Number(koMaxPower);
@@ -1992,55 +2010,55 @@ const addAbilityReducePowerStep = () => {
   };
 
   const addAbilityMoveAttachedDonFromSourceStep = () => {
-  const count = Number(moveAttachedDonCount);
+    const count = Number(moveAttachedDonCount);
 
-  if (!Number.isFinite(count) || count <= 0) {
-    alert("Enter a valid attached DON move count.");
-    return;
-  }
+    if (!Number.isFinite(count) || count <= 0) {
+      alert("Enter a valid attached DON move count.");
+      return;
+    }
 
-  addAbilityStep(
-    {
-      id: `move_attached_don_${Date.now()}`,
-      type: "move_attached_don",
-      player: "you",
-      count,
-      fromSource: true,
-      optional: effectStepOptional,
-      prompt: `Choose your character to move ${count} attached DON from this card to.`,
-      targetRules: {
-        sides: ["you"],
-        zones: ["board"]
-      }
-    },
-    abilityStepPlacement
-  );
-};
+    addAbilityStep(
+      {
+        id: `move_attached_don_${Date.now()}`,
+        type: "move_attached_don",
+        player: "you",
+        count,
+        fromSource: true,
+        optional: effectStepOptional,
+        prompt: `Choose your character to move ${count} attached DON from this card to.`,
+        targetRules: {
+          sides: ["you"],
+          zones: ["board"]
+        }
+      },
+      abilityStepPlacement
+    );
+  };
 
-const addAbilityAttachRestedDonStep = () => {
-  const count = Number(attachRestedDonCount);
+  const addAbilityAttachRestedDonStep = () => {
+    const count = Number(attachRestedDonCount);
 
-  if (!Number.isFinite(count) || count <= 0) {
-    alert("Enter a valid rested DON attach count.");
-    return;
-  }
+    if (!Number.isFinite(count) || count <= 0) {
+      alert("Enter a valid rested DON attach count.");
+      return;
+    }
 
-  addAbilityStep(
-    {
-      id: `attach_rested_don_${Date.now()}`,
-      type: "attach_rested_don",
-      player: "you",
-      count,
-      optional: effectStepOptional,
-      prompt: `Choose your leader or character to attach ${count} rested DON to.`,
-      targetRules: {
-        sides: ["you"],
-        zones: ["leader", "board"]
-      }
-    },
-    abilityStepPlacement
-  );
-};
+    addAbilityStep(
+      {
+        id: `attach_rested_don_${Date.now()}`,
+        type: "attach_rested_don",
+        player: "you",
+        count,
+        optional: effectStepOptional,
+        prompt: `Choose your leader or character to attach ${count} rested DON to.`,
+        targetRules: {
+          sides: ["you"],
+          zones: ["leader", "board"]
+        }
+      },
+      abilityStepPlacement
+    );
+  };
 
   const addAbilityRestandDonStep = () => {
     const parsedCount = Number(abilityRestandDonCount);
@@ -2059,44 +2077,44 @@ const addAbilityAttachRestedDonStep = () => {
   };
 
   const addAbilityMoveAttachedDonStep = () => {
-  const count = Number(moveAttachedDonCount);
+    const count = Number(moveAttachedDonCount);
 
-  if (!Number.isFinite(count) || count <= 0) {
-    alert("Enter a valid attached DON move count.");
-    return;
-  }
+    if (!Number.isFinite(count) || count <= 0) {
+      alert("Enter a valid attached DON move count.");
+      return;
+    }
 
-  addAbilitySteps(
-    [
-      {
-        id: `select_attached_don_source_${Date.now()}`,
-        type: "select_attached_don_source",
-        player: "you",
-        count,
-        optional: true,
-        prompt: `Choose your leader or character with attached DON to move up to ${count} DON from, or skip to move 0 DON.`,
-        targetRules: {
-          sides: ["you"],
-          zones: ["leader", "board"]
+    addAbilitySteps(
+      [
+        {
+          id: `select_attached_don_source_${Date.now()}`,
+          type: "select_attached_don_source",
+          player: "you",
+          count,
+          optional: true,
+          prompt: `Choose your leader or character with attached DON to move up to ${count} DON from, or skip to move 0 DON.`,
+          targetRules: {
+            sides: ["you"],
+            zones: ["leader", "board"]
+          }
+        },
+        {
+          id: `move_attached_don_${Date.now()}`,
+          type: "move_attached_don",
+          player: "you",
+          count,
+          skipIfNoMoveAttachedDonSource: true,
+          optional: false,
+          prompt: `Choose your character to receive up to ${count} attached DON.`,
+          targetRules: {
+            sides: ["you"],
+            zones: ["board"]
+          }
         }
-      },
-      {
-        id: `move_attached_don_${Date.now()}`,
-        type: "move_attached_don",
-        player: "you",
-        count,
-        skipIfNoMoveAttachedDonSource: true,
-        optional: false,
-        prompt: `Choose your character to receive up to ${count} attached DON.`,
-        targetRules: {
-          sides: ["you"],
-          zones: ["board"]
-        }
-      }
-    ],
-    abilityStepPlacement
-  );
-};
+      ],
+      abilityStepPlacement
+    );
+  };
 
 
 
@@ -2422,6 +2440,146 @@ module.exports = scenario;
     };
   };
 
+  const getCounterEventsConfig = () => {
+    return {
+      enabled: true,
+      discardStrategy: "lowest_counter",
+      cards: {},
+      ...(scenario.opponentAI?.counterEvents || {})
+    };
+  };
+
+  const updateCounterEventsConfig = (patch) => {
+    setScenario((prev) => ({
+      ...prev,
+      opponentAI: {
+        ...(prev.opponentAI || {}),
+        counterEvents: {
+          enabled: true,
+          discardStrategy: "lowest_counter",
+          cards: {},
+          ...(prev.opponentAI?.counterEvents || {}),
+          ...patch
+        }
+      }
+    }));
+  };
+
+  const addOpponentCounterEvent = () => {
+    const cardId = counterEventCardId.trim();
+
+    if (!cardId) {
+      alert("Enter the counter event card ID.");
+      return;
+    }
+
+    const cost = Number(counterEventCost);
+    const power = Number(counterEventPower);
+    const removeDonCount = Number(counterEventRemoveDonCount);
+    const discardCount = Number(counterEventDiscardCount);
+    const drawCount = Number(counterEventDrawCount);
+
+    if (!Number.isFinite(cost) || cost < 0) {
+      alert("Enter a valid DON cost.");
+      return;
+    }
+
+    if (!Number.isFinite(power) || power <= 0) {
+      alert("Enter a valid counter power amount.");
+      return;
+    }
+
+    if (!Number.isFinite(removeDonCount) || removeDonCount < 0) {
+      alert("Enter a valid remove DON count.");
+      return;
+    }
+
+    if (!Number.isFinite(discardCount) || discardCount < 0) {
+      alert("Enter a valid discard count.");
+      return;
+    }
+
+    if (!Number.isFinite(drawCount) || drawCount < 0) {
+      alert("Enter a valid draw count.");
+      return;
+    }
+
+    const allowedZones = [];
+
+    if (counterEventAllowLeader) allowedZones.push("leader");
+    if (counterEventAllowBoard) allowedZones.push("board");
+
+    if (allowedZones.length === 0) {
+      alert("Choose at least one allowed defense zone.");
+      return;
+    }
+
+    const steps = [];
+
+    if (drawCount > 0) {
+      steps.push({
+        id: `counter_event_draw_${Date.now()}`,
+        type: "draw_cards",
+        player: "opponent",
+        count: drawCount
+      });
+    }
+
+    const nextCounterEvent = {
+      name: counterEventName || cardId,
+      cost,
+      removeDonCount,
+      discardCount,
+      discardStrategy: counterEventDiscardStrategy || "lowest_counter",
+      power,
+      allowedZones
+    };
+
+    if (steps.length > 0) {
+      nextCounterEvent.steps = steps;
+    }
+
+    setScenario((prev) => ({
+      ...prev,
+      opponentAI: {
+        ...(prev.opponentAI || {}),
+        counterEvents: {
+          enabled: prev.opponentAI?.counterEvents?.enabled !== false,
+          discardStrategy:
+            prev.opponentAI?.counterEvents?.discardStrategy || "lowest_counter",
+          cards: {
+            ...(prev.opponentAI?.counterEvents?.cards || {}),
+            [cardId]: nextCounterEvent
+          }
+        }
+      }
+    }));
+  };
+
+  const removeOpponentCounterEvent = (cardId) => {
+    setScenario((prev) => {
+      const nextCards = {
+        ...(prev.opponentAI?.counterEvents?.cards || {})
+      };
+
+      delete nextCards[cardId];
+
+      return {
+        ...prev,
+        opponentAI: {
+          ...(prev.opponentAI || {}),
+          counterEvents: {
+            enabled: prev.opponentAI?.counterEvents?.enabled !== false,
+            discardStrategy:
+              prev.opponentAI?.counterEvents?.discardStrategy || "lowest_counter",
+            cards: nextCards
+          }
+        }
+      };
+    });
+  };
+
+
   const updateLeaderTrashBoostConfig = (patch) => {
     setScenario((prev) => ({
       ...prev,
@@ -2437,6 +2595,7 @@ module.exports = scenario;
   };
 
   const leaderTrashBoostConfig = getLeaderTrashBoostConfig();
+  const counterEventsConfig = getCounterEventsConfig();
   const renderStepSummary = (step, label) => {
     return (
       <>
@@ -2460,20 +2619,20 @@ module.exports = scenario;
           </>
         ) : null}
         {step.type === "trash_to_hand" ? (
-  <>
-    {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
-    {step.sourcePowerAtLeast != null
-  ? ` - Source Power ${step.sourcePowerAtLeast}+`
-  : ""}
-    {step.manualSelect ? " - Manual Select" : " - Auto Select"}
-    {step.maxCost != null ? ` - Cost ${step.maxCost} or less` : ""}
-    {step.exactCost != null ? ` - Exact Cost ${step.exactCost}` : ""}
-    {step.cardIds?.length ? ` - IDs: ${step.cardIds.join(", ")}` : ""}
-    {step.requiredTraits?.length
-      ? ` - Traits: ${step.requiredTraits.join(", ")}`
-      : ""}
-  </>
-) : null}
+          <>
+            {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+            {step.sourcePowerAtLeast != null
+              ? ` - Source Power ${step.sourcePowerAtLeast}+`
+              : ""}
+            {step.manualSelect ? " - Manual Select" : " - Auto Select"}
+            {step.maxCost != null ? ` - Cost ${step.maxCost} or less` : ""}
+            {step.exactCost != null ? ` - Exact Cost ${step.exactCost}` : ""}
+            {step.cardIds?.length ? ` - IDs: ${step.cardIds.join(", ")}` : ""}
+            {step.requiredTraits?.length
+              ? ` - Traits: ${step.requiredTraits.join(", ")}`
+              : ""}
+          </>
+        ) : null}
         {step.type === "cannot_attack" ? (
           <>
             {step.targetPriorityMode ? ` - Mode: ${step.targetPriorityMode}` : ""}
@@ -2483,30 +2642,30 @@ module.exports = scenario;
           </>
         ) : null}
         {step.type === "attach_rested_don" ? (
-  <>
-    {` - Attach ${step.count || 0} rested DON`}
-    {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
-  </>
-) : null}
+          <>
+            {` - Attach ${step.count || 0} rested DON`}
+            {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+          </>
+        ) : null}
         {step.type === "move_attached_don" ? (
-  <>
-    {` - Move ${step.count || 0} attached DON`}
+          <>
+            {` - Move ${step.count || 0} attached DON`}
 
-    {step.fromSource ? " - From Source" : ""}
-  </>
-) : null}
-{step.type === "select_attached_don_source" ? (
-  <>
-    {` - Select source with attached DON`}
-    {step.count != null ? ` - Up to ${step.count}` : ""}
-  </>
-) : null}
+            {step.fromSource ? " - From Source" : ""}
+          </>
+        ) : null}
+        {step.type === "select_attached_don_source" ? (
+          <>
+            {` - Select source with attached DON`}
+            {step.count != null ? ` - Up to ${step.count}` : ""}
+          </>
+        ) : null}
 
-{step.type === "move_attached_don" ? (
-  <>
-    {` - Move up to ${step.count || 0} attached DON`}
-  </>
-) : null}
+        {step.type === "move_attached_don" ? (
+          <>
+            {` - Move up to ${step.count || 0} attached DON`}
+          </>
+        ) : null}
         {step.type === "grant_rush" ? " - Grants Rush" : ""}
         {step.type === "grant_rush" && step.targetSelf ? " - Targets Self" : ""}
         {step.type === "grant_rush"
@@ -2800,6 +2959,168 @@ module.exports = scenario;
                 opponent-leader.
               </small>
             </div>
+           <div className="builder-list-card">
+  <div className="builder-list-card-title">
+    Counter Events From Hand
+  </div>
+
+  <p>
+    Use this for opponent counter events. The AI can rest DON for the event
+    cost, remove DON from the DON area, discard cards, gain counter power, and
+    resolve automatic effects like draw cards.
+  </p>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={counterEventsConfig.enabled !== false}
+      onChange={(event) =>
+        updateCounterEventsConfig({
+          enabled: event.target.checked
+        })
+      }
+    />
+    Enable opponent counter events
+  </label>
+
+  <label>Counter Event Card ID</label>
+  <input
+    value={counterEventCardId}
+    onChange={(event) => setCounterEventCardId(event.target.value)}
+    placeholder="OPXX-000"
+  />
+
+  <label>Counter Event Name</label>
+  <input
+    value={counterEventName}
+    onChange={(event) => setCounterEventName(event.target.value)}
+    placeholder="Counter Event +4000 Draw 2"
+  />
+
+  <label>DON Cost to Play Event</label>
+  <input
+    type="number"
+    value={counterEventCost}
+    onChange={(event) => setCounterEventCost(Number(event.target.value))}
+    placeholder="1"
+  />
+
+  <label>Remove DON Count</label>
+  <input
+    type="number"
+    value={counterEventRemoveDonCount}
+    onChange={(event) =>
+      setCounterEventRemoveDonCount(Number(event.target.value))
+    }
+    placeholder="2"
+  />
+  <small>
+    This removes rested, unattached DON from the opponent DON area.
+  </small>
+
+  <label>Discard Count</label>
+  <input
+    type="number"
+    value={counterEventDiscardCount}
+    onChange={(event) =>
+      setCounterEventDiscardCount(Number(event.target.value))
+    }
+    placeholder="1"
+  />
+
+  <label>Discard Strategy</label>
+  <select
+    value={counterEventDiscardStrategy}
+    onChange={(event) => setCounterEventDiscardStrategy(event.target.value)}
+  >
+    <option value="lowest_counter">Lowest Counter First</option>
+    <option value="highest_counter">Highest Counter First</option>
+  </select>
+
+  <label>Counter Power</label>
+  <input
+    type="number"
+    value={counterEventPower}
+    onChange={(event) => setCounterEventPower(Number(event.target.value))}
+    placeholder="4000"
+  />
+
+  <label>Draw Cards After Counter Event</label>
+  <input
+    type="number"
+    value={counterEventDrawCount}
+    onChange={(event) => setCounterEventDrawCount(Number(event.target.value))}
+    placeholder="2"
+  />
+
+  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+    <label>
+      <input
+        type="checkbox"
+        checked={counterEventAllowLeader}
+        onChange={(event) => setCounterEventAllowLeader(event.target.checked)}
+      />
+      Can defend leader
+    </label>
+
+    <label>
+      <input
+        type="checkbox"
+        checked={counterEventAllowBoard}
+        onChange={(event) => setCounterEventAllowBoard(event.target.checked)}
+      />
+      Can defend character / board
+    </label>
+  </div>
+
+  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+    <button onClick={addOpponentCounterEvent}>
+      Add / Update Counter Event
+    </button>
+  </div>
+
+  <small>
+    Opponent must have this event card in hand, enough active DON to pay the
+    cost, enough rested DON to remove, enough cards to discard, and enough cards
+    in deck to draw.
+  </small>
+
+  <h3>Current Counter Events</h3>
+
+  {Object.keys(counterEventsConfig.cards || {}).length === 0 ? (
+    <p>No counter events added.</p>
+  ) : (
+    Object.entries(counterEventsConfig.cards || {}).map(([cardId, config]) => (
+      <BuilderListCard
+        key={`counter-event-${cardId}`}
+        title={`${cardId} - ${config.name || "Counter Event"}`}
+      >
+        <div>
+          <p>DON Cost: {config.cost}</p>
+          <p>Remove DON: {config.removeDonCount || 0}</p>
+          <p>Discard: {config.discardCount || 0}</p>
+          <p>Discard Strategy: {config.discardStrategy || "lowest_counter"}</p>
+          <p>Counter Power: +{config.power}</p>
+          <p>Zones: {(config.allowedZones || []).join(", ")}</p>
+          <p>
+            Extra Steps:{" "}
+            {(config.steps || []).length > 0
+              ? (config.steps || [])
+                  .map((step) =>
+                    `${step.type}${step.count ? ` ${step.count}` : ""}`
+                  )
+                  .join(", ")
+              : "None"}
+          </p>
+        </div>
+
+        <button onClick={() => removeOpponentCounterEvent(cardId)}>
+          Remove Counter Event
+        </button>
+      </BuilderListCard>
+    ))
+  )}
+</div>
           </section>
 
           <section className="panel">
@@ -3308,15 +3629,15 @@ module.exports = scenario;
                 </div>
 
                 <label>Source Power Requirement</label>
-<input
-  type="number"
-  value={reducePowerSourcePowerAtLeast}
-  onChange={(event) => setReducePowerSourcePowerAtLeast(event.target.value)}
-  placeholder="Leave blank, or enter 7000"
-/>
-<small>
-  For When Attacking effects. Example: enter 7000 if the attacker must be 7000+.
-</small>
+                <input
+                  type="number"
+                  value={reducePowerSourcePowerAtLeast}
+                  onChange={(event) => setReducePowerSourcePowerAtLeast(event.target.value)}
+                  placeholder="Leave blank, or enter 7000"
+                />
+                <small>
+                  For When Attacking effects. Example: enter 7000 if the attacker must be 7000+.
+                </small>
 
                 <label>Power Reduction Amount</label>
                 <input
@@ -3440,35 +3761,35 @@ module.exports = scenario;
                   </div>
                 </div>
                 <label>Move Attached DON Count</label>
-<input
-  type="number"
-  value={moveAttachedDonCount}
-  onChange={(event) =>
-    setMoveAttachedDonCount(Number(event.target.value))
-  }
-  placeholder="2"
-/>
+                <input
+                  type="number"
+                  value={moveAttachedDonCount}
+                  onChange={(event) =>
+                    setMoveAttachedDonCount(Number(event.target.value))
+                  }
+                  placeholder="2"
+                />
 
-<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-  <button onClick={addAbilityMoveAttachedDonStep}>
-    Add Move Up To Attached DON
-  </button>
-</div>
-<label>Attach Rested DON Count</label>
-<input
-  type="number"
-  value={attachRestedDonCount}
-  onChange={(event) =>
-    setAttachRestedDonCount(Number(event.target.value))
-  }
-  placeholder="2"
-/>
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityMoveAttachedDonStep}>
+                    Add Move Up To Attached DON
+                  </button>
+                </div>
+                <label>Attach Rested DON Count</label>
+                <input
+                  type="number"
+                  value={attachRestedDonCount}
+                  onChange={(event) =>
+                    setAttachRestedDonCount(Number(event.target.value))
+                  }
+                  placeholder="2"
+                />
 
-<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
-  <button onClick={addAbilityAttachRestedDonStep}>
-    Add Attach Rested DON
-  </button>
-</div>
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+                  <button onClick={addAbilityAttachRestedDonStep}>
+                    Add Attach Rested DON
+                  </button>
+                </div>
                 <label>Restand DON Count</label>
                 <input
                   type="number"

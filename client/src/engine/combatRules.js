@@ -7,8 +7,8 @@ import {
   canUseBlocker,
   getAvailableBlockers,
   getCardCost,
-isCharacterCard,
-hasRush
+  isCharacterCard,
+  hasRush
 } from "./cardRules";
 
 import {
@@ -80,6 +80,420 @@ function chooseMinimumCounterCards(hand, neededPower) {
 
   search(0, [], 0);
   return best;
+}
+
+function getCardIdentity(card) {
+  return card?.cardId || card?.id || card?.card_set_id;
+}
+
+function getOpponentCounterEventConfig(card, scenario) {
+  const counterEventsConfig = scenario?.opponentAI?.counterEvents;
+
+  if (counterEventsConfig?.enabled === false) {
+    return null;
+  }
+
+  const cardId = getCardIdentity(card);
+
+  const manualCardConfig =
+    card?.counterEvent ||
+    card?.counter_event ||
+    card?.counterEventConfig ||
+    null;
+
+  const scenarioCardConfig =
+    counterEventsConfig?.cards?.[cardId] ||
+    counterEventsConfig?.events?.[cardId] ||
+    counterEventsConfig?.byCardId?.[cardId] ||
+    null;
+
+  const config = manualCardConfig || scenarioCardConfig;
+
+  if (!config) {
+    return null;
+  }
+
+  const cost = Number(config.cost ?? config.donCost ?? 0);
+
+  const power = Number(
+    config.power ??
+    config.counterPower ??
+    config.amount ??
+    config.counterAmount ??
+    0
+  );
+
+  const removeDonCount = Number(
+    config.removeDonCount ??
+    config.returnDonCount ??
+    config.minusDon ??
+    0
+  );
+
+  const discardCount = Number(
+    config.discardCount ??
+    config.discardCards ??
+    config.trashFromHand ??
+    0
+  );
+
+  if (!Number.isFinite(cost) || cost < 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(power) || power <= 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(removeDonCount) || removeDonCount < 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(discardCount) || discardCount < 0) {
+    return null;
+  }
+
+  const steps = Array.isArray(config.steps) ? [...config.steps] : [];
+
+  const drawCount = Number(config.drawCount ?? config.drawCards ?? 0);
+
+  if (Number.isFinite(drawCount) && drawCount > 0) {
+    steps.push({
+      id: `counter_event_draw_${cardId || "card"}`,
+      type: "draw_cards",
+      player: "opponent",
+      count: drawCount
+    });
+  }
+
+  return {
+    cost,
+    power,
+    removeDonCount,
+    discardCount,
+    discardStrategy:
+      config.discardStrategy ||
+      counterEventsConfig?.discardStrategy ||
+      "lowest_counter",
+    steps,
+    name: config.name || card?.name || cardId || "Counter event",
+    allowedZones:
+      config.allowedZones ||
+      config.targetZones ||
+      counterEventsConfig?.allowedZones ||
+      ["leader", "board"]
+  };
+}
+function getActiveUnattachedDon(player) {
+  return (player?.don || []).filter(
+    (don) => !don.rested && don.attachedTo == null
+  );
+}
+
+function restOpponentDonForCounterEvent(player, cost) {
+  const activeDon = getActiveUnattachedDon(player);
+
+  if (activeDon.length < cost) {
+    return false;
+  }
+
+  let restedCount = 0;
+
+  for (const don of player.don || []) {
+    if (restedCount >= cost) break;
+
+    if (!don.rested && don.attachedTo == null) {
+      don.rested = true;
+      restedCount += 1;
+    }
+  }
+
+  return restedCount === cost;
+}
+function getRestedUnattachedDon(player) {
+  return (player?.don || []).filter(
+    (don) => don.rested && don.attachedTo == null
+  );
+}
+
+function removeOpponentDonForCounterEvent(player, count) {
+  const removeCount = Number(count || 0);
+
+  if (!Number.isFinite(removeCount) || removeCount <= 0) {
+    return {
+      success: true,
+      removedDonIds: [],
+      message: ""
+    };
+  }
+
+  const restedUnattachedDon = getRestedUnattachedDon(player);
+
+  if (restedUnattachedDon.length < removeCount) {
+    return {
+      success: false,
+      removedDonIds: [],
+      message: `Opponent does not have ${removeCount} rested DON to remove.`
+    };
+  }
+
+  const removedDonIds = restedUnattachedDon
+    .slice(0, removeCount)
+    .map((don) => don.id);
+
+  player.don = (player.don || []).filter(
+    (don) => !removedDonIds.some((removedId) => Number(removedId) === Number(don.id))
+  );
+
+  return {
+    success: true,
+    removedDonIds,
+    message: `Opponent removed ${removedDonIds.length} DON.`
+  };
+}
+
+
+
+function chooseOpponentCounterEventDiscardIndexes(hand = [], count = 1, strategy = "lowest_counter") {
+  if (!Array.isArray(hand) || hand.length < count) {
+    return [];
+  }
+
+  const candidates = hand.map((card, index) => ({
+    card,
+    index,
+    counter: Number(getCounterValue(card) || 0)
+  }));
+
+  if (strategy === "highest_counter") {
+    candidates.sort((a, b) => {
+      if (b.counter !== a.counter) return b.counter - a.counter;
+      return a.index - b.index;
+    });
+  } else {
+    candidates.sort((a, b) => {
+      if (a.counter !== b.counter) return a.counter - b.counter;
+      return a.index - b.index;
+    });
+  }
+
+  return candidates.slice(0, count).map((entry) => entry.index);
+}
+
+function discardOpponentCardsForCounterEvent(player, count = 0, strategy = "lowest_counter") {
+  const discardCount = Number(count || 0);
+
+  if (!Number.isFinite(discardCount) || discardCount <= 0) {
+    return {
+      success: true,
+      discardedCards: [],
+      message: ""
+    };
+  }
+
+  const discardIndexes = chooseOpponentCounterEventDiscardIndexes(
+    player.hand || [],
+    discardCount,
+    strategy
+  );
+
+  if (discardIndexes.length < discardCount) {
+    return {
+      success: false,
+      discardedCards: [],
+      message: `Opponent does not have ${discardCount} card(s) to discard.`
+    };
+  }
+
+  const discardedCards = [];
+
+  for (const index of [...discardIndexes].sort((a, b) => b - a)) {
+    const [discardedCard] = player.hand.splice(index, 1);
+
+    if (discardedCard) {
+      discardedCards.push(discardedCard);
+    }
+  }
+
+  if (discardedCards.length > 0) {
+    addCardsToTrash(player, discardedCards);
+  }
+
+  return {
+    success: true,
+    discardedCards,
+    message:
+      discardedCards.length > 0
+        ? `Opponent discarded ${discardedCards
+          .map((card) => card.name || card.cardId || card.id)
+          .join(", ")}.`
+        : ""
+  };
+}
+
+function createCounterEventDefenseOptions(
+  state,
+  attackerPower,
+  targetRef,
+  scenario = null
+) {
+  const options = [];
+
+  if (scenario?.opponentAI?.counterEvents?.enabled === false) {
+    return options;
+  }
+
+  const targetZone = targetRef?.zone;
+
+  const baseTargetPower = getCombatPower(targetRef.card, targetRef.side);
+  const neededCounter = attackerPower - baseTargetPower + 1000;
+
+  if (neededCounter <= 0) {
+    return options;
+  }
+
+  const opponentHand = state.opponent?.hand || [];
+
+  for (let handIndex = 0; handIndex < opponentHand.length; handIndex += 1) {
+    const handCard = opponentHand[handIndex];
+    const eventConfig = getOpponentCounterEventConfig(handCard, scenario);
+
+    if (!eventConfig) continue;
+
+    if (
+      Array.isArray(eventConfig.allowedZones) &&
+      eventConfig.allowedZones.length > 0 &&
+      !eventConfig.allowedZones.includes(targetZone)
+    ) {
+      continue;
+    }
+
+    if (getActiveUnattachedDon(state.opponent).length < eventConfig.cost) {
+      continue;
+    }
+
+    let nextState = structuredClone(state);
+
+    const newTargetRef = findCardByInstanceId(
+      nextState,
+      targetRef.card.instanceId
+    );
+
+    if (!newTargetRef) continue;
+
+    const targetPower = getCombatPower(newTargetRef.card, newTargetRef.side);
+    const currentNeededCounter = attackerPower - targetPower + 1000;
+
+    if (currentNeededCounter <= 0) {
+      continue;
+    }
+
+const paid = restOpponentDonForCounterEvent(
+  nextState.opponent,
+  eventConfig.cost
+);
+
+if (!paid) {
+  continue;
+}
+
+const removeDonResult = removeOpponentDonForCounterEvent(
+  nextState.opponent,
+  eventConfig.removeDonCount
+);
+
+if (!removeDonResult.success) {
+  continue;
+}
+
+const [usedEvent] = nextState.opponent.hand.splice(handIndex, 1);
+
+addCardToTrash(nextState.opponent, usedEvent);
+
+let extraEffectMessages = [];
+
+if (removeDonResult.message) {
+  extraEffectMessages.push(removeDonResult.message);
+}
+
+const discardResult = discardOpponentCardsForCounterEvent(
+  nextState.opponent,
+  eventConfig.discardCount,
+  eventConfig.discardStrategy
+);
+
+if (!discardResult.success) {
+  continue;
+}
+
+if (discardResult.message) {
+  extraEffectMessages.push(discardResult.message);
+}
+
+if (Array.isArray(eventConfig.steps) && eventConfig.steps.length > 0) {
+  const eventStepResult = resolveAutomaticAbility(
+    nextState,
+    {
+      steps: eventConfig.steps
+    },
+    scenario,
+    usedEvent
+  );
+
+  nextState = eventStepResult.nextState;
+  extraEffectMessages.push(...(eventStepResult.messages || []));
+}
+
+    const remainingCounterNeeded = Math.max(
+      0,
+      currentNeededCounter - eventConfig.power
+    );
+
+    const selection = chooseMinimumCounterCards(
+      nextState.opponent.hand || [],
+      remainingCounterNeeded
+    );
+
+    if (remainingCounterNeeded > 0 && !selection) {
+      continue;
+    }
+
+    const usedCounterCards = selection?.chosen?.map((entry) => entry.card) || [];
+
+    const indexesToRemove = (selection?.chosen || [])
+      .map((entry) => entry.index)
+      .sort((a, b) => b - a);
+
+    for (const index of indexesToRemove) {
+      nextState.opponent.hand.splice(index, 1);
+    }
+
+    if (usedCounterCards.length > 0) {
+      addCardsToTrash(nextState.opponent, usedCounterCards);
+    }
+
+    const extraCounterText =
+      usedCounterCards.length > 0
+        ? ` and countered with ${usedCounterCards
+          .map((card) => card.name || card.cardId || card.id)
+          .join(", ")}`
+        : "";
+
+    options.push({
+      nextState,
+      message: `Opponent used ${eventConfig.name} for +${eventConfig.power}${extraCounterText}. ${extraEffectMessages.join(" ")}`.trim(),
+      type: "counter",
+      counterUsed: eventConfig.power + Number(selection?.total || 0),
+      cardsUsed: 1 + usedCounterCards.length,
+      usesCounterEvent: true,
+      counterEventCost: eventConfig.cost,
+      counterEventPower: eventConfig.power,
+      counterEventCardId: getCardIdentity(usedEvent),
+      counterEventName: eventConfig.name
+    });
+  }
+
+  return options;
 }
 
 
@@ -226,17 +640,17 @@ function generatePossibleAttacks(state) {
         continue;
       }
 
-if (
-  attackState.opponent.leader?.instanceId &&
-  canAttackLeaderTarget(simulatedAttackerRef.card)
-) {
-  attacks.push({
-    stateBeforeAttack: attackState,
-    attackerId: simulatedAttackerRef.card.instanceId,
-    targetId: attackState.opponent.leader.instanceId,
-    attachedDonCount: donToAttach
-  });
-}
+      if (
+        attackState.opponent.leader?.instanceId &&
+        canAttackLeaderTarget(simulatedAttackerRef.card)
+      ) {
+        attacks.push({
+          stateBeforeAttack: attackState,
+          attackerId: simulatedAttackerRef.card.instanceId,
+          targetId: attackState.opponent.leader.instanceId,
+          attachedDonCount: donToAttach
+        });
+      }
 
       for (const target of attackState.opponent.board || []) {
         if (target.rested || simulatedAttackerRef.card.canAttackActiveCharacters) {
@@ -487,23 +901,23 @@ function isValidAutoTarget(candidate, step, options = {}) {
     return false;
   }
 
-if (step.type === "cannot_attack") {
-  if (candidate.zone !== "board") return false;
+  if (step.type === "cannot_attack") {
+    if (candidate.zone !== "board") return false;
 
-  if (step.maxCost != null) {
-    const targetCost = getCardCost(candidate.card);
+    if (step.maxCost != null) {
+      const targetCost = getCardCost(candidate.card);
 
-    if (targetCost > Number(step.maxCost)) {
+      if (targetCost > Number(step.maxCost)) {
+        return false;
+      }
+    }
+
+    if (step.requireCanAttack && !canAttack(candidate.card)) {
       return false;
     }
-  }
 
-  if (step.requireCanAttack && !canAttack(candidate.card)) {
-    return false;
+    return true;
   }
-
-  return true;
-}
 
   if (step.type === "ko_power_or_less") {
     return (
@@ -526,7 +940,7 @@ function findAutoTarget(state, step) {
     ? step.targetPriorityIds
     : [];
 
-      if (step.type === "cannot_attack" && step.targetPriorityMode === "highest_power") {
+  if (step.type === "cannot_attack" && step.targetPriorityMode === "highest_power") {
     const candidates = getAutoTargetCandidates(state, step)
       .filter((candidate) => isValidAutoTarget(candidate, step));
 
@@ -635,15 +1049,15 @@ function applyAutoTargetStep(state, step) {
     };
   }
 
-if (step.type === "cannot_attack") {
-  target.card.cannotAttack = true;
+  if (step.type === "cannot_attack") {
+    target.card.cannotAttack = true;
 
-  return {
-    nextState,
-    success: true,
-    message: `${target.card.name || target.card.cardId} cannot attack this turn.`
-  };
-}
+    return {
+      nextState,
+      success: true,
+      message: `${target.card.name || target.card.cardId} cannot attack this turn.`
+    };
+  }
   if (step.type === "buff_power") {
     target.card.tempPower = Number(target.card.tempPower || 0) + Number(step.amount || 0);
 
@@ -706,6 +1120,43 @@ function resolveAutomaticAbility(state, ability, scenario, sourceCard) {
   ];
 
   for (const step of steps) {
+    if (step.type === "draw_cards") {
+      const playerKey = step.player || "opponent";
+      const player = workingState[playerKey];
+
+      if (!player) continue;
+
+      const count = Number(step.count || step.amount || 0);
+
+      if (!Number.isFinite(count) || count <= 0) {
+        messages.push("Invalid draw count.");
+        continue;
+      }
+
+      player.deck = player.deck || [];
+      player.hand = player.hand || [];
+
+      const drawnCards = [];
+
+      for (let i = 0; i < count; i += 1) {
+        if (player.deck.length === 0) break;
+
+        const drawnCard = player.deck.shift();
+
+        if (drawnCard) {
+          drawnCards.push(drawnCard);
+          player.hand.push(drawnCard);
+        }
+      }
+
+      player.deckCount = player.deck.length;
+
+      messages.push(
+        `${playerKey === "opponent" ? "Opponent" : "You"} drew ${drawnCards.length} card(s).`
+      );
+
+      continue;
+    }
     if (step.type === "play_from_trash") {
       const playerKey = step.player || "opponent";
       const player = workingState[playerKey];
@@ -728,24 +1179,23 @@ function resolveAutomaticAbility(state, ability, scenario, sourceCard) {
 
       player.trashCount = player.trash.length;
 
-const entersRested = !!step.enterRested;
+      const entersRested = !!step.enterRested;
 
-const newCharacter = {
-  ...playedCard,
-  instanceId: getNextBoardInstanceId(player, playerKey),
-  attachedDon: [],
-  rested: entersRested,
-  isBlocker: !!playedCard.isBlocker,
-  summoningSick: !hasRush(playedCard)
-};
+      const newCharacter = {
+        ...playedCard,
+        instanceId: getNextBoardInstanceId(player, playerKey),
+        attachedDon: [],
+        rested: entersRested,
+        isBlocker: !!playedCard.isBlocker,
+        summoningSick: !hasRush(playedCard)
+      };
 
       player.board = [...(player.board || []), newCharacter];
 
       messages.push(
-  `${newCharacter.name || newCharacter.cardId} was played from trash ${
-    entersRested ? "rested" : "active"
-  }.`
-);
+        `${newCharacter.name || newCharacter.cardId} was played from trash ${entersRested ? "rested" : "active"
+        }.`
+      );
 
       const onPlayAbility = getTriggeredAbility(
         newCharacter,
@@ -801,6 +1251,8 @@ const newCharacter = {
       messages.push(`${restanded} DON restanded.`);
     }
   }
+
+
 
   return {
     nextState: workingState,
@@ -1075,8 +1527,8 @@ function generateDefenseOptions(state, attackerId, targetId, scenario = null) {
 
   const attacker = attackerRef.card;
   const target = targetRef.card;
-const attackerPower = getCombatPower(attacker, attackerRef.side);
-const targetPower = getCombatPower(target, targetRef.side);
+  const attackerPower = getCombatPower(attacker, attackerRef.side);
+  const targetPower = getCombatPower(target, targetRef.side);
 
   const options = [];
 
@@ -1097,6 +1549,15 @@ const targetPower = getCombatPower(target, targetRef.side);
   if (counterOption) {
     options.push(counterOption);
   }
+
+  const counterEventOptions = createCounterEventDefenseOptions(
+    state,
+    attackerPower,
+    targetRef,
+    scenario
+  );
+
+  options.push(...counterEventOptions);
 
   if (targetRef.zone === "leader") {
     options.push(createTakeLifeDefenseOption(state, scenario, attackerId));
@@ -1152,7 +1613,7 @@ function playerCanForceWin(state, depth = 0, scenario = null) {
       attack.attackerId,
       attack.targetId,
       depth,
-      scenario 
+      scenario
     );
 
     if (defenseResult.playerStillForcesWin) {
@@ -1566,11 +2027,26 @@ function chooseBestNonTakeDefense(options) {
   );
 
   if (counterOptions.length > 0) {
-    return [...counterOptions].sort(
-      (a, b) =>
-        (a.defenseOption.counterUsed || 0) -
-        (b.defenseOption.counterUsed || 0)
-    )[0];
+    return [...counterOptions].sort((a, b) => {
+      const counterA = Number(a.defenseOption.counterUsed || 0);
+      const counterB = Number(b.defenseOption.counterUsed || 0);
+
+      if (counterA !== counterB) {
+        return counterA - counterB;
+      }
+
+      const donCostA = Number(a.defenseOption.counterEventCost || 0);
+      const donCostB = Number(b.defenseOption.counterEventCost || 0);
+
+      if (donCostA !== donCostB) {
+        return donCostA - donCostB;
+      }
+
+      const cardsA = Number(a.defenseOption.cardsUsed || 0);
+      const cardsB = Number(b.defenseOption.cardsUsed || 0);
+
+      return cardsA - cardsB;
+    })[0];
   }
 
   // Only allow blocker as a defensive choice when opponent has 0 life.
@@ -1705,18 +2181,17 @@ function buildOpponentLeaderTrashBoostCounterCandidates(
     scenario
   ).filter(isLeaderBoostDefenseOption);
 
-return boostedDefenseOptions.map((defenseOption) => ({
-  stateBeforeDefense: boostedState,
-  defenseOption: {
-    ...defenseOption,
-    usesLeaderTrashBoost: true,
-    leaderTrashBoostTargetPower: targetPower,
-    leaderTrashBoostDiscardedCard: discardedCard,
-    message: `Opponent trashed ${
-      discardedCard.name || discardedCard.cardId
-    } to make leader ${targetPower}. ${defenseOption.message || ""}`.trim()
-  }
-}));
+  return boostedDefenseOptions.map((defenseOption) => ({
+    stateBeforeDefense: boostedState,
+    defenseOption: {
+      ...defenseOption,
+      usesLeaderTrashBoost: true,
+      leaderTrashBoostTargetPower: targetPower,
+      leaderTrashBoostDiscardedCard: discardedCard,
+      message: `Opponent trashed ${discardedCard.name || discardedCard.cardId
+        } to make leader ${targetPower}. ${defenseOption.message || ""}`.trim()
+    }
+  }));
 }
 
 function chooseBestOpponentDefense(
@@ -1769,117 +2244,117 @@ function chooseBestOpponentDefense(
   }
 
   const evaluatedOptions = defenseCandidates.map(
-  ({ stateBeforeDefense, defenseOption }) => {
-    const actualNextState = applyAttackWithDefense(
-      stateBeforeDefense,
-      attackerId,
-      defenseOption
-    );
+    ({ stateBeforeDefense, defenseOption }) => {
+      const actualNextState = applyAttackWithDefense(
+        stateBeforeDefense,
+        attackerId,
+        defenseOption
+      );
 
-    const evaluationDefenseOption = defenseOption.evaluationState
-      ? {
+      const evaluationDefenseOption = defenseOption.evaluationState
+        ? {
           ...defenseOption,
           nextState: defenseOption.evaluationState,
           message: defenseOption.evaluationMessage || defenseOption.message
         }
-      : defenseOption;
+        : defenseOption;
 
-    const evaluationNextState = applyAttackWithDefense(
-      stateBeforeDefense,
-      attackerId,
-      evaluationDefenseOption
-    );
+      const evaluationNextState = applyAttackWithDefense(
+        stateBeforeDefense,
+        attackerId,
+        evaluationDefenseOption
+      );
 
-    const candidateAttackerRef = findCardByInstanceId(
-      stateBeforeDefense,
-      attackerId
-    );
+      const candidateAttackerRef = findCardByInstanceId(
+        stateBeforeDefense,
+        attackerId
+      );
 
-    const candidateTargetRef = findCardByInstanceId(
-      stateBeforeDefense,
-      targetId
-    );
+      const candidateTargetRef = findCardByInstanceId(
+        stateBeforeDefense,
+        targetId
+      );
 
-    const attackerPower = getCombatPower(
-      candidateAttackerRef?.card,
-      candidateAttackerRef?.side
-    );
+      const attackerPower = getCombatPower(
+        candidateAttackerRef?.card,
+        candidateAttackerRef?.side
+      );
 
-    const targetPower = getCombatPower(
-      candidateTargetRef?.card,
-      candidateTargetRef?.side
-    );
+      const targetPower = getCombatPower(
+        candidateTargetRef?.card,
+        candidateTargetRef?.side
+      );
 
-    const lifeBefore = getLifeCount(stateBeforeDefense.opponent.life);
-    const lifeAfter = getLifeCount(evaluationNextState.opponent.life);
+      const lifeBefore = getLifeCount(stateBeforeDefense.opponent.life);
+      const lifeAfter = getLifeCount(evaluationNextState.opponent.life);
 
-    const playerStillForcesWin = playerCanForceWin(
-      evaluationNextState,
-      depth + 1,
-      scenario
-    );
+      const playerStillForcesWin = playerCanForceWin(
+        evaluationNextState,
+        depth + 1,
+        scenario
+      );
 
-    const score = scoreDefenseChoice(evaluationNextState, evaluationDefenseOption, {
-      attackerPower,
-      targetPower,
-      counterUsed: defenseOption.counterUsed || 0,
-      lifeBefore,
-      lifeAfter
-    });
+      const score = scoreDefenseChoice(evaluationNextState, evaluationDefenseOption, {
+        attackerPower,
+        targetPower,
+        counterUsed: defenseOption.counterUsed || 0,
+        lifeBefore,
+        lifeAfter
+      });
 
-return {
-  defenseOption,
-  nextState: actualNextState,
-  evaluationState: evaluationNextState,
-  message: defenseOption.message,
-  playerStillForcesWin,
-  lifeBefore,
-  lifeAfter,
-  attackerPower,
-  targetPower,
-  score
-};
-  }
-);
-
-const isLeaderAttack = targetRef.zone === "leader";
-
-if (isLeaderAttack) {
-  const mandatoryCounterDefense =
-    chooseMandatoryLeaderCounterDefense(evaluatedOptions);
-
-  if (mandatoryCounterDefense) {
-    return {
-      nextState: mandatoryCounterDefense.nextState,
-      message: mandatoryCounterDefense.message,
-      playerStillForcesWin: mandatoryCounterDefense.playerStillForcesWin
-    };
-  }
-
-  const cheapCounterDefense = chooseCheapCounterDefense(evaluatedOptions);
-
-  if (cheapCounterDefense) {
-    return {
-      nextState: cheapCounterDefense.nextState,
-      message: cheapCounterDefense.message,
-      playerStillForcesWin: false
-    };
-  }
-
-  const highValueTakeLifeOption = evaluatedOptions.find(
-    isHighValueTakeLifeOption
+      return {
+        defenseOption,
+        nextState: actualNextState,
+        evaluationState: evaluationNextState,
+        message: defenseOption.message,
+        playerStillForcesWin,
+        lifeBefore,
+        lifeAfter,
+        attackerPower,
+        targetPower,
+        score
+      };
+    }
   );
-  if (highValueTakeLifeOption) {
-    return {
-      nextState: highValueTakeLifeOption.nextState,
-      message: highValueTakeLifeOption.message,
-      playerStillForcesWin: highValueTakeLifeOption.playerStillForcesWin
-    };
-  }
 
-  const dangerousTakeLifeOption = evaluatedOptions.find(
-    isDangerousTakeLifeOption
-  );
+  const isLeaderAttack = targetRef.zone === "leader";
+
+  if (isLeaderAttack) {
+    const mandatoryCounterDefense =
+      chooseMandatoryLeaderCounterDefense(evaluatedOptions);
+
+    if (mandatoryCounterDefense) {
+      return {
+        nextState: mandatoryCounterDefense.nextState,
+        message: mandatoryCounterDefense.message,
+        playerStillForcesWin: mandatoryCounterDefense.playerStillForcesWin
+      };
+    }
+
+    const cheapCounterDefense = chooseCheapCounterDefense(evaluatedOptions);
+
+    if (cheapCounterDefense) {
+      return {
+        nextState: cheapCounterDefense.nextState,
+        message: cheapCounterDefense.message,
+        playerStillForcesWin: false
+      };
+    }
+
+    const highValueTakeLifeOption = evaluatedOptions.find(
+      isHighValueTakeLifeOption
+    );
+    if (highValueTakeLifeOption) {
+      return {
+        nextState: highValueTakeLifeOption.nextState,
+        message: highValueTakeLifeOption.message,
+        playerStillForcesWin: highValueTakeLifeOption.playerStillForcesWin
+      };
+    }
+
+    const dangerousTakeLifeOption = evaluatedOptions.find(
+      isDangerousTakeLifeOption
+    );
 
     if (dangerousTakeLifeOption) {
       const nonTakeOptions = evaluatedOptions.filter(
@@ -1928,55 +2403,55 @@ if (isLeaderAttack) {
           ? nonDangerousSurvivingOptions
           : survivingOptions;
 
-     const bestLeaderBoostOption =
-  chooseBestLeaderTrashBoostDefense(preferredOptions);
+      const bestLeaderBoostOption =
+        chooseBestLeaderTrashBoostDefense(preferredOptions);
 
-if (bestLeaderBoostOption) {
-  return {
-    nextState: bestLeaderBoostOption.nextState,
-    message: bestLeaderBoostOption.message,
-    playerStillForcesWin: false
-  };
-}
+      if (bestLeaderBoostOption) {
+        return {
+          nextState: bestLeaderBoostOption.nextState,
+          message: bestLeaderBoostOption.message,
+          playerStillForcesWin: false
+        };
+      }
 
-const highValueNonTakeDefense = preferredOptions.find(
-  (option) =>
-    option.defenseOption.type !== "take_life" &&
-    option.defenseOption.type !== "lose" &&
-    option.lifeBefore <= 2
-);
+      const highValueNonTakeDefense = preferredOptions.find(
+        (option) =>
+          option.defenseOption.type !== "take_life" &&
+          option.defenseOption.type !== "lose" &&
+          option.lifeBefore <= 2
+      );
 
-if (highValueNonTakeDefense) {
-  return {
-    nextState: highValueNonTakeDefense.nextState,
-    message: highValueNonTakeDefense.message,
-    playerStillForcesWin: false
-  };
-}
+      if (highValueNonTakeDefense) {
+        return {
+          nextState: highValueNonTakeDefense.nextState,
+          message: highValueNonTakeDefense.message,
+          playerStillForcesWin: false
+        };
+      }
 
-const leaderBoostOption = chooseBestLeaderTrashBoostDefense(preferredOptions);
+      const leaderBoostOption = chooseBestLeaderTrashBoostDefense(preferredOptions);
 
-if (leaderBoostOption) {
-  return {
-    nextState: leaderBoostOption.nextState,
-    message: leaderBoostOption.message,
-    playerStillForcesWin: false
-  };
-}
+      if (leaderBoostOption) {
+        return {
+          nextState: leaderBoostOption.nextState,
+          message: leaderBoostOption.message,
+          playerStillForcesWin: false
+        };
+      }
 
-const safeTakeLife = preferredOptions.find(
-  (option) => option.defenseOption.type === "take_life"
-);
+      const safeTakeLife = preferredOptions.find(
+        (option) => option.defenseOption.type === "take_life"
+      );
 
-if (safeTakeLife) {
-  return {
-    nextState: safeTakeLife.nextState,
-    message: safeTakeLife.message,
-    playerStillForcesWin: false
-  };
-}
+      if (safeTakeLife) {
+        return {
+          nextState: safeTakeLife.nextState,
+          message: safeTakeLife.message,
+          playerStillForcesWin: false
+        };
+      }
 
-const bestSurvivingOption = chooseHighestScoringOption(preferredOptions);
+      const bestSurvivingOption = chooseHighestScoringOption(preferredOptions);
 
       return {
         nextState: bestSurvivingOption.nextState,
@@ -2073,29 +2548,29 @@ export function resolveAttack(state, attackerId, targetId, scenario) {
   }
 
   if (!canAttack(attacker)) {
-  return { nextState, resultMessage: "That card cannot attack." };
-}
+    return { nextState, resultMessage: "That card cannot attack." };
+  }
 
-if (targetRef.zone === "leader" && !canAttackLeaderTarget(attacker)) {
-  return {
-    nextState,
-    resultMessage: `${attacker.name || attacker.cardId} can only attack characters this turn.`
-  };
-}
+  if (targetRef.zone === "leader" && !canAttackLeaderTarget(attacker)) {
+    return {
+      nextState,
+      resultMessage: `${attacker.name || attacker.cardId} can only attack characters this turn.`
+    };
+  }
 
-if (targetRef.zone === "board" && !canAttackCharacterTarget(attacker, target)) {
-  return {
-    nextState,
-    resultMessage: `${attacker.name || attacker.cardId} cannot attack an active character.`
-  };
-}
+  if (targetRef.zone === "board" && !canAttackCharacterTarget(attacker, target)) {
+    return {
+      nextState,
+      resultMessage: `${attacker.name || attacker.cardId} cannot attack an active character.`
+    };
+  }
 
   const defenseResult = chooseBestOpponentDefense(
     nextState,
     attackerId,
     targetId,
     0,
-    scenario  
+    scenario
   );
 
   return {

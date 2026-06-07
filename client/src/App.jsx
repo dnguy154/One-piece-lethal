@@ -339,23 +339,37 @@ function App() {
       });
   };
 
-  const handleOpponentDonTargetClick = (donId) => {
-    if (!activeEffect) return;
+const handleOpponentDonTargetClick = (donOrId) => {
+  if (!activeEffect) return;
 
-    const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+  const currentStepRaw = activeEffect.effect.steps[activeEffect.stepIndex];
 
-    const canTargetDon =
-      currentStep?.targetRules?.zones?.includes("don") &&
-      currentStep?.targetRules?.sides?.includes("opponent");
+  const currentStep = prepareEffectStepForResolution(
+    activeEffect,
+    currentStepRaw
+  );
 
-    if (!canTargetDon) return;
+  const canTargetDon =
+    currentStep?.targetRules?.zones?.includes("don") &&
+    currentStep?.targetRules?.sides?.includes("opponent");
 
-    handleEffectTargetClick({
-      instanceId: `opponent-don-${donId}`,
-      id: donId
-    });
-  };
+  if (!canTargetDon) return;
 
+  const donId =
+    typeof donOrId === "object"
+      ? donOrId.id
+      : donOrId;
+
+  if (donId == null) {
+    setMessage("Invalid opponent DON target.");
+    return;
+  }
+
+  handleEffectTargetClick({
+    instanceId: `opponent-don-${donId}`,
+    id: donId
+  });
+};
   const handleDifficultyChange = (nextDifficulty) => {
     if (isDailyAttemptLocked) {
       setMessage("You cannot change difficulty after making an action.");
