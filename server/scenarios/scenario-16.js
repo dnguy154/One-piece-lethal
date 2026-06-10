@@ -145,7 +145,139 @@ const scenario =
           }
         ],
         stage: null,
-        trash: [],
+        trash: [        {
+            cardId: "ST10-005"
+          },
+          {
+            cardId: "ST10-005"
+          },
+          {
+            cardId: "ST10-005"
+          },
+          {
+            cardId: "ST10-004"
+          },
+          {
+            cardId: "ST10-004"
+          },
+          {
+            cardId: "ST10-004"
+          },
+          {
+            cardId: "ST10-006"
+          },
+          {
+            cardId: "ST10-015"
+          },
+          {
+            cardId: "ST10-015"
+          },
+          {
+            cardId: "ST10-015"
+          },
+          {
+            cardId: "ST10-015"
+          },
+          {
+            cardId: "ST10-011"
+          },
+          {
+            cardId: "ST10-011"
+          },
+          {
+            cardId: "ST10-011"
+          },
+          {
+            cardId: "ST10-011"
+          },
+          {
+            cardId: "ST10-014"
+          },
+          {
+            cardId: "ST10-014"
+          },
+          {
+            cardId: "ST10-014"
+          },
+          {
+            cardId: "ST10-014"
+          },
+          {
+            cardId: "ST10-008"
+          },
+          {
+            cardId: "ST10-008"
+          },
+          {
+            cardId: "ST10-008"
+          },
+          {
+            cardId: "ST10-008"
+          },
+          {
+            cardId: "ST10-009"
+          },
+          {
+            cardId: "ST10-009"
+          },
+          {
+            cardId: "ST10-009"
+          },
+          {
+            cardId: "ST10-009"
+          },
+          {
+            cardId: "ST10-010"
+          },
+          {
+            cardId: "ST10-010"
+          },
+          {
+            cardId: "ST10-010"
+          },
+          {
+            cardId: "ST10-010"
+          },
+          {
+            cardId: "OP01-013"
+          },
+          {
+            cardId: "OP01-013"
+          },
+          {
+            cardId: "OP01-013"
+          },
+          {
+            cardId: "ST10-012"
+          },
+          {
+            cardId: "ST10-012"
+          },
+          {
+            cardId: "ST10-012"
+          },
+          {
+            cardId: "ST10-012"
+          },
+          {
+            cardId: "ST10-007"
+          },
+          {
+            cardId: "ST10-007"
+          },
+          {
+            cardId: "ST10-007"
+          },
+          {
+            cardId: "ST10-007"
+          },
+          {
+            cardId: "OP01-025"
+          },
+          {
+            cardId: "OP01-025"
+          }
+        ],
         deckCount: 40,
         trashCount: 0
       },
