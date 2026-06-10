@@ -906,6 +906,61 @@ return {
     };
   }
 
+  if (step.type === "life_to_hand") {
+  const playerKey = step.player || "you";
+  const player = nextState[playerKey];
+
+  if (!player) {
+    return {
+      nextState: state,
+      success: false,
+      message: "Player state not found."
+    };
+  }
+
+  if (!Array.isArray(player.life) || player.life.length === 0) {
+    return {
+      nextState: state,
+      success: false,
+      message: "There is no life card to add to hand."
+    };
+  }
+
+  player.hand = player.hand || [];
+
+  const [lifeCard] = player.life.splice(0, 1);
+
+  const {
+    instanceId,
+    attachedDon,
+    rested,
+    summoningSick,
+    tempPower,
+    tempPowerOverride,
+    tempCostOverride,
+    tempCostDelta,
+    cannotAttack,
+    gainedRush,
+    gainedRushType,
+    effectsNegated,
+    canAttackActiveCharacters,
+    ...handCard
+  } = lifeCard;
+
+  player.hand.push({
+    ...handCard,
+    attachedDon: [],
+    rested: false,
+    summoningSick: false
+  });
+
+  return {
+    nextState,
+    success: true,
+    message: `${lifeCard.name || lifeCard.cardId || "Top life"} was added to hand.`
+  };
+}
+
   if (step.type === "play_top_life_if") {
     const playerKey = step.player || "you";
     const player = nextState[playerKey];

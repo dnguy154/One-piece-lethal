@@ -1445,6 +1445,20 @@ export default function ScenarioBuilder() {
     );
   };
 
+  const addAbilityLifeToHandStep = () => {
+  addAbilityStep(
+    {
+      id: `life_to_hand_${Date.now()}`,
+      type: "life_to_hand",
+      player: "you",
+      optional: effectStepOptional
+    },
+    abilityStepPlacement
+  );
+};
+
+  
+
   const addAbilitySteps = (steps, placement = "steps") => {
     const sourceKey = abilitySourceKey.trim();
 
@@ -2666,6 +2680,12 @@ module.exports = scenario;
             {` - Move up to ${step.count || 0} attached DON`}
           </>
         ) : null}
+        {step.type === "life_to_hand" ? (
+  <>
+    {" - Take top life to hand"}
+    {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+  </>
+) : null}
         {step.type === "grant_rush" ? " - Grants Rush" : ""}
         {step.type === "grant_rush" && step.targetSelf ? " - Targets Self" : ""}
         {step.type === "grant_rush"
@@ -3861,6 +3881,15 @@ module.exports = scenario;
                     Add Play Top Life If
                   </button>
                 </div>
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityLifeToHandStep}>
+    Add Top Life to Hand
+  </button>
+</div>
+
+<small>
+  Use this for Activate: Main effects that take the top card of your life and add it to hand.
+</small>
 
                 <label>Buff Power Amount</label>
                 <input
