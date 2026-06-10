@@ -91,7 +91,7 @@ const dailyChallenges = [
   },
   {
     challengeNumber: 16,
-    date: "2026-06-10",
+    date: "2026-06-11",
     scenarioId: 16,
     title: "sorry been lazy #16"
   }
