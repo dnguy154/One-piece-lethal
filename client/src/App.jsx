@@ -99,6 +99,7 @@ function App() {
   const startTimeRef = useRef(null);
 
   const [actionChoiceCard, setActionChoiceCard] = useState(null);
+  const [handActionChoice, setHandActionChoice] = useState(null);
 
   const [dailyResult, setDailyResult] = useState(null);
   const [resultModalOpen, setResultModalOpen] = useState(false);
@@ -232,6 +233,7 @@ function App() {
     setMobilePreviewCard(null);
     setHandViewer(null);
     setTrashViewer(null);
+    setHandActionChoice(null);
 
     setHasWon(false);
     setHasLost(false);
@@ -703,17 +705,18 @@ const handleOpponentDonTargetClick = (donOrId) => {
     setTrashViewer(null);
   };
 
-  const clearSelections = () => {
-    setSelectedDonIds([]);
-    setSelectedHandCardIndex(null);
-    setSelectedAttackerId(null);
-    setActiveEffect(null);
-    setActionMode("idle");
-    setActionChoiceCard(null);
-    setHandViewer(null);
-    setHoveredCard(null);
-    setMobilePreviewCard(null);
-  };
+const clearSelections = () => {
+  setSelectedDonIds([]);
+  setSelectedHandCardIndex(null);
+  setSelectedAttackerId(null);
+  setActiveEffect(null);
+  setActionMode("idle");
+  setActionChoiceCard(null);
+  setHandActionChoice(null);
+  setHandViewer(null);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+};
 
 
 
@@ -725,28 +728,39 @@ const handleOpponentDonTargetClick = (donOrId) => {
     actionMode === "select_effect_target" &&
     !!activeEffect &&
     !!currentEffectStep?.optional;
-  const handleHandCardClick = (card, handIndex) => {
-    if (hasWon || hasLost || hasConceded) return;
-    if (handIndex == null || !playState) return;
+const handleHandCardClick = (card, handIndex) => {
+  if (hasWon || hasLost || hasConceded) return;
+  if (handIndex == null || !playState) return;
 
-if (isResolvingEffect) {
-  const currentStepRaw = activeEffect.effect.steps[activeEffect.stepIndex];
+  if (isResolvingEffect) {
+    const currentStepRaw = activeEffect.effect.steps[activeEffect.stepIndex];
 
-  const currentStep = prepareEffectStepForResolution(
-    activeEffect,
-    currentStepRaw
-  );
+    const currentStep = prepareEffectStepForResolution(
+      activeEffect,
+      currentStepRaw
+    );
 
-  const canTargetHand =
-    currentStep?.type === "hand_to_top_life" &&
-    currentStep?.targetRules?.zones?.includes("hand") &&
-    currentStep?.targetRules?.sides?.includes("you");
+    const canTargetHand =
+      currentStep?.type === "hand_to_top_life" &&
+      currentStep?.targetRules?.zones?.includes("hand") &&
+      currentStep?.targetRules?.sides?.includes("you");
 
-  if (canTargetHand) {
-    handleEffectTargetClick({
-      instanceId: `you-hand-${handIndex}`,
-      id: handIndex
-    });
+    if (canTargetHand) {
+      handleEffectTargetClick({
+        instanceId: `you-hand-${handIndex}`,
+        id: handIndex
+      });
+
+      setHandViewer(null);
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
+      return;
+    }
+
+    setMessage(
+      currentStep?.prompt ||
+      "Finish resolving the current effect before playing another card."
+    );
 
     setHandViewer(null);
     setHoveredCard(null);
@@ -754,150 +768,163 @@ if (isResolvingEffect) {
     return;
   }
 
-  setMessage(
-    currentStep?.prompt ||
-    "Finish resolving the current effect before playing another card."
-  );
+  if (selectedDonIds.length > 0) {
+    setMessage("Finish attaching DON first.");
+    return;
+  }
 
+  setHandActionChoice({
+    card,
+    handIndex
+  });
+
+  setActionChoiceCard(null);
+  setSelectedAttackerId(null);
+  setSelectedHandCardIndex(null);
+  setActionMode("idle");
   setHandViewer(null);
   setHoveredCard(null);
   setMobilePreviewCard(null);
-  return;
-}
+  setMessage(`Choose an action for ${card.name || card.cardId}.`);
+};
+const playChosenHandCard = (card, handIndex) => {
+  if (hasWon || hasLost || hasConceded) return;
+  if (handIndex == null || !playState) return;
 
-    if (selectedDonIds.length > 0) {
-      setMessage("Finish attaching DON first.");
-      return;
-    }
+  if (selectedDonIds.length > 0) {
+    setMessage("Finish attaching DON first.");
+    return;
+  }
 
-    if (selectedAttackerId) {
-      setSelectedAttackerId(null);
-    }
+  if (selectedAttackerId) {
+    setSelectedAttackerId(null);
+  }
 
-    if (isEventCard(card)) {
-      const effect =
-        getTriggeredAbility(card, scenario, ABILITY_TRIGGERS.ON_PLAY) ||
-        getCardEffect(card, scenario);
+  if (isEventCard(card)) {
+    const effect =
+      getTriggeredAbility(card, scenario, ABILITY_TRIGGERS.ON_PLAY) ||
+      getCardEffect(card, scenario);
 
-      if (effect?.steps?.length) {
-        const firstStep = effect.steps[0];
+    if (effect?.steps?.length) {
+      const firstStep = effect.steps[0];
 
-        const paidResult = payAndTrashEvent(playState, handIndex, effect);
+      const paidResult = payAndTrashEvent(playState, handIndex, effect);
 
-        if (!paidResult.success) {
-          setMessage(paidResult.message);
-          setActiveEffect(null);
-          setActionMode("idle");
-          return;
-        }
-
-        markActionStarted();
-
-        const paidState = paidResult.nextState;
-
-        setSelectedHandCardIndex(null);
-        setSelectedAttackerId(null);
-        setSelectedDonIds([]);
-        setHoveredCard(null);
-        setMobilePreviewCard(null);
-        setHandViewer(null);
-
-        if (firstStep.targetRules) {
-          const nextActiveEffect = {
-            effect,
-            sourceCardName: card.name || card.cardId || card.id,
-            stepIndex: 0,
-            workingState: paidState
-          };
-
-          setPlayState(paidState);
-          setActiveEffect(nextActiveEffect);
-          setActionMode("select_effect_target");
-
-          saveCurrentDailyProgress(paidState, {
-            activeEffect: nextActiveEffect,
-            actionMode: "select_effect_target",
-            selectedDonIds: [],
-            selectedHandCardIndex: null,
-            selectedAttackerId: null
-          });
-
-          setMessage(firstStep.prompt || `Selected ${card.name}. Choose a target.`);
-          return;
-        }
-
-        const { nextState, success, message: resultMessage } = applyEffectStep(
-          paidState,
-          firstStep,
-          null
-        );
-
-        if (!success) {
-          setPlayState(paidState);
-          setMessage(resultMessage);
-          setActiveEffect(null);
-          setActionMode("idle");
-          return;
-        }
-
-        setPlayState(nextState);
+      if (!paidResult.success) {
+        setMessage(paidResult.message);
         setActiveEffect(null);
-        setActionMode("idle");
-        setHoveredCard(null);
-        setMobilePreviewCard(null);
-        setMessage(resultMessage);
-        return;
-      }
-
-      const { nextState, success, message: resultMessage } = playHandCardToState(
-        playState,
-        handIndex
-      );
-
-      if (!success) {
-        setMessage(resultMessage);
-        setSelectedHandCardIndex(null);
         setActionMode("idle");
         return;
       }
 
       markActionStarted();
 
-      setPlayState(nextState);
+      const paidState = paidResult.nextState;
+
       setSelectedHandCardIndex(null);
-      setActionMode("idle");
-      setHandViewer(null);
+      setSelectedAttackerId(null);
+      setSelectedDonIds([]);
       setHoveredCard(null);
       setMobilePreviewCard(null);
+      setHandViewer(null);
 
+      if (firstStep.targetRules) {
+        const nextActiveEffect = {
+          effect,
+          sourceCardName: card.name || card.cardId || card.id,
+          stepIndex: 0,
+          workingState: paidState
+        };
+
+        setPlayState(paidState);
+        setActiveEffect(nextActiveEffect);
+        setActionMode("select_effect_target");
+
+        saveCurrentDailyProgress(paidState, {
+          activeEffect: nextActiveEffect,
+          actionMode: "select_effect_target",
+          selectedDonIds: [],
+          selectedHandCardIndex: null,
+          selectedAttackerId: null
+        });
+
+        setMessage(firstStep.prompt || `Selected ${card.name}. Choose a target.`);
+        return;
+      }
+
+      const { nextState, success, message: resultMessage } = applyEffectStep(
+        paidState,
+        firstStep,
+        null
+      );
+
+      if (!success) {
+        setPlayState(paidState);
+        setMessage(resultMessage);
+        setActiveEffect(null);
+        setActionMode("idle");
+        return;
+      }
+
+      setPlayState(nextState);
+      setActiveEffect(null);
+      setActionMode("idle");
+      setHoveredCard(null);
+      setMobilePreviewCard(null);
       setMessage(resultMessage);
       return;
     }
 
-    if (isCharacterCard(card)) {
-      if (!canAffordCard(playState.you, card)) {
-        setMessage(`Not enough active DON to play ${card.name}.`);
-        return;
-      }
+    const { nextState, success, message: resultMessage } = playHandCardToState(
+      playState,
+      handIndex
+    );
 
-      const nextSelectedIndex = selectedHandCardIndex === handIndex ? null : handIndex;
-
-      setSelectedHandCardIndex(nextSelectedIndex);
-      setSelectedAttackerId(null);
-      setActionMode(nextSelectedIndex === null ? "idle" : "play_hand_character");
-
-      setHandViewer(null);
-
-      setMessage(
-        nextSelectedIndex === null
-          ? ""
-          : `Selected ${card.name}. Click an empty character slot to play it.`
-      );
+    if (!success) {
+      setMessage(resultMessage);
+      setSelectedHandCardIndex(null);
+      setActionMode("idle");
       return;
     }
 
-    setMessage(`${card.name} cannot be played with the current rules yet.`);
-  };
+    markActionStarted();
+
+    setPlayState(nextState);
+    setSelectedHandCardIndex(null);
+    setActionMode("idle");
+    setHandViewer(null);
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
+
+    setMessage(resultMessage);
+    return;
+  }
+
+  if (isCharacterCard(card)) {
+    if (!canAffordCard(playState.you, card)) {
+      setMessage(`Not enough active DON to play ${card.name}.`);
+      return;
+    }
+
+    const nextSelectedIndex =
+      selectedHandCardIndex === handIndex ? null : handIndex;
+
+    setSelectedHandCardIndex(nextSelectedIndex);
+    setSelectedAttackerId(null);
+    setActionMode(nextSelectedIndex === null ? "idle" : "play_hand_character");
+
+    setHandViewer(null);
+
+    setMessage(
+      nextSelectedIndex === null
+        ? ""
+        : `Selected ${card.name}. Click an empty character slot to play it.`
+    );
+    return;
+  }
+
+  setMessage(`${card.name} cannot be played with the current rules yet.`);
+};
   const handleEmptyCharacterSlotClick = () => {
     if (hasWon || hasLost || hasConceded) return;
 
@@ -2253,6 +2280,49 @@ return true;
             <img src={hoveredCard.image} alt={hoveredCard.name} />
           </div>
         )}
+
+        {handActionChoice && (() => {
+  const card = handActionChoice.card;
+
+  return (
+    <div className="action-choice-overlay">
+      <div className="action-choice-card">
+        <h2>{card.name || card.cardId}</h2>
+        <p>Choose an action.</p>
+
+        <div className="action-choice-buttons">
+          <button
+            type="button"
+            onClick={() => {
+              const chosen = handActionChoice;
+
+              setHandActionChoice(null);
+
+              playChosenHandCard(
+                chosen.card,
+                chosen.handIndex
+              );
+            }}
+          >
+            Play
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setHandActionChoice(null);
+              setMessage("");
+              setHoveredCard(null);
+              setMobilePreviewCard(null);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+})()}
 
         {resultModalOpen && (
           <DailyResultModal
