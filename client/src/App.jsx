@@ -729,19 +729,41 @@ const handleOpponentDonTargetClick = (donOrId) => {
     if (hasWon || hasLost || hasConceded) return;
     if (handIndex == null || !playState) return;
 
-    if (isResolvingEffect) {
-      const currentStep = activeEffect.effect.steps[activeEffect.stepIndex];
+if (isResolvingEffect) {
+  const currentStepRaw = activeEffect.effect.steps[activeEffect.stepIndex];
 
-      setMessage(
-        currentStep?.prompt ||
-        "Finish resolving the current event effect before playing another card."
-      );
+  const currentStep = prepareEffectStepForResolution(
+    activeEffect,
+    currentStepRaw
+  );
 
-      setHandViewer(null);
-      setHoveredCard(null);
-      setMobilePreviewCard(null);
-      return;
-    }
+  const canTargetHand =
+    currentStep?.type === "hand_to_top_life" &&
+    currentStep?.targetRules?.zones?.includes("hand") &&
+    currentStep?.targetRules?.sides?.includes("you");
+
+  if (canTargetHand) {
+    handleEffectTargetClick({
+      instanceId: `you-hand-${handIndex}`,
+      id: handIndex
+    });
+
+    setHandViewer(null);
+    setHoveredCard(null);
+    setMobilePreviewCard(null);
+    return;
+  }
+
+  setMessage(
+    currentStep?.prompt ||
+    "Finish resolving the current effect before playing another card."
+  );
+
+  setHandViewer(null);
+  setHoveredCard(null);
+  setMobilePreviewCard(null);
+  return;
+}
 
     if (selectedDonIds.length > 0) {
       setMessage("Finish attaching DON first.");

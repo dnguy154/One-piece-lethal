@@ -1285,6 +1285,22 @@ export default function ScenarioBuilder() {
     addAbilityStep(step, abilityStepPlacement);
   };
 
+  const addAbilityRestandTargetStep = () => {
+  addAbilityStep(
+    {
+      id: `restand_target_${Date.now()}`,
+      type: "restand_target",
+      optional: effectStepOptional,
+      prompt: "Choose your leader or character to set as active.",
+      targetRules: {
+        sides: ["you"],
+        zones: ["leader", "board"]
+      }
+    },
+    abilityStepPlacement
+  );
+};
+
   const addAbilityGrantRushStep = () => {
     addAbilityStep(
       {
@@ -1452,6 +1468,23 @@ export default function ScenarioBuilder() {
       type: "life_to_hand",
       player: "you",
       optional: effectStepOptional
+    },
+    abilityStepPlacement
+  );
+};
+
+const addAbilityHandToTopLifeStep = () => {
+  addAbilityStep(
+    {
+      id: `hand_to_top_life_${Date.now()}`,
+      type: "hand_to_top_life",
+      player: "you",
+      optional: effectStepOptional,
+      prompt: "Choose 1 card from your hand to place on top of your life face up.",
+      targetRules: {
+        sides: ["you"],
+        zones: ["hand"]
+      }
     },
     abilityStepPlacement
   );
@@ -2632,6 +2665,12 @@ module.exports = scenario;
               : ""}
           </>
         ) : null}
+        {step.type === "restand_target" ? (
+  <>
+    {" - Set active"}
+    {" - Your leader/character"}
+  </>
+) : null}
         {step.type === "trash_to_hand" ? (
           <>
             {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
@@ -2683,6 +2722,12 @@ module.exports = scenario;
         {step.type === "life_to_hand" ? (
   <>
     {" - Take top life to hand"}
+    {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
+  </>
+) : null}
+{step.type === "hand_to_top_life" ? (
+  <>
+    {" - Put hand card to top life face up"}
     {` - ${step.player === "opponent" ? "Opponent" : "You"}`}
   </>
 ) : null}
@@ -3585,6 +3630,11 @@ module.exports = scenario;
                   <button onClick={addAbilityRestTargetStep}>
                     Add Rest Target
                   </button>
+                  <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityRestandTargetStep}>
+    Add Restand Leader / Character
+  </button>
+</div>
 
                   <button onClick={addAbilityReturnTargetToHandStep}>
                     Add Return Target to Hand
@@ -3881,6 +3931,22 @@ module.exports = scenario;
                     Add Play Top Life If
                   </button>
                 </div>
+                <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityLifeToHandStep}>
+    Add Top Life to Hand
+  </button>
+</div>
+
+<div className="builder-button-wrap" style={{ marginTop: "8px" }}>
+  <button onClick={addAbilityHandToTopLifeStep}>
+    Add Hand Card to Top Life Face Up
+  </button>
+</div>
+
+<small>
+  Use Hand Card to Top Life Face Up for On Play abilities that make you choose
+  a card from hand and place it on top of your life face up.
+</small>
                 <div className="builder-button-wrap" style={{ marginTop: "8px" }}>
   <button onClick={addAbilityLifeToHandStep}>
     Add Top Life to Hand

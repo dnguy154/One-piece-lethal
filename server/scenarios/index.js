@@ -14,6 +14,7 @@ const scenario13 = require("./scenario-13");
 const scenario14 = require("./scenario-14");
 const scenario15 = require("./scenario-15");
 const scenario16 = require("./scenario-16");
+const scenario17 = require("./scenario-17");
 
 const scenarios = [
   scenario1,
@@ -31,7 +32,8 @@ const scenarios = [
   scenario13,
   scenario14,
   scenario15,
-  scenario16
+  scenario16,
+  scenario17
 
   
 

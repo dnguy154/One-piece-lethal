@@ -1,49 +1,58 @@
+import { shouldUseHoverPreview } from "../utils/device";
+
 export default function LifeStack({
   lifeCards,
   revealCards = false,
   setHoveredCard
 }) {
-  const count = Array.isArray(lifeCards)
-    ? lifeCards.length
-    : Number(lifeCards) || 0;
-
   const cards = Array.isArray(lifeCards)
     ? lifeCards
-    : Array.from({ length: count });
+    : Array.from({ length: Number(lifeCards) || 0 }).map(() => null);
+
+  const handleMouseEnter = (card, isRevealed) => {
+    if (!card || !isRevealed) return;
+    if (!shouldUseHoverPreview()) return;
+
+    setHoveredCard?.(card);
+  };
+
+  const handleMouseLeave = () => {
+    if (!shouldUseHoverPreview()) return;
+
+    setHoveredCard?.(null);
+  };
 
   return (
     <div className="life-stack">
       {cards.map((card, index) => {
-        const canReveal = revealCards && card?.image;
+        const isFaceUp = !!card?.faceUp || !!card?.isFaceUp;
+        const shouldReveal = revealCards || isFaceUp;
+
+        const imageSrc =
+          shouldReveal && card?.image
+            ? card.image
+            : "/images/card_back.png";
 
         return (
           <div
-            key={card?.instanceId || index}
+            key={card?.instanceId || `life-${index}`}
             className="life-card"
-            style={{
-              top: `${index * 20}px`,
-              zIndex: index + 1
-            }}
-            onMouseEnter={() => {
-              if (canReveal) setHoveredCard?.(card);
-            }}
-            onMouseLeave={() => {
-              if (canReveal) setHoveredCard?.(null);
-            }}
+style={{
+  top: `${index * 20}px`,
+  zIndex: cards.length - index
+}}
+            onMouseEnter={() => handleMouseEnter(card, shouldReveal)}
+            onMouseLeave={handleMouseLeave}
           >
-            {canReveal ? (
-              <img
-                src={card.image}
-                className="life-card-inner"
-                alt={card.name}
-              />
-            ) : (
-              <img
-                src="/images/card_back.png"
-                className="life-card-inner"
-                alt="Life card"
-              />
-            )}
+            <img
+              src={imageSrc}
+              className="life-card-inner"
+              alt={
+                shouldReveal
+                  ? card?.name || card?.cardId || "Face up life"
+                  : "Life card"
+              }
+            />
           </div>
         );
       })}
