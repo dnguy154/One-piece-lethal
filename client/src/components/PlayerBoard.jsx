@@ -54,7 +54,13 @@ export default function PlayerBoard({
            <Zone title="Leader" className="leader-zone compact-zone">
   <div className="leader-with-life">
     <div className="leader-life-slot">
-      <LifeStack lifeCards={data.life} setHoveredCard={setHoveredCard} />
+<LifeStack
+  lifeCards={data.life}
+  revealCards={false}
+  setHoveredCard={setHoveredCard}
+  onMobilePreview={onMobilePreview}
+  onMobilePreviewClose={onMobilePreviewClose}
+/>
     </div>
 
     <CardTile

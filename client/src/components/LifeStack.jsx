@@ -3,7 +3,9 @@ import { shouldUseHoverPreview } from "../utils/device";
 export default function LifeStack({
   lifeCards,
   revealCards = false,
-  setHoveredCard
+  setHoveredCard,
+  onMobilePreview,
+  onMobilePreviewClose
 }) {
   const cards = Array.isArray(lifeCards)
     ? lifeCards
@@ -13,7 +15,8 @@ export default function LifeStack({
     if (!card || !isRevealed) return;
     if (!shouldUseHoverPreview()) return;
 
-    setHoveredCard?.(card);
+console.log("Hovering life card:", card);
+setHoveredCard?.(card);
   };
 
   const handleMouseLeave = () => {
@@ -25,7 +28,9 @@ export default function LifeStack({
   return (
     <div className="life-stack">
       {cards.map((card, index) => {
-        const isFaceUp = !!card?.faceUp || !!card?.isFaceUp;
+        const isFaceUp =
+          !!card?.faceUp || !!card?.isFaceUp || !!card?.revealed;
+
         const shouldReveal = revealCards || isFaceUp;
 
         const imageSrc =
@@ -36,13 +41,25 @@ export default function LifeStack({
         return (
           <div
             key={card?.instanceId || `life-${index}`}
-            className="life-card"
-style={{
-  top: `${index * 20}px`,
-  zIndex: cards.length - index
-}}
+            className={`life-card ${shouldReveal ? "face-up-life" : "face-down-life"}`}
+            style={{
+              top: `${index * 20}px`,
+              zIndex: cards.length - index
+            }}
             onMouseEnter={() => handleMouseEnter(card, shouldReveal)}
             onMouseLeave={handleMouseLeave}
+            onTouchStart={() => {
+              if (!card || !shouldReveal) return;
+
+              setHoveredCard?.(null);
+              onMobilePreview?.(card);
+            }}
+            onTouchEnd={() => {
+              onMobilePreviewClose?.();
+            }}
+            onTouchCancel={() => {
+              onMobilePreviewClose?.();
+            }}
           >
             <img
               src={imageSrc}

@@ -152,11 +152,13 @@ function App() {
         event.clientY
       );
 
-      const isOverCard = elementUnderMouse?.closest?.(".card-tile");
+const isOverPreviewableCard = elementUnderMouse?.closest?.(
+  ".card-tile, .life-card"
+);
 
-      if (!isOverCard) {
-        setHoveredCard(null);
-      }
+if (!isOverPreviewableCard) {
+  setHoveredCard(null);
+}
     };
 
     window.addEventListener("mousemove", clearPreviewWhenNotOverCard);

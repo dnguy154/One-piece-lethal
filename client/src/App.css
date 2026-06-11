@@ -248,10 +248,29 @@ button:disabled {
   min-width: var(--life-col-w);
   height: 1px;
   overflow: visible;
-  pointer-events: none;
+  pointer-events: auto;
   transform: none;
+  
+}
+.life-card {
+  position: absolute;
+  left: 0;
+  cursor: default;
+  pointer-events: auto;
 }
 
+.life-card.face-up-life {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.life-card.face-up-life:hover {
+  z-index: 50;
+}
+
+.life-card.face-up-life:hover .life-card-inner {
+  filter: brightness(1.08);
+}
 .playmat,
 .compact-playmat,
 .mid-row,

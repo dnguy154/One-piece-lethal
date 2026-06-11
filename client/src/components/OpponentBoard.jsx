@@ -63,11 +63,13 @@ export default function OpponentBoard({
             <Zone title="Leader" className="leader-zone compact-zone">
                 <div className="leader-with-life">
     <div className="leader-life-slot">
-      <LifeStack
-        lifeCards={data.life}
-        revealCards={visibility.showOpponentLife}
-        setHoveredCard={setHoveredCard}
-      />
+<LifeStack
+  lifeCards={data.life}
+  revealCards={visibility?.showOpponentLife}
+  setHoveredCard={setHoveredCard}
+  onMobilePreview={onMobilePreview}
+  onMobilePreviewClose={onMobilePreviewClose}
+/>
     </div>
               <CardTile
                 card={data.leader || null}
